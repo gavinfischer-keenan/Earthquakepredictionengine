@@ -170,16 +170,106 @@ async def console_status_hook(status: EngineStatus) -> None:
     )
 
 
+# ===================================================================
+# 5. MQTT Message Bus  ── multi-agent home intelligence architecture
+# ===================================================================
+# MQTT is the backbone for the broader home intelligence platform.
+# Multiple AI agents publish to topic namespaces; multiple consumers
+# subscribe.  The topic schema follows:
+#
+#   home/alerts/{agent}        — urgent alerts (earthquake, fire, intrusion)
+#   home/status/{agent}        — health/heartbeat (earthquake-engine, birdnet)
+#   home/sensors/{agent}       — continuous telemetry (RSAM, bird detections)
+#   home/events/{agent}        — confirmed events (earthquakes, bird sightings)
+#   home/commands/{target}     — outbound commands (alexa-say, display-mode)
+#
+# This hook publishes to the first two.  Future agents (birdnet, cameras)
+# will follow the same schema.
+#
+# Requires: pip install paho-mqtt  (optional dependency)
+
+MQTT_BROKER: str = os.getenv("MQTT_BROKER", "localhost")
+MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
+MQTT_TOPIC_ALERTS: str = os.getenv("MQTT_TOPIC_ALERTS", "home/alerts/earthquake")
+MQTT_TOPIC_STATUS: str = os.getenv("MQTT_TOPIC_STATUS", "home/status/earthquake-engine")
+MQTT_TOPIC_EVENTS: str = os.getenv("MQTT_TOPIC_EVENTS", "home/events/earthquake")
+MQTT_TOPIC_COMMANDS: str = os.getenv("MQTT_TOPIC_COMMANDS", "home/commands/display")
+MQTT_ENABLED: bool = os.getenv("MQTT_ENABLED", "false").lower() in ("true", "1", "yes")
+
+_mqtt_client = None
+
+
+def _get_mqtt_client():
+    """Lazy-init MQTT client.  Returns None if paho-mqtt is not installed."""
+    global _mqtt_client
+    if _mqtt_client is not None:
+        return _mqtt_client
+    try:
+        import paho.mqtt.client as mqtt  # type: ignore[import-untyped]
+        _mqtt_client = mqtt.Client(
+            client_id="eqengine",
+            protocol=mqtt.MQTTv311,
+        )
+        _mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+        _mqtt_client.loop_start()
+        log.info(
+            "dispatcher.mqtt_connected",
+            broker=MQTT_BROKER,
+            port=MQTT_PORT,
+        )
+        return _mqtt_client
+    except ImportError:
+        log.warning("dispatcher.mqtt_unavailable", reason="paho-mqtt not installed")
+        return None
+    except Exception:
+        log.exception("dispatcher.mqtt_connect_failed")
+        return None
+
+
+async def mqtt_alert_hook(alert: EarthquakeAlert) -> None:
+    """Publish alert to MQTT topic ``home/alerts/earthquake``."""
+    client = _get_mqtt_client()
+    if client is None:
+        return
+    payload = json.dumps(alert.model_dump(), default=str)
+    client.publish(MQTT_TOPIC_ALERTS, payload, qos=1, retain=False)
+    # Also publish a display command so any listener knows to show the alert
+    client.publish(MQTT_TOPIC_COMMANDS, json.dumps({
+        "command": "earthquake_alert",
+        "message": "EARTHQUAKE EXPECTED",
+        "severity": alert.severity,
+        "magnitude": alert.estimated_magnitude,
+    }), qos=1, retain=False)
+    log.debug(
+        "dispatcher.mqtt_alert_sent",
+        topic=MQTT_TOPIC_ALERTS,
+        alert_id=alert.alert_id,
+    )
+
+
+async def mqtt_status_hook(status: EngineStatus) -> None:
+    """Publish engine status to MQTT topic ``home/status/earthquake-engine``."""
+    client = _get_mqtt_client()
+    if client is None:
+        return
+    payload = json.dumps(status.model_dump(), default=str)
+    client.publish(MQTT_TOPIC_STATUS, payload, qos=0, retain=True)
+
+
 # ---------------------------------------------------------------------------
 # Auto-register built-in hooks on module import
 # ---------------------------------------------------------------------------
 def _register_defaults() -> None:
-    """Register the three built-in alert hooks and two status hooks."""
+    """Register built-in hooks.  MQTT hooks only if MQTT_ENABLED=true."""
     register_hook(dashboard_hook)
     register_hook(log_hook)
     register_hook(console_hook)
     register_status_hook(dashboard_status_hook)
     register_status_hook(console_status_hook)
+    if MQTT_ENABLED:
+        register_hook(mqtt_alert_hook)
+        register_status_hook(mqtt_status_hook)
+        log.info("dispatcher.mqtt_hooks_enabled")
 
 
 _register_defaults()
