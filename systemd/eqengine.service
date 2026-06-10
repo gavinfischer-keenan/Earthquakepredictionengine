@@ -1,0 +1,28 @@
+[Unit]
+Description=Earthquake Prediction Engine
+Documentation=https://github.com/gavinfischer-keenan/EarthquakePredictionEngine
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eqengine
+Group=eqengine
+WorkingDirectory=/opt/eqengine
+EnvironmentFile=/opt/eqengine/.env
+ExecStart=/opt/eqengine/venv/bin/eqengine
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eqengine
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/eqengine/events
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

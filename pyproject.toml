@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eqengine"
+version = "0.1.0"
+description = "Real-time earthquake early warning system for Raspberry Shake RS4D seismometers."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+keywords = ["seismology", "earthquake", "early-warning", "raspberry-shake", "RS4D"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "obspy>=1.4.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pydantic>=2.0",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "structlog>=24.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "seisbench>=0.7",
+    "torch>=2.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+eqengine = "eqengine.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
