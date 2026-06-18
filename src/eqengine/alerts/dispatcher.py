@@ -228,6 +228,9 @@ def _get_mqtt_client():
 
 async def mqtt_alert_hook(alert: EarthquakeAlert) -> None:
     """Publish alert to MQTT topic ``home/alerts/earthquake``."""
+    # Skip alerts classified as "ignore" severity
+    if alert.severity == "ignore":
+        return
     client = _get_mqtt_client()
     if client is None:
         return
@@ -239,10 +242,33 @@ async def mqtt_alert_hook(alert: EarthquakeAlert) -> None:
         "message": "EARTHQUAKE EXPECTED",
         "severity": alert.severity,
         "magnitude": alert.estimated_magnitude,
+        "distance_miles": alert.distance_miles,
+        "distance_class": alert.distance_class,
+        "data_source": alert.data_source,
     }), qos=1, retain=False)
     log.debug(
         "dispatcher.mqtt_alert_sent",
         topic=MQTT_TOPIC_ALERTS,
+        alert_id=alert.alert_id,
+    )
+
+
+async def mqtt_event_hook(alert: EarthquakeAlert) -> None:
+    """Publish confirmed/expired events to ``home/events/earthquake``.
+
+    This enables BerkeleyAlarms auto-resolve: when the event is confirmed
+    or expires, a message on this topic triggers alarm resolution.
+    """
+    if alert.status not in ("confirmed", "expired"):
+        return
+    client = _get_mqtt_client()
+    if client is None:
+        return
+    payload = json.dumps(alert.model_dump(), default=str)
+    client.publish(MQTT_TOPIC_EVENTS, payload, qos=1, retain=False)
+    log.debug(
+        "dispatcher.mqtt_event_published",
+        topic=MQTT_TOPIC_EVENTS,
         alert_id=alert.alert_id,
     )
 
@@ -268,6 +294,7 @@ def _register_defaults() -> None:
     register_status_hook(console_status_hook)
     if MQTT_ENABLED:
         register_hook(mqtt_alert_hook)
+        register_hook(mqtt_event_hook)
         register_status_hook(mqtt_status_hook)
         log.info("dispatcher.mqtt_hooks_enabled")
 

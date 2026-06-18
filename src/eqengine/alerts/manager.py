@@ -53,6 +53,10 @@ class AlertManager:
         magnitude_est: float | None,
         ml_result: Any | None,
         config: Any,
+        *,
+        distance_km: float | None = None,
+        usgs_event: dict | None = None,
+        data_source: str = "rs4d",
     ) -> EarthquakeAlert:
         """Build and register a new :class:`EarthquakeAlert`.
 
@@ -60,35 +64,77 @@ class AlertManager:
         ----------
         trigger:
             Trigger event object (duck-typed: needs ``on_time``,
-            ``sta_lta_ratio``, ``channel``).
+            ``sta_lta_ratio``, ``channel``).  Can be ``None`` for
+            USGS-only alerts with no local RS4D trigger.
         magnitude_est:
             Estimated local magnitude, or ``None``.
         ml_result:
             Optional :class:`MLPickResult` from the ML picker.
         config:
             Engine configuration object (needs ``station``, ``detection_method``).
+        distance_km:
+            Distance from station in km (from S-P or USGS).
+        usgs_event:
+            Optional USGS event dict from the poller's correlation.
+        data_source:
+            One of ``"rs4d"``, ``"usgs"``, or ``"fused"``.
 
         Returns
         -------
         EarthquakeAlert
-            Fully populated alert, already stored in the active set.
+            Fully populated alert, already stored in the active set
+            (unless severity is ``"ignore"``).
         """
         now = time.time()
-        severity = EarthquakeAlert.classify_severity(magnitude_est)
+
+        # Use USGS magnitude if fused and available
+        magnitude = magnitude_est
+        if usgs_event and data_source == "fused":
+            magnitude = usgs_event.get("magnitude", magnitude_est)
+
+        # Distance-aware severity classification
+        severity = EarthquakeAlert.classify_severity(magnitude, distance_km)
+
+        # Distance conversion and classification
+        distance_miles = (
+            round(distance_km * 0.621371, 1) if distance_km is not None else None
+        )
+        distance_class = EarthquakeAlert.classify_distance_km(distance_km)
+        mag_class = EarthquakeAlert.classify_magnitude(magnitude)
 
         alert = EarthquakeAlert(
             severity=severity,
             timestamp=now,
-            p_wave_time=trigger.on_time,
-            sta_lta_ratio=trigger.sta_lta_ratio,
+            p_wave_time=trigger.on_time if trigger else now,
+            sta_lta_ratio=trigger.sta_lta_ratio if trigger else 0.0,
             ml_confidence=(
                 ml_result.p_probability if ml_result is not None else None
             ),
             detection_method=getattr(config, "detection_method", "classic_sta_lta"),
-            estimated_magnitude=magnitude_est,
+            estimated_magnitude=magnitude,
+            estimated_distance_km=distance_km,
             station=getattr(config, "station", "UNKNOWN"),
-            channel=getattr(trigger, "channel", "EHZ"),
+            channel=getattr(trigger, "channel", "EHZ") if trigger else "EHZ",
+            distance_miles=distance_miles,
+            distance_class=distance_class,
+            mag_class=mag_class,
+            usgs_event_id=usgs_event.get("id") if usgs_event else None,
+            usgs_magnitude=usgs_event.get("magnitude") if usgs_event else None,
+            place=usgs_event.get("place") if usgs_event else None,
+            data_source=data_source,
         )
+        alert.tts_message = alert.generate_tts_message()
+
+        # Skip ignore-severity alerts — return but don't track
+        if severity == "ignore":
+            log.info(
+                "alert.ignored",
+                magnitude=magnitude,
+                distance_km=distance_km,
+                mag_class=mag_class,
+                distance_class=distance_class,
+            )
+            return alert
 
         self._active[alert.alert_id] = alert
         self._history.append(alert)
@@ -99,7 +145,10 @@ class AlertManager:
             "alert.created",
             alert_id=alert.alert_id,
             severity=severity,
-            magnitude=magnitude_est,
+            magnitude=magnitude,
+            distance_km=distance_km,
+            distance_class=distance_class,
+            data_source=data_source,
         )
         return alert
 

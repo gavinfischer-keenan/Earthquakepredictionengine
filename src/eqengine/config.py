@@ -158,6 +158,30 @@ class Settings(BaseSettings):
     alert_cooldown_sec: Annotated[float, Field(ge=0)] = 30.0
     """Minimum seconds between successive alerts."""
 
+    # -- USGS enrichment -----------------------------------------------------
+    usgs_enabled: bool = Field(
+        default=True,
+        description="Enable USGS GeoJSON API polling for event correlation.",
+    )
+    usgs_poll_interval_sec: Annotated[float, Field(gt=0)] = 60.0
+    """Seconds between USGS API polls."""
+
+    usgs_feed_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"
+    """USGS GeoJSON feed URL."""
+
+    usgs_min_magnitude: float = Field(default=1.0, ge=0.0)
+    """Minimum magnitude to process from USGS feed."""
+
+    # -- Distance thresholds (km) -------------------------------------------
+    distance_local_km: float = Field(default=80.0, gt=0)
+    """Events closer than this are LOCAL (~50 miles)."""
+
+    distance_regional_km: float = Field(default=240.0, gt=0)
+    """Events closer than this are REGIONAL (~150 miles)."""
+
+    distance_state_km: float = Field(default=640.0, gt=0)
+    """Events closer than this are STATE (~400 miles)."""
+
     # -- Telemetry -----------------------------------------------------------
     heartbeat_interval_sec: Annotated[float, Field(gt=0)] = 60.0
     """Seconds between heartbeat/status messages."""
