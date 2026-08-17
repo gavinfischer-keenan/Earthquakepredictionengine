@@ -776,16 +776,14 @@
       ctx.shadowBlur = 3;
       ctx.beginPath();
 
-      // If buffer is still filling on startup, align to right side
-      const xOffset = nVisible < numSamples ? ((numSamples - nVisible) / (numSamples - 1)) * w : 0;
-      const xSpan = w - xOffset;
+      const xSpan = Math.max(w - 24, 10);
 
       for (let i = 0; i < nVisible; i++) {
-        const x = xOffset + (i / Math.max(nVisible - 1, 1)) * xSpan;
+        const x = (i / Math.max(nVisible - 1, 1)) * xSpan;
         const val = filtered[i];
         const normalizedY = (val / maxVal);
-        const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
-        const y = h / 2 - clampedY * (h / 2) * 0.88;
+        const clampedY = Math.max(-0.95, Math.min(0.95, normalizedY));
+        const y = h / 2 - clampedY * (h / 2) * 0.85;
 
         if (i === 0) {
           ctx.moveTo(x, y);
