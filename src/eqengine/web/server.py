@@ -17,7 +17,7 @@ from typing import Any
 import structlog
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from eqengine import __version__
@@ -117,14 +117,15 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
     @app.get("/api/helicorder/latest")
     async def get_latest_helicorder(channel: str = "EHZ") -> Response:
         """Fetch the official high-resolution 24-hour Helicorder drum plot directly from Raspberry Shake."""
-        shake_host = config.shake_host
+        shake_host = config.shake_ip
+        station = config.shake_station
         try:
             import httpx
             import re
             async with httpx.AsyncClient(timeout=5.0) as client:
                 res = await client.get(f"http://{shake_host}/heli/")
                 if res.status_code == 200:
-                    pattern = rf'href=[\"\']({config.station}_{channel.upper()}[^\"\']+\.gif)[^\"\']*[\"\']'
+                    pattern = rf'href=[\"\']({station}_{channel.upper()}[^\"\']+\.gif)[^\"\']*[\"\']'
                     matches = re.findall(pattern, res.text)
                     if matches:
                         img_filename = matches[0]

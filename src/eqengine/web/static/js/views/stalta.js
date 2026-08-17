@@ -378,6 +378,16 @@ export function renderStaLta() {
         rsamBadge.innerHTML = `RSAM: <b>${Math.round(curRsamRms)} counts RMS</b> · ${rsamStatusText}`;
         rsamBadge.style.color = curMultiplier >= 5.0 ? '#ef4444' : curMultiplier >= 2.0 ? '#f59e0b' : '#00d2ff';
       }
+
+      // 2g. Top Legend Swatches
+      ctx.font = '8px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#00d2ff';
+      ctx.fillText('■ Quiet (<1.2x)', padL + pW - 140, padT + 12);
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText('■ Normal (1.2-2x)', padL + pW - 65, padT + 12);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('■ Elevated (2x+)', padL + pW, padT + 12);
     }
   }
 }

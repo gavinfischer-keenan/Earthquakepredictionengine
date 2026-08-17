@@ -7,7 +7,7 @@
  *    - Auto-refreshes every 60 seconds.
  * 2. 🎛️ Live Dynamic Canvas:
  *    - Real-time continuous multi-sample seismic waveform drum with Scale Exaggeration multiplier,
- *      channel selector, and live wriggling stylus needle.
+ *      channel selector, and live wriggling stylus needle on true recorded data (zero dummy data).
  */
 
 import { state } from '../state.js';
@@ -55,24 +55,25 @@ export function renderHelicorder() {
   const liveImg = document.getElementById('heliLiveImage');
 
   // =========================================================================
-  // Mode 1: 📸 Direct Station Drum Plot
+  // Mode 1: 📸 Direct Station Drum Plot (100% Real Hardware Drum Image)
   // =========================================================================
   if (mode === 'drum') {
     if (imgContainer) imgContainer.style.display = 'flex';
     if (canvas) canvas.style.display = 'none';
 
-    // Auto-refresh drum image every 60 seconds or on channel change
     const nowMs = Date.now();
-    if (liveImg && (nowMs - lastHeliImgRefresh > 60000 || lastSelectedChannel !== activeChannel)) {
-      liveImg.src = `/api/helicorder/latest?channel=${activeChannel}&t=${nowMs}`;
-      lastHeliImgRefresh = nowMs;
-      lastSelectedChannel = activeChannel;
+    if (liveImg) {
+      if (!liveImg.src || liveImg.src.indexOf('/api/helicorder/latest') === -1 || nowMs - lastHeliImgRefresh > 60000 || lastSelectedChannel !== activeChannel) {
+        liveImg.src = `/api/helicorder/latest?channel=${activeChannel}&t=${nowMs}`;
+        lastHeliImgRefresh = nowMs;
+        lastSelectedChannel = activeChannel;
+      }
     }
     return;
   }
 
   // =========================================================================
-  // Mode 2: 🎛️ Live Dynamic Canvas
+  // Mode 2: 🎛️ Live Dynamic Canvas (Pure Real Data — Zero Dummy Sine Waves)
   // =========================================================================
   if (imgContainer) imgContainer.style.display = 'none';
   if (!canvas) return;
@@ -183,6 +184,7 @@ export function renderHelicorder() {
     ctx.fillStyle = isCurrentHour ? '#00ff88' : isPastHour ? '#94a3b8' : '#334155';
     ctx.fillText(localLabel, leftGutter + traceW + 6, centerY + 3);
 
+    // Row baseline axis
     ctx.strokeStyle = isCurrentHour ? 'rgba(0, 255, 136, 0.3)' : 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -190,70 +192,35 @@ export function renderHelicorder() {
     ctx.lineTo(leftGutter + traceW, centerY);
     ctx.stroke();
 
-    // 3. Draw Continuous High-Density Waveform across the Hour
+    // 3. Draw Minute Peaks (Only for minutes with real recorded data in state.helicorderMinutePeaks)
     if (isPastHour || isCurrentHour) {
       const maxMinute = isCurrentHour ? currentUtcMin : 59;
       const rowStartTs = dayStartUtc + r * 3600;
 
-      const pointsPerMinute = 12;
-      const totalPoints = (maxMinute + 1) * pointsPerMinute;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(leftGutter, rowY - rowH * 0.5, traceW, rowH * 2.0);
-      ctx.clip();
-
-      ctx.strokeStyle = isCurrentHour ? traceHighlightColor : traceBaseColor;
-      ctx.lineWidth = 1.0;
-      ctx.beginPath();
-
-      let hasMoved = false;
-
-      for (let ptIdx = 0; ptIdx <= totalPoints; ptIdx++) {
-        const mFloat = ptIdx / pointsPerMinute;
-        const m = Math.floor(mFloat);
-        if (m > maxMinute) break;
-
-        const subM = ptIdx % pointsPerMinute;
-        const x = leftGutter + (mFloat / 60) * traceW;
+      for (let m = 0; m <= maxMinute; m++) {
         const minTs = rowStartTs + m * 60;
-
         const entry = state.helicorderMinutePeaks ? state.helicorderMinutePeaks[minTs] : null;
+        if (!entry || entry.count === 0) continue;
 
-        let isQuake = false;
-        if (state.triggers && state.triggers.length > 0) {
-          isQuake = state.triggers.some((t) => Math.abs((t.start_time || 0) - minTs) < 90);
-        }
+        const x = leftGutter + (m / 60) * traceW;
+        const nextX = leftGutter + ((m + 1) / 60) * traceW;
+        const segW = Math.max(nextX - x, 2);
 
-        let amp = 0;
-        if (entry && entry.count > 0) {
-          const mean = entry.sum / entry.count;
-          const peak = Math.max(Math.abs(entry.max - mean), Math.abs(mean - entry.min));
-          const wavePhase = Math.sin(ptIdx * 1.8) * Math.cos(ptIdx * 0.4);
-          amp = wavePhase * (peak / Math.max(baselineNoise, 10.0)) * (rowH * 0.12) * scaleMult;
-        } else {
-          const ambientWave = Math.sin(ptIdx * 1.57 + r * 13) * Math.sin(ptIdx * 0.3 + m);
-          const noiseFlutter = Math.sin(ptIdx * 3.7 + r * 7) * 0.4;
-          amp = (ambientWave + noiseFlutter) * (rowH * 0.08) * scaleMult;
-        }
+        const mean = entry.sum / entry.count;
+        const peakMax = Math.abs(entry.max - mean);
+        const peakMin = Math.abs(entry.min - mean);
 
-        if (isQuake) {
-          const quakeBurst = Math.sin(ptIdx * 2.5) * (1.0 - Math.abs(subM - 6) / 6.0);
-          amp += quakeBurst * (rowH * 0.9) * scaleMult;
-        }
+        const scale = (rowH * 0.15) / Math.max(baselineNoise, 10.0) * scaleMult;
+        const yTop = centerY - Math.min(peakMax * scale, rowH * 1.5);
+        const yBot = centerY + Math.min(peakMin * scale, rowH * 1.5);
 
-        const clampedAmp = Math.max(-rowH * 1.8, Math.min(rowH * 1.8, amp));
-        const y = centerY - clampedAmp;
-
-        if (!hasMoved) {
-          ctx.moveTo(x, y);
-          hasMoved = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
+        ctx.strokeStyle = isCurrentHour ? traceHighlightColor : traceBaseColor;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x + segW * 0.5, yTop);
+        ctx.lineTo(x + segW * 0.5, yBot);
+        ctx.stroke();
       }
-      ctx.stroke();
-      ctx.restore();
 
       // 4. Live Recording Stylus Needle (Current Hour Only)
       if (isCurrentHour) {
@@ -303,7 +270,7 @@ export function renderHelicorder() {
   ctx.lineWidth = 1;
   ctx.strokeRect(leftGutter, 0, traceW, numRows * rowH);
 
-  ctx.font = '8px JetBrains Mono, monospace';
+  ctx.font = '8.5px JetBrains Mono, monospace';
   ctx.fillStyle = '#64748b';
   ctx.textAlign = 'left';
   ctx.fillText('UTC', 12, 10);
