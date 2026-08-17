@@ -158,34 +158,57 @@ export function computeFFT256(samples) {
   return magnitudes;
 }
 
-/**
- * Color mapper for spectrogram waterfall (Inferno colormap)
- */
-export function getSpectrogramColor(value, gain = 1.0) {
-  const norm = Math.max(0, Math.min(1, (value * gain) / 100.0));
+// ---------------------------------------------------------------------------
+// Precomputed 256-level Inferno/Magma Geophysical Colormap
+// ---------------------------------------------------------------------------
+export const COLOR_LUT_RGBA_32 = new Uint32Array(256);
+export const COLOR_LUT_RGB_STR = new Array(256);
+
+for (let i = 0; i < 256; i++) {
+  const t = i / 255.0;
   let r = 0, g = 0, b = 0;
 
-  if (norm < 0.2) {
-    const t = norm / 0.2;
-    r = Math.floor(10 + t * 40);
-    g = Math.floor(5 + t * 10);
-    b = Math.floor(25 + t * 70);
-  } else if (norm < 0.45) {
-    const t = (norm - 0.2) / 0.25;
-    r = Math.floor(50 + t * 120);
-    g = Math.floor(15 + t * 20);
-    b = Math.floor(95 + t * 40);
-  } else if (norm < 0.75) {
-    const t = (norm - 0.45) / 0.3;
-    r = Math.floor(170 + t * 75);
-    g = Math.floor(35 + t * 135);
-    b = Math.floor(135 - t * 110);
+  if (t < 0.25) {
+    const k = t / 0.25;
+    r = Math.floor(8 + k * 55);
+    g = Math.floor(5 + k * 15);
+    b = Math.floor(20 + k * 95);
+  } else if (t < 0.55) {
+    const k = (t - 0.25) / 0.3;
+    r = Math.floor(63 + k * 135);
+    g = Math.floor(20 + k * 30);
+    b = Math.floor(115 - k * 55);
+  } else if (t < 0.85) {
+    const k = (t - 0.55) / 0.3;
+    r = Math.floor(198 + k * 54);
+    g = Math.floor(50 + k * 135);
+    b = Math.floor(60 - k * 35);
   } else {
-    const t = (norm - 0.75) / 0.25;
-    r = Math.floor(245 + t * 10);
-    g = Math.floor(170 + t * 85);
-    b = Math.floor(25 + t * 230);
+    const k = (t - 0.85) / 0.15;
+    r = Math.floor(252 + k * 3);
+    g = Math.floor(185 + k * 70);
+    b = Math.floor(25 + k * 215);
   }
 
-  return `rgb(${r},${g},${b})`;
+  // Pack as Little-Endian 0xAABBGGRR for direct 32-bit Uint32Array blitting
+  COLOR_LUT_RGBA_32[i] = (255 << 24) | (b << 16) | (g << 8) | r;
+  COLOR_LUT_RGB_STR[i] = `rgb(${r},${g},${b})`;
+}
+
+/**
+ * Fast lookup for 32-bit packed color from seismic power
+ */
+export function getMagColor32(mag, gain = 1.0) {
+  const db = 20.0 * Math.log10(Math.max(mag * gain, 0.05));
+  // Map 15 dB (ambient baseline ~6 counts) to 75 dB (intense ~6000 counts)
+  const norm = Math.max(0.0, Math.min(1.0, (db - 15.0) / 60.0));
+  const idx = Math.floor(norm * 255);
+  return COLOR_LUT_RGBA_32[idx];
+}
+
+export function getSpectrogramColor(value, gain = 1.0) {
+  const db = 20.0 * Math.log10(Math.max(value * gain, 0.05));
+  const norm = Math.max(0.0, Math.min(1.0, (db - 15.0) / 60.0));
+  const idx = Math.floor(norm * 255);
+  return COLOR_LUT_RGB_STR[idx];
 }
