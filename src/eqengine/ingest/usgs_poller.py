@@ -36,7 +36,7 @@ _DIST_REGIONAL_KM: float = 240.0  # ~150 miles
 _DIST_STATE_KM: float = 640.0     # ~400 miles
 
 # Dedup cache max size
-_MAX_SEEN_IDS: int = 5000
+_MAX_SEEN_IDS: int = 25000
 
 
 # ---------------------------------------------------------------------------
@@ -238,9 +238,9 @@ class USGSPoller:
 
     # ── public API ─────────────────────────────────────────────────────
 
-    def get_recent_events(self, max_age_sec: float = 300.0) -> list[dict[str, Any]]:
-        """Return events from the last *max_age_sec* seconds.
-
+    def get_recent_events(self, max_age_sec: float = 172800.0) -> list[dict[str, Any]]:
+        """Return events from the last *max_age_sec* seconds (default 48 hours).
+ 
         Returns
         -------
         list[dict]
@@ -357,6 +357,11 @@ class USGSPoller:
             theor_surf = event_time + travel["surface_travel_sec"]
             observable = is_observable_on_shake(mag, distance_km)
 
+            # Only store events within 500 miles, or observable/large teleseismic events
+            if distance_miles > 500.0 and not observable and (mag is None or mag < 5.5):
+                self._seen_ids.add(event_id)
+                continue
+
             event_record = {
                 "id": event_id,
                 "magnitude": mag,
@@ -401,9 +406,9 @@ class USGSPoller:
                 theor_p=theor_p,
             )
 
-        # Prune old events (keep last 2 hours)
-        cutoff = time.time() - 7200
-        self._recent_events = [e for e in self._recent_events if e["time"] >= cutoff]
+        # Prune old events (strictly retain full 48 hours = 172,800 seconds)
+        cutoff_48h = time.time() - 172800.0
+        self._recent_events = [e for e in self._recent_events if e["time"] >= cutoff_48h]
 
         # Prune seen IDs if too large
         if len(self._seen_ids) > _MAX_SEEN_IDS:

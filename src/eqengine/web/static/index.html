@@ -748,10 +748,22 @@
                 <span class="hud-val" style="color: #ef4444;">Hayward Fault Trace</span>
                 <span class="hud-sub">~400 meters West</span>
               </div>
-              <div class="radar-hud-card">
-                <span class="hud-label">EARTHQUAKES IN RADAR</span>
-                <span class="hud-val" id="radarQuakeCount">0 Events</span>
-                <span class="hud-sub">&lt;500 miles radius</span>
+              <div class="radar-hud-card" id="radarStatsCard">
+                <span class="hud-label">48-HR REGIONAL ACTIVITY (&lt;500 MI)</span>
+                <div class="radar-hud-stat-row">
+                  <span class="hud-val" id="radarQuakeCount">-- Events</span>
+                  <span class="radar-status-badge badge-normal" id="radarActivityBadge">🟢 NORMAL</span>
+                </div>
+                <div class="radar-hud-breakdown">
+                  <div class="radar-breakdown-item"><span>Max Mag (48h):</span> <b id="radarMaxMag" style="color: #38bdf8;">--</b></div>
+                  <div class="radar-breakdown-item"><span>Closest Quake:</span> <b id="radarClosestQuake" style="color: #00ff88;">--</b></div>
+                  <div class="radar-breakdown-divider"></div>
+                  <div class="radar-breakdown-item"><span>Normal 48h Rate:</span> <span class="text-muted">80 – 250 events</span></div>
+                  <div class="radar-breakdown-item"><span>Normal Mag Range:</span> <span class="text-muted">M 1.0 – M 3.2</span></div>
+                </div>
+                <span class="hud-sub" id="radarWeirdAlert" style="margin-top: 4px; font-size: 10px; color: #22c55e;">
+                  Seismicity within normal California background range
+                </span>
               </div>
             </div>
           </div>

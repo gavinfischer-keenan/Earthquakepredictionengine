@@ -182,10 +182,10 @@ class Settings(BaseSettings):
     usgs_poll_interval_sec: Annotated[float, Field(gt=0)] = 60.0
     """Seconds between USGS API polls."""
 
-    usgs_feed_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"
-    """USGS GeoJSON feed URL."""
+    usgs_feed_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_week.geojson"
+    """USGS GeoJSON feed URL (7-day all magnitudes feed for 48h regional radar)."""
 
-    usgs_min_magnitude: float = Field(default=1.0, ge=0.0)
+    usgs_min_magnitude: float = Field(default=0.5, ge=0.0)
     """Minimum magnitude to process from USGS feed."""
 
     # -- Distance thresholds (km) -------------------------------------------

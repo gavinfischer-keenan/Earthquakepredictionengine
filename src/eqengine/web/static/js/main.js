@@ -13,7 +13,7 @@ import { renderHodogram } from './views/hodogram.js';
 import { renderUrbanProfiler } from './views/urban.js';
 import { renderPhaseNet } from './views/phasenet.js';
 import { renderPetersonCurve } from './views/peterson.js';
-import { initRadarMap, updateRadarMap } from './views/radar.js';
+import { initRadarMap, updateRadarMap, fetchRadarEvents } from './views/radar.js';
 import { loadHistoricalSeismograph, initReviewStudioListeners } from './views/review_studio.js';
 import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/tables.js';
 
@@ -95,6 +95,7 @@ function initTabNavigation() {
       loadHistoricalSeismograph();
     } else if (tabName === 'radar') {
       initRadarMap();
+      fetchRadarEvents();
       setTimeout(updateRadarMap, 100);
     }
   });
@@ -191,5 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initTableListeners();
   initReviewStudioListeners();
   connectWebSocket();
+  fetchRadarEvents();
   requestAnimationFrame(mainLoop);
 });

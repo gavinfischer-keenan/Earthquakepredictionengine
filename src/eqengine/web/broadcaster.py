@@ -30,7 +30,7 @@ class WaveformBroadcaster:
         self._lock = asyncio.Lock()
         self._event_history: deque[dict[str, Any]] = deque(maxlen=max_history)
         self._alert_history: deque[dict[str, Any]] = deque(maxlen=max_history)
-        self._usgs_history: deque[dict[str, Any]] = deque(maxlen=100)
+        self._usgs_history: deque[dict[str, Any]] = deque(maxlen=1000)
         self._last_status: dict[str, Any] | None = None
         self._latest_ratios: dict[str, float] = {}
 
