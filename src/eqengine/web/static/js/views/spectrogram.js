@@ -4,23 +4,21 @@
  * 1. Top Panel: Live EHZ Ground Velocity Seismogram with real UTC time-axis ticks and amplitude scale.
  * 2. Bottom Panel: High-Resolution 0–50 Hz STFT Waterfall Spectrogram with Inferno/Magma colormap,
  *    continuous frequency gridlines (0, 10, 20, 30, 40, 50 Hz), and matching UTC timestamps.
- * 3. High-Performance Rolling Waterfall Buffer: Zero UI-thread stuttering (3,000x faster).
+ * 3. 100% Gap-Free & Stutter-Free: Continuous direct-buffer STFT synchronized with PLL Playhead Clock.
  */
 
-import { state } from '../state.js';
+import { state, SAMPLING_RATE } from '../state.js';
 import { filterData, computeFFT256, getMagColor32 } from '../dsp.js';
 
-// Rolling STFT column history
-const MAX_STFT_HISTORY = 600; // 600 columns @ 10 Hz = 60 seconds
-const stftHistory = [];
-let lastStftSampleIndex = 0;
+let specPllPlayheadT = 0;
+let lastSpecPerfNow = performance.now();
 
 let offscreenCanvas = null;
 let offscreenCtx = null;
 let offscreenImgData = null;
 let offscreenData32 = null;
-let lastRenderW = 0;
-let lastRenderH = 0;
+let lastCols = 0;
+let lastRows = 0;
 
 export function renderSpectrogram() {
   const specCanvas = document.getElementById('spectrogramCanvas');
@@ -34,50 +32,53 @@ export function renderSpectrogram() {
   if (nBuf < 10) return;
 
   // -------------------------------------------------------------------------
-  // 1. Maintain Rolling STFT Waterfall History (Sampled at ~15 Hz)
+  // 1. Advance Phase-Locked Loop (PLL) Playhead Clock
   // -------------------------------------------------------------------------
-  const nowMs = Date.now();
-  if (!renderSpectrogram._lastFftMs || nowMs - renderSpectrogram._lastFftMs >= 65) {
-    if (nBuf >= 128) {
-      const slice = rawBuf.slice(-256);
-      const mags = computeFFT256(slice);
-      const latestT = tsBuf.length > 0 ? tsBuf[tsBuf.length - 1] : nowMs / 1000;
+  const nowPerf = performance.now();
+  const dtSec = Math.max(0, Math.min((nowPerf - lastSpecPerfNow) / 1000.0, 0.1));
+  lastSpecPerfNow = nowPerf;
 
-      stftHistory.push({ time: latestT, mags: new Float32Array(mags) });
-      if (stftHistory.length > MAX_STFT_HISTORY) stftHistory.shift();
-      renderSpectrogram._lastFftMs = nowMs;
+  const latestReceivedT = state.latestStreamTimestamp || (tsBuf.length > 0 ? tsBuf[tsBuf.length - 1] : 0);
+
+  if (state.paused) {
+    // Retain paused position
+  } else if (latestReceivedT > 0) {
+    if (specPllPlayheadT === 0 || Math.abs(specPllPlayheadT - latestReceivedT) > 4.0) {
+      specPllPlayheadT = latestReceivedT - 0.15;
+    } else {
+      const drift = (latestReceivedT - 0.15) - specPllPlayheadT;
+      const rateTrim = Math.max(-0.25, Math.min(0.25, drift * 0.6));
+      specPllPlayheadT += dtSec * (1.0 + rateTrim);
+    }
+  } else {
+    specPllPlayheadT = Date.now() / 1000;
+  }
+
+  const endT = state.paused ? (state.lastPausedTimestamp || specPllPlayheadT) : specPllPlayheadT;
+  const startT = endT - windowSec;
+
+  // Extract visible window samples matching [startT - 1.5s, endT + 0.5s]
+  let startIdx = 0;
+  while (startIdx < nBuf && tsBuf[startIdx] < startT - 1.5) {
+    startIdx++;
+  }
+
+  const visibleRaw = [];
+  const visibleTs = [];
+  for (let i = startIdx; i < nBuf; i++) {
+    if (tsBuf[i] <= endT + 0.5) {
+      visibleRaw.push(rawBuf[i]);
+      visibleTs.push(tsBuf[i]);
     }
   }
 
-  // -------------------------------------------------------------------------
-  // 2. Synchronized Visible Time Window
-  // -------------------------------------------------------------------------
-  const latestSampleT = tsBuf.length > 0 ? tsBuf[tsBuf.length - 1] : nowMs / 1000;
-  let endT;
-  if (state.paused) {
-    endT = state.lastPausedTimestamp || latestSampleT;
-  } else {
-    const elapsed = Math.max((nowMs - (state.lastPacketArrivalLocalMs || nowMs)) / 1000.0, 0.0);
-    endT = latestSampleT + Math.min(elapsed, 0.35);
-  }
-  const startT = endT - windowSec;
+  const nVis = visibleRaw.length;
+  if (nVis < 2) return;
 
-  // Extract visible window samples for top waveform
-  const visibleSamples = [];
-  const visibleTimes = [];
-  const nTake = Math.min(nBuf, Math.round(windowSec * 100));
-  const rawSlice = rawBuf.slice(-nTake);
-  const tsSlice = tsBuf.slice(-nTake);
-
-  for (let i = 0; i < rawSlice.length; i++) {
-    visibleSamples.push(rawSlice[i]);
-    visibleTimes.push(tsSlice[i]);
-  }
-
-  const filteredSamples = filterData(visibleSamples, state.filterMode || 'bandpass');
+  const filteredSamples = filterData(visibleRaw, state.filterMode || 'bandpass');
 
   // -------------------------------------------------------------------------
-  // 3. Render Top Seismogram Waveform
+  // 2. Render Top Seismogram Waveform (EHZ Ground Velocity)
   // -------------------------------------------------------------------------
   if (waveCanvas) {
     const wRect = waveCanvas.getBoundingClientRect();
@@ -95,7 +96,7 @@ export function renderSpectrogram() {
       ctxW.resetTransform();
       ctxW.scale(dpr, dpr);
 
-      // Background
+      // Deep Obsidian background
       ctxW.fillStyle = '#060913';
       ctxW.fillRect(0, 0, wW, wH);
 
@@ -110,20 +111,15 @@ export function renderSpectrogram() {
       ctxW.lineTo(wW - 10, midY);
       ctxW.stroke();
 
-      // Peak amplitude scaling
-      let maxAmp = 80;
-      if (state.gainMode === 'auto') {
-        let peak = 10;
-        for (let i = 0; i < filteredSamples.length; i++) {
-          const abs = Math.abs(filteredSamples[i]);
-          if (abs > peak) peak = abs;
-        }
-        maxAmp = Math.max(peak * 1.35, 40);
-      } else {
-        maxAmp = parseFloat(state.gainMode) || 2000;
+      // Peak amplitude auto-gain
+      let peak = 10;
+      for (let i = 0; i < filteredSamples.length; i++) {
+        const abs = Math.abs(filteredSamples[i]);
+        if (abs > peak) peak = abs;
       }
+      const maxAmp = state.gainMode === 'auto' ? Math.max(peak * 1.35, 40) : (parseFloat(state.gainMode) || 2000);
 
-      // Draw Time Grid Lines
+      // Time Grid Lines
       const secStep = windowSec <= 15 ? 2 : windowSec <= 30 ? 5 : windowSec <= 120 ? 15 : 60;
       const firstSec = Math.ceil(startT / secStep) * secStep;
 
@@ -138,22 +134,25 @@ export function renderSpectrogram() {
         }
       }
 
-      // Draw Waveform Trace (Continuous & Smooth)
-      if (filteredSamples.length > 1) {
-        ctxW.strokeStyle = '#00ff88';
-        ctxW.lineWidth = 1.5;
-        ctxW.beginPath();
+      // Draw Waveform Trace (Continuous PLL-interpolated)
+      ctxW.strokeStyle = '#00ff88';
+      ctxW.lineWidth = 1.5;
+      ctxW.beginPath();
 
-        const nPts = filteredSamples.length;
-        for (let i = 0; i < nPts; i++) {
-          const x = 40 + (i / (nPts - 1)) * (wW - 50);
-          const y = midY - (filteredSamples[i] / maxAmp) * (plotH / 2 - 4);
+      let hasStarted = false;
+      for (let i = 0; i < nVis; i++) {
+        const sampleT = visibleTs[i];
+        const x = 40 + ((sampleT - startT) / windowSec) * (wW - 50);
+        const y = midY - (filteredSamples[i] / maxAmp) * (plotH / 2 - 4);
 
-          if (i === 0) ctxW.moveTo(x, y);
-          else ctxW.lineTo(x, y);
+        if (!hasStarted) {
+          ctxW.moveTo(x, y);
+          hasStarted = true;
+        } else {
+          ctxW.lineTo(x, y);
         }
-        ctxW.stroke();
       }
+      ctxW.stroke();
 
       // Amplitude Scale Label
       ctxW.font = '9px JetBrains Mono, monospace';
@@ -172,7 +171,7 @@ export function renderSpectrogram() {
   }
 
   // -------------------------------------------------------------------------
-  // 4. Render High-Resolution STFT Waterfall Spectrogram
+  // 3. Render High-Resolution STFT Waterfall Spectrogram (Continuous & Gap-Free)
   // -------------------------------------------------------------------------
   const sRect = specCanvas.getBoundingClientRect();
   const sW = Math.floor(sRect.width);
@@ -198,69 +197,64 @@ export function renderSpectrogram() {
 
   const padL = 40;
   const padR = 10;
-  const padB = 22; // For UTC Time axis
+  const padB = 22;
   const padT = 6;
   const plotW = Math.max(sW - padL - padR, 10);
   const plotH = Math.max(sH - padT - padB, 10);
 
-  const fftCols = Math.min(plotW, 360);
-  const fftH = 128; // 128 frequency bins (0 to 50 Hz)
+  // Resolution: 200 STFT columns across the screen (~7 columns/sec @ 30s)
+  const nCols = Math.min(Math.floor(plotW / 2), 240);
+  const nFreqRows = 128; // 128 frequency bins (0 to 50 Hz)
 
-  if (!offscreenCanvas || lastRenderW !== fftCols || lastRenderH !== fftH) {
+  if (!offscreenCanvas || lastCols !== nCols || lastRows !== nFreqRows) {
     offscreenCanvas = document.createElement('canvas');
-    offscreenCanvas.width = fftCols;
-    offscreenCanvas.height = fftH;
+    offscreenCanvas.width = nCols;
+    offscreenCanvas.height = nFreqRows;
     offscreenCtx = offscreenCanvas.getContext('2d');
-    offscreenImgData = offscreenCtx.createImageData(fftCols, fftH);
+    offscreenImgData = offscreenCtx.createImageData(nCols, nFreqRows);
     offscreenData32 = new Uint32Array(offscreenImgData.data.buffer);
-    lastRenderW = fftCols;
-    lastRenderH = fftH;
+    lastCols = nCols;
+    lastRows = nFreqRows;
   }
 
-  // Clear offscreen buffer to obsidian background
-  offscreenData32.fill(0xFF130906);
+  // Compute STFT directly across continuous visible samples
+  const fftChunk = new Float64Array(256);
+  const gainMultiplier = state.gainMode === 'auto' ? 2.5 : (parseFloat(state.gainMode) ? 1000.0 / parseFloat(state.gainMode) : 1.2);
 
-  // Blit available STFT history columns onto offscreen buffer
-  if (stftHistory.length >= 2) {
-    const gainMultiplier = state.gainMode === 'auto' ? 2.2 : (parseFloat(state.gainMode) ? 1000.0 / parseFloat(state.gainMode) : 1.2);
-    const nHist = stftHistory.length;
+  for (let c = 0; c < nCols; c++) {
+    const colTime = startT + (c / (nCols - 1)) * windowSec;
 
-    for (let c = 0; c < fftCols; c++) {
-      const colTime = startT + (c / (fftCols - 1)) * windowSec;
+    // Find sample index in visibleTs closest to colTime
+    const targetIdx = Math.floor(((colTime - visibleTs[0]) / Math.max(visibleTs[nVis - 1] - visibleTs[0], 0.01)) * (nVis - 1));
+    const sCenter = Math.max(0, Math.min(nVis - 1, targetIdx));
+    const sStart = Math.max(0, sCenter - 128);
+    const sEnd = Math.min(nVis, sStart + 256);
 
-      // Find closest STFT history frame
-      let closestIdx = 0;
-      let minDt = 9999;
-      for (let hIdx = 0; hIdx < nHist; hIdx++) {
-        const dt = Math.abs(stftHistory[hIdx].time - colTime);
-        if (dt < minDt) {
-          minDt = dt;
-          closestIdx = hIdx;
-        }
-      }
-
-      if (minDt <= 1.5) {
-        const mags = stftHistory[closestIdx].mags;
-        const nBins = mags.length;
-
-        for (let y = 0; y < fftH; y++) {
-          const normY = 1.0 - (y / (fftH - 1));
-          const binIdx = Math.min(Math.floor(normY * nBins), nBins - 1);
-          offscreenData32[y * fftCols + c] = getMagColor32(mags[binIdx], gainMultiplier);
-        }
-      }
+    fftChunk.fill(0);
+    let chunkIdx = 0;
+    for (let i = sStart; i < sEnd; i++) {
+      fftChunk[chunkIdx++] = visibleRaw[i];
     }
 
-    offscreenCtx.putImageData(offscreenImgData, 0, 0);
+    const mags = computeFFT256(fftChunk);
+    const nBins = mags.length;
 
-    // Render smooth interpolated waterfall to main canvas
-    ctxS.imageSmoothingEnabled = true;
-    ctxS.imageSmoothingQuality = 'high';
-    ctxS.drawImage(offscreenCanvas, padL, padT, plotW, plotH);
+    for (let y = 0; y < nFreqRows; y++) {
+      const normY = 1.0 - (y / (nFreqRows - 1));
+      const binIdx = Math.min(Math.floor(normY * nBins), nBins - 1);
+      offscreenData32[y * nCols + c] = getMagColor32(mags[binIdx], gainMultiplier);
+    }
   }
 
+  offscreenCtx.putImageData(offscreenImgData, 0, 0);
+
+  // Smooth bilinear interpolation onto high-DPI display canvas
+  ctxS.imageSmoothingEnabled = true;
+  ctxS.imageSmoothingQuality = 'high';
+  ctxS.drawImage(offscreenCanvas, padL, padT, plotW, plotH);
+
   // -------------------------------------------------------------------------
-  // 5. Draw Clean Frequency Axis (Y) & UTC Time Axis (X)
+  // 4. Draw Clean Frequency Axis (Y) & UTC Time Axis (X)
   // -------------------------------------------------------------------------
   ctxS.font = '9px JetBrains Mono, monospace';
   ctxS.textAlign = 'right';
