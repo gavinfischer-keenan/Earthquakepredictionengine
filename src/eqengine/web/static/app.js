@@ -59,6 +59,12 @@
     mlSortDirection: 'desc',
     sessionStartTime: (Date.now() / 1000),
     helicorderMinutePeaks: {},
+    fourMinStats: {
+      EHZ: { baselineAmp: 35, history: [] },
+      ENZ: { baselineAmp: 20, history: [] },
+      ENN: { baselineAmp: 20, history: [] },
+      ENE: { baselineAmp: 20, history: [] },
+    },
     activeAlert: null,
     sWaveTimerInterval: null,
     incomingTimerInterval: null,
@@ -310,27 +316,31 @@
   }
 
   // -------------------------------------------------------------------------
-  // USGS External Earthquake Handler
+  // Ingest: External USGS Earthquakes
   // -------------------------------------------------------------------------
   function handleUsgsEvent(evt) {
     state.usgsEvents.push(evt);
     if (state.usgsEvents.length > 100) state.usgsEvents.shift();
 
     const now = Date.now() / 1000;
-    if (evt.p_arrival && evt.p_arrival > now - 30) {
+    // Strictly filter: ONLY alert for observable quakes within 500 miles on sliding scale or M6.0+
+    const isLocalObservable = evt.is_observable === true || (evt.magnitude && evt.magnitude >= 6.0);
+    const isNearby = evt.distance_miles ? evt.distance_miles <= 500 : (evt.distance_km ? evt.distance_km <= 804.7 : false);
+
+    if (isLocalObservable && isNearby && evt.p_arrival && evt.p_arrival > now - 30) {
       showIncomingHud(evt);
       playAlertSound('advisory');
     }
 
     addEventToTable({
       timestamp: evt.time || evt.p_arrival,
-      severity: 'info',
+      severity: isLocalObservable ? 'warning' : 'info',
       mag: evt.magnitude ? `M ${evt.magnitude.toFixed(1)}` : '--',
       distance: evt.distance_miles ? `${evt.distance_miles} mi` : (evt.distance_km ? `${evt.distance_km} km` : 'REGIONAL'),
       staLta: `P+${Math.round(evt.p_travel_sec || 0)}s`,
       channel: 'USGS',
       type: evt.place || 'External Regional Quake',
-      status: evt.is_observable ? 'Observable' : 'Teleseismic',
+      status: evt.is_observable ? 'Observable (<500mi)' : 'Distant Filtered',
     });
   }
 
@@ -694,17 +704,46 @@
         maxVal = Math.max(parseFloat(state.gainMode), 10.0);
       }
 
-      // Update telemetry badges
+      // Maintain 4-minute rolling baseline statistics (24,000 samples @ 100 Hz = 240s)
+      if (!state.fourMinStats[ch]) state.fourMinStats[ch] = { baselineAmp: 35, history: [] };
+      const stats = state.fourMinStats[ch];
+
+      if (Math.random() < 0.2) {
+        stats.history.push(pk);
+        if (stats.history.length > 240) stats.history.shift();
+        let sumAmp = 0;
+        stats.history.forEach(v => sumAmp += v);
+        stats.baselineAmp = Math.max(sumAmp / Math.max(stats.history.length, 1), 12.0);
+      }
+
+      const baselineNormal = stats.baselineAmp;
+      const devRatio = pk / baselineNormal;
+
+      // Update telemetry & deviation badges in channel header
       const lastVal = filtered[nVisible - 1] || 0;
       if (elements.values[ch]) {
         elements.values[ch].textContent = Math.round(lastVal).toLocaleString();
       }
 
-      if (ch === 'EHZ' && elements.pkEHZ) {
-        elements.pkEHZ.textContent = Math.round(maxVal).toLocaleString();
-        if (elements.staEHZ) {
-          elements.staEHZ.textContent = (state.staLtaRatios.EHZ || 1.0).toFixed(2);
+      const baseEl = document.getElementById(`base-${ch}`);
+      if (baseEl) baseEl.textContent = `±${Math.round(baselineNormal)}`;
+
+      const devEl = document.getElementById(`dev-${ch}`);
+      if (devEl) {
+        if (devRatio > 4.0) {
+          devEl.textContent = `⚡ WEIRD (+${devRatio.toFixed(1)}x)`;
+          devEl.className = 'dev-badge dev-anomalous';
+        } else if (devRatio > 2.0) {
+          devEl.textContent = `🟡 ELEVATED (+${devRatio.toFixed(1)}x)`;
+          devEl.className = 'dev-badge dev-elevated';
+        } else {
+          devEl.textContent = `🟢 NORMAL (${devRatio.toFixed(1)}x)`;
+          devEl.className = 'dev-badge dev-normal';
         }
+      }
+
+      if (ch === 'EHZ' && elements.staEHZ) {
+        elements.staEHZ.textContent = (state.staLtaRatios.EHZ || 1.0).toFixed(2);
       } else if (ch === 'ENZ' && elements.pgaENZ) {
         elements.pgaENZ.textContent = (maxVal * 1.9e-6).toFixed(4);
       } else if (ch === 'ENN' && elements.pgaENN) {
@@ -713,7 +752,23 @@
         elements.pgaENE.textContent = (maxVal * 1.9e-6).toFixed(4);
       }
 
-      // 3. Draw Seismic Trace (guaranteed 100% fitted to canvas width)
+      // 3. Draw 4-Minute Dynamic Normal Baseline Corridor (±baselineNormal)
+      const normYHeight = Math.min((baselineNormal / maxVal) * (h / 2) * 0.88, h / 2 - 4);
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.04)';
+      ctx.fillRect(0, h / 2 - normYHeight, w, normYHeight * 2);
+
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2 - normYHeight);
+      ctx.lineTo(w, h / 2 - normYHeight);
+      ctx.moveTo(0, h / 2 + normYHeight);
+      ctx.lineTo(w, h / 2 + normYHeight);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 4. Draw Seismic Trace (guaranteed 100% fitted to canvas width)
       ctx.save();
       ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
       ctx.lineWidth = 1.8;
@@ -740,6 +795,42 @@
       }
       ctx.stroke();
       ctx.restore();
+
+      // 5. Draw Floating 4-Min Normal Bar & Needle on Right Edge
+      const barW = 6;
+      const barX = w - 16;
+      const barTop = h / 2 - normYHeight;
+      const barBottom = h / 2 + normYHeight;
+      const barH = Math.max(barBottom - barTop, 6);
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.fillRect(barX - 2, 6, barW + 4, h - 12);
+
+      ctx.fillStyle = devRatio > 3.0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(0, 255, 136, 0.35)';
+      ctx.fillRect(barX, barTop, barW, barH);
+
+      ctx.strokeStyle = devRatio > 3.0 ? '#ef4444' : '#00ff88';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barTop, barW, barH);
+
+      // Current excursion needle
+      const curNormY = Math.max(-1.0, Math.min(1.0, (lastVal / maxVal)));
+      const needleY = h / 2 - curNormY * (h / 2) * 0.88;
+      ctx.fillStyle = devRatio > 3.0 ? '#ef4444' : (devRatio > 1.8 ? '#f59e0b' : '#fff');
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(barX - 5, needleY);
+      ctx.lineTo(barX + barW + 3, needleY);
+      ctx.lineTo(barX + barW + 1, needleY - 2);
+      ctx.lineTo(barX - 3, needleY - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.font = '8px JetBrains Mono';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('4m', barX - 14, h / 2 + 3);
 
       // -------------------------------------------------------------------
       // Drop Symbology & Annotations on Live Traces

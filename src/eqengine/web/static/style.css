@@ -544,10 +544,40 @@ body {
 
 .ch-metrics {
   display: flex;
-  gap: 14px;
+  align-items: center;
+  gap: 12px;
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+.dev-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+}
+
+.dev-badge.dev-normal {
+  background: rgba(0, 255, 136, 0.12);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.dev-badge.dev-elevated {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.dev-badge.dev-anomalous {
+  background: rgba(239, 68, 68, 0.22);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
 }
 
 .ch-metrics b {
