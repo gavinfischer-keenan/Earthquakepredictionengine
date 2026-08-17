@@ -30,6 +30,7 @@ class WaveformBroadcaster:
         self._lock = asyncio.Lock()
         self._event_history: deque[dict[str, Any]] = deque(maxlen=max_history)
         self._alert_history: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self._usgs_history: deque[dict[str, Any]] = deque(maxlen=100)
         self._last_status: dict[str, Any] | None = None
         self._latest_ratios: dict[str, float] = {}
 
@@ -47,6 +48,7 @@ class WaveformBroadcaster:
                 "timestamp": time.time(),
                 "recent_events": list(self._event_history),
                 "recent_alerts": list(self._alert_history),
+                "recent_usgs": list(self._usgs_history),
                 "last_status": self._last_status,
             }
             await websocket.send_text(json.dumps(init_msg, default=str))
@@ -119,6 +121,24 @@ class WaveformBroadcaster:
         }
         await self._broadcast_json(message)
 
+    async def broadcast_usgs_event(self, usgs_dict: dict[str, Any]) -> None:
+        """Broadcast a USGS regional/observable earthquake with theoretical arrivals."""
+        self._usgs_history.append(usgs_dict)
+        message = {
+            "type": "usgs_event",
+            "timestamp": time.time(),
+            "event": usgs_dict,
+        }
+        log.info(
+            "broadcaster.usgs_event_emitted",
+            event_id=usgs_dict.get("id"),
+            mag=usgs_dict.get("magnitude"),
+            place=usgs_dict.get("place"),
+            dist_km=usgs_dict.get("distance_km"),
+            theor_p=usgs_dict.get("p_arrival"),
+        )
+        await self._broadcast_json(message)
+
     async def _broadcast_json(self, data: dict[str, Any]) -> None:
         """Send JSON payload to all active clients, pruning broken sockets."""
         if not self._clients:
@@ -150,6 +170,10 @@ class WaveformBroadcaster:
     @property
     def recent_alerts(self) -> list[dict[str, Any]]:
         return list(self._alert_history)
+
+    @property
+    def recent_usgs(self) -> list[dict[str, Any]]:
+        return list(self._usgs_history)
 
 
 # ---------------------------------------------------------------------------

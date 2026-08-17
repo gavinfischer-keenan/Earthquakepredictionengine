@@ -45,8 +45,11 @@
           <span class="icon" id="audioIcon">🔊</span>
           <span id="audioText">Audio On</span>
         </button>
+        <button class="btn btn-sm btn-secondary" id="simUsgsBtn" title="Simulate Incoming USGS Regional Earthquake">
+          🌊 Test USGS Quake
+        </button>
         <button class="btn btn-sm btn-secondary" id="simTriggerBtn" title="Simulate Early Warning Trigger">
-          ⚡ Test Alert
+          ⚡ Test Local Alert
         </button>
       </div>
     </header>
@@ -64,6 +67,28 @@
           <div class="countdown-value" id="sWaveCountdown">04.2s</div>
         </div>
         <button class="btn btn-sm btn-outline-warning" id="dismissWarningBtn">Dismiss</button>
+      </div>
+    </section>
+
+    <!-- Incoming Wavefront HUD Banner (USGS / External Earthquake Arrival) -->
+    <section class="incoming-hud" id="incomingHud" style="display: none;">
+      <div class="incoming-hud-content">
+        <div class="incoming-badge">INCOMING WAVES</div>
+        <div class="incoming-details">
+          <div class="incoming-title" id="incomingTitle">🌊 USGS: M 4.8 Off Coast of Northern California</div>
+          <div class="incoming-sub" id="incomingSub">Distance: 198.8 miles — Origin: 21:50:10 UTC — Theoretical wavefronts in transit to Berkeley station</div>
+        </div>
+        <div class="incoming-countdowns">
+          <div class="countdown-box">
+            <span class="box-label">EXP. P-WAVE</span>
+            <span class="box-val" id="incomingPCount">00:32s</span>
+          </div>
+          <div class="countdown-box">
+            <span class="box-label">EXP. S-WAVE</span>
+            <span class="box-val" id="incomingSCount">01:05s</span>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-ghost" id="dismissIncomingBtn">Dismiss</button>
       </div>
     </section>
 

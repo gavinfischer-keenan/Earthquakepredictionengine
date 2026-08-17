@@ -50,8 +50,10 @@
     rsamHistory: [],
     triggers: [],
     alerts: [],
+    usgsEvents: [],
     activeAlert: null,
     sWaveTimerInterval: null,
+    incomingTimerInterval: null,
   };
 
   const CH_COLORS = {
@@ -74,12 +76,19 @@
     audioIcon: document.getElementById('audioIcon'),
     audioText: document.getElementById('audioText'),
     simTriggerBtn: document.getElementById('simTriggerBtn'),
+    simUsgsBtn: document.getElementById('simUsgsBtn'),
     warningHud: document.getElementById('warningHud'),
     warningSeverity: document.getElementById('warningSeverity'),
     warningTitle: document.getElementById('warningTitle'),
     warningSub: document.getElementById('warningSub'),
     sWaveCountdown: document.getElementById('sWaveCountdown'),
     dismissWarningBtn: document.getElementById('dismissWarningBtn'),
+    incomingHud: document.getElementById('incomingHud'),
+    incomingTitle: document.getElementById('incomingTitle'),
+    incomingSub: document.getElementById('incomingSub'),
+    incomingPCount: document.getElementById('incomingPCount'),
+    incomingSCount: document.getElementById('incomingSCount'),
+    dismissIncomingBtn: document.getElementById('dismissIncomingBtn'),
     viewTabs: document.getElementById('viewTabs'),
     windowSelect: document.getElementById('windowSelect'),
     filterSelect: document.getElementById('filterSelect'),
@@ -259,6 +268,8 @@
       handleTriggerEvent(msg.trigger);
     } else if (msg.type === 'alert') {
       handleAlertEvent(msg.alert);
+    } else if (msg.type === 'usgs_event') {
+      handleUsgsEvent(msg.event);
     } else if (msg.type === 'status') {
       handleStatusEvent(msg.status);
     } else if (msg.type === 'init') {
@@ -268,8 +279,74 @@
       if (msg.recent_alerts) {
         msg.recent_alerts.forEach(handleAlertEvent);
       }
+      if (msg.recent_usgs) {
+        msg.recent_usgs.forEach(handleUsgsEvent);
+      }
     }
   }
+
+  // -------------------------------------------------------------------------
+  // USGS External Earthquake Handler
+  // -------------------------------------------------------------------------
+  function handleUsgsEvent(evt) {
+    state.usgsEvents.push(evt);
+    if (state.usgsEvents.length > 100) state.usgsEvents.shift();
+
+    const now = Date.now() / 1000;
+    if (evt.p_arrival && evt.p_arrival > now - 30) {
+      showIncomingHud(evt);
+      playAlertSound('advisory');
+    }
+
+    addEventToTable({
+      timestamp: evt.time || evt.p_arrival,
+      severity: 'info',
+      mag: evt.magnitude ? `M ${evt.magnitude.toFixed(1)}` : '--',
+      distance: evt.distance_miles ? `${evt.distance_miles} mi` : (evt.distance_km ? `${evt.distance_km} km` : 'REGIONAL'),
+      staLta: `P+${Math.round(evt.p_travel_sec || 0)}s`,
+      channel: 'USGS',
+      type: evt.place || 'External Regional Quake',
+      status: evt.is_observable ? 'Observable' : 'Teleseismic',
+    });
+  }
+
+  function showIncomingHud(evt) {
+    const mag = evt.magnitude ? `M ${evt.magnitude.toFixed(1)}` : 'Earthquake';
+    const place = evt.place || 'Regional Seismic Event';
+    const dist = evt.distance_miles ? `${evt.distance_miles} miles away` : (evt.distance_km ? `${evt.distance_km} km away` : 'Regional');
+
+    elements.incomingTitle.textContent = `🌊 USGS: ${mag} — ${place}`;
+    elements.incomingSub.textContent = `Distance: ${dist} — Origin: ${new Date((evt.time || Date.now()/1000) * 1000).toISOString().substring(11, 19)} UTC — Theoretical wavefronts in transit`;
+    elements.incomingHud.style.display = 'block';
+
+    if (state.incomingTimerInterval) clearInterval(state.incomingTimerInterval);
+
+    state.incomingTimerInterval = setInterval(() => {
+      const now = Date.now() / 1000;
+      const pRem = (evt.p_arrival || now) - now;
+      const sRem = (evt.s_arrival || now) - now;
+
+      if (pRem <= 0) {
+        elements.incomingPCount.textContent = 'ARRIVED';
+      } else {
+        elements.incomingPCount.textContent = `-${pRem.toFixed(1)}s`;
+      }
+
+      if (sRem <= 0) {
+        elements.incomingSCount.textContent = 'ARRIVED';
+        if (pRem <= -60) {
+          clearInterval(state.incomingTimerInterval);
+        }
+      } else {
+        elements.incomingSCount.textContent = `-${sRem.toFixed(1)}s`;
+      }
+    }, 100);
+  }
+
+  elements.dismissIncomingBtn.addEventListener('click', () => {
+    elements.incomingHud.style.display = 'none';
+    if (state.incomingTimerInterval) clearInterval(state.incomingTimerInterval);
+  });
 
   // -------------------------------------------------------------------------
   // Trigger & Early Warning Symbology Handler
@@ -550,6 +627,26 @@
           overlay.appendChild(flag);
         }
       });
+
+      // Overlay USGS External Earthquakes & Theoretical Wavefronts
+      state.usgsEvents.forEach((uEvt) => {
+        const pArr = uEvt.p_arrival;
+        if (pArr && pArr >= startT && pArr <= now + 15) {
+          const xPercent = ((pArr - startT) / windowSec) * 100;
+          if (xPercent >= 0 && xPercent <= 100) {
+            const flag = document.createElement('div');
+            flag.className = 'usgs-flag';
+            flag.style.left = `${xPercent}%`;
+
+            const badge = document.createElement('div');
+            badge.className = 'usgs-badge';
+            badge.textContent = `🌐 USGS M${uEvt.magnitude} [Theor. P | ${uEvt.distance_miles}mi]`;
+            flag.appendChild(badge);
+
+            overlay.appendChild(flag);
+          }
+        }
+      });
     });
   }
 
@@ -663,6 +760,32 @@
         heliCtx.fillRect(endX - 2, y + 2, 4, rowHeight - 4);
       }
     }
+
+    // Paint USGS Earthquake Markers on Helicorder
+    state.usgsEvents.forEach((uEvt) => {
+      const eTime = new Date((uEvt.time || 0) * 1000);
+      const eMin = eTime.getUTCMinutes();
+      const eSec = eTime.getUTCSeconds();
+      const ageHours = (now.getTime() - eTime.getTime()) / (1000 * 3600);
+
+      if (ageHours >= 0 && ageHours < 24) {
+        const row = (rows - 1) - Math.floor(ageHours);
+        if (row >= 0 && row < rows) {
+          const y = row * rowHeight;
+          const fraction = (eMin * 60 + eSec) / 3600;
+          const x = 60 + fraction * (w - 70);
+
+          heliCtx.fillStyle = '#f59e0b';
+          heliCtx.beginPath();
+          heliCtx.arc(x, y + rowHeight / 2, 3.5, 0, 2 * Math.PI);
+          heliCtx.fill();
+
+          heliCtx.fillStyle = '#fff';
+          heliCtx.font = '8px JetBrains Mono';
+          heliCtx.fillText(`M${uEvt.magnitude}`, x + 5, y + rowHeight / 2 + 3);
+        }
+      }
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -873,6 +996,16 @@
       console.error('Failed to trigger simulation:', err);
     }
   });
+
+  if (elements.simUsgsBtn) {
+    elements.simUsgsBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/api/simulate-usgs', { method: 'POST' });
+      } catch (err) {
+        console.error('Failed to simulate USGS quake:', err);
+      }
+    });
+  }
 
   // -------------------------------------------------------------------------
   // Startup

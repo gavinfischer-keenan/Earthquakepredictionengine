@@ -83,6 +83,16 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         return {
             "triggers": broadcaster.recent_events,
             "alerts": broadcaster.recent_alerts,
+            "usgs_events": broadcaster.recent_usgs,
+            "timestamp": time.time(),
+        }
+
+    @app.get("/api/usgs-events")
+    async def get_usgs_events() -> dict[str, Any]:
+        """Return recently recorded and observable USGS earthquakes."""
+        return {
+            "events": broadcaster.recent_usgs,
+            "count": len(broadcaster.recent_usgs),
             "timestamp": time.time(),
         }
 
@@ -140,6 +150,43 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         await broadcaster.broadcast_alert(sim_alert)
 
         return {"status": "ok", "message": "Simulation trigger & alert dispatched to connected browsers"}
+
+    @app.post("/api/simulate-usgs")
+    async def simulate_usgs(magnitude: float = 4.7, place: str = "Off Coast of Northern California", distance_km: float = 320.0) -> dict[str, Any]:
+        """Simulate an external regional USGS earthquake with incoming theoretical wavefronts."""
+        now = time.time()
+        from eqengine.ingest.usgs_poller import calculate_seismic_travel_times, is_observable_on_shake, classify_distance_km, classify_magnitude
+
+        travel = calculate_seismic_travel_times(distance_km, 10.0)
+        origin_time = now - 15.0  # Quake happened 15 seconds ago
+        theor_p = origin_time + travel["p_travel_sec"]
+        theor_s = origin_time + travel["s_travel_sec"]
+        theor_surf = origin_time + travel["surface_travel_sec"]
+
+        sim_usgs = {
+            "id": f"sim-usgs-{int(now)}",
+            "magnitude": magnitude,
+            "place": place,
+            "time": origin_time,
+            "distance_km": distance_km,
+            "distance_miles": round(distance_km * 0.621371, 1),
+            "distance_class": classify_distance_km(distance_km),
+            "mag_class": classify_magnitude(magnitude),
+            "latitude": 40.3,
+            "longitude": -124.6,
+            "depth_km": 10.0,
+            "url": "https://earthquake.usgs.gov/",
+            "fetched_at": now,
+            "p_travel_sec": travel["p_travel_sec"],
+            "s_travel_sec": travel["s_travel_sec"],
+            "p_arrival": round(theor_p, 2),
+            "s_arrival": round(theor_s, 2),
+            "surf_arrival": round(theor_surf, 2),
+            "is_observable": is_observable_on_shake(magnitude, distance_km),
+            "is_simulation": True,
+        }
+        await broadcaster.broadcast_usgs_event(sim_usgs)
+        return {"status": "ok", "event": sim_usgs}
 
     # ------------------------------------------------------------------
     # WebSocket Route

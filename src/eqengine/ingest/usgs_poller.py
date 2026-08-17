@@ -76,6 +76,70 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Seismic Wave Travel Time & Observability Models
+# ---------------------------------------------------------------------------
+def calculate_seismic_travel_times(
+    distance_km: float, depth_km: float = 10.0
+) -> dict[str, float]:
+    """Calculate theoretical P, S, and surface wave travel times in seconds.
+
+    Uses standard local/regional crustal velocities for distances < 800 km,
+    and IASP91 empirical polynomial approximations for teleseismic distances.
+    """
+    depth = max(depth_km, 0.0)
+    slant_dist = math.sqrt(distance_km**2 + depth**2)
+
+    if distance_km < 800.0:
+        # Crustal & Moho refracted phases (Pg/Pn and Sg/Sn)
+        # Average crustal Vp ~ 6.1 km/s, Vs ~ 3.55 km/s, Surface ~ 3.0 km/s
+        vp = 6.1 if distance_km < 150 else 7.8
+        vs = 3.55 if distance_km < 150 else 4.45
+        t_p = slant_dist / vp
+        t_s = slant_dist / vs
+        t_surf = distance_km / 3.0
+    else:
+        # Teleseismic deep mantle raypath approximation
+        # Delta in degrees (1 deg ~ 111.19 km)
+        delta_deg = distance_km / 111.19
+        # Empirical IASP91 P-wave travel time fit: ~ 60 + delta_deg * 8.5 - delta_deg^2 * 0.02
+        t_p = max(delta_deg * 8.2 - (delta_deg**2) * 0.015 + 10.0, 100.0)
+        # S-wave: ~ delta_deg * 15.0
+        t_s = max(t_p * 1.82, 180.0)
+        # Rayleigh / Love surface wave (dispersion ~ 3.3 km/s)
+        t_surf = distance_km / 3.3
+
+    return {
+        "p_travel_sec": round(t_p, 1),
+        "s_travel_sec": round(t_s, 1),
+        "surface_travel_sec": round(t_surf, 1),
+    }
+
+
+def is_observable_on_shake(magnitude: float | None, distance_km: float) -> bool:
+    """Determine if an earthquake is theoretically observable on a Raspberry Shake RS4D.
+
+    Based on empirical detection thresholds of 4.5 Hz geophones and strong-motion accelerometers:
+      - Local (<80 km): M >= 1.0
+      - Regional (80–300 km): M >= 2.0
+      - State / Multi-state (300–1,000 km): M >= 3.5
+      - Continental (1,000–3,000 km): M >= 4.8
+      - Global Teleseismic (>3,000 km): M >= 5.8
+    """
+    if magnitude is None:
+        return False
+    if distance_km <= 80.0:
+        return magnitude >= 1.0
+    elif distance_km <= 300.0:
+        return magnitude >= 2.0
+    elif distance_km <= 1000.0:
+        return magnitude >= 3.5
+    elif distance_km <= 3000.0:
+        return magnitude >= 4.8
+    else:
+        return magnitude >= 5.8
+
+
+# ---------------------------------------------------------------------------
 # Classification helpers (module-level for testability)
 # ---------------------------------------------------------------------------
 def classify_distance_km(distance_km: float | None) -> str:
@@ -287,6 +351,13 @@ class USGSPoller:
             # Convert USGS time (milliseconds since epoch) to seconds
             event_time = props.get("time", 0) / 1000.0
 
+            # Calculate theoretical travel times
+            travel = calculate_seismic_travel_times(distance_km, depth_km)
+            theor_p = event_time + travel["p_travel_sec"]
+            theor_s = event_time + travel["s_travel_sec"]
+            theor_surf = event_time + travel["surface_travel_sec"]
+            observable = is_observable_on_shake(mag, distance_km)
+
             event_record = {
                 "id": event_id,
                 "magnitude": mag,
@@ -301,11 +372,24 @@ class USGSPoller:
                 "depth_km": depth_km,
                 "url": props.get("url", ""),
                 "fetched_at": time.time(),
+                "p_travel_sec": travel["p_travel_sec"],
+                "s_travel_sec": travel["s_travel_sec"],
+                "p_arrival": round(theor_p, 2),
+                "s_arrival": round(theor_s, 2),
+                "surf_arrival": round(theor_surf, 2),
+                "is_observable": observable,
             }
 
             self._recent_events.append(event_record)
             self._seen_ids.add(event_id)
             new_count += 1
+
+            # Broadcast new observable/regional earthquake to live UI
+            try:
+                from eqengine.web.broadcaster import get_broadcaster
+                await get_broadcaster().broadcast_usgs_event(event_record)
+            except Exception:
+                pass
 
             log.info(
                 "usgs_poller.new_event",
@@ -314,6 +398,8 @@ class USGSPoller:
                 place=props.get("place"),
                 distance_km=round(distance_km, 1),
                 distance_class=dist_class,
+                is_observable=observable,
+                theor_p=theor_p,
             )
 
         # Prune old events (keep last 2 hours)

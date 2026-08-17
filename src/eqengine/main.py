@@ -205,6 +205,23 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
         except Exception:
             log.exception("engine.web_server_start_failed")
 
+    # Start USGS External Earthquake Monitor
+    usgs_poller = None
+    if getattr(config, "usgs_enabled", True):
+        try:
+            from eqengine.ingest.usgs_poller import USGSPoller
+            usgs_poller = USGSPoller(
+                station_lat=float(getattr(config, "station_lat", 37.8696)),
+                station_lon=float(getattr(config, "station_lon", -122.2491)),
+                feed_url=str(getattr(config, "usgs_feed_url", "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson")),
+                poll_interval_sec=float(getattr(config, "usgs_poll_interval_sec", 60.0)),
+                min_magnitude=float(getattr(config, "usgs_min_magnitude", 1.0)),
+            )
+            await usgs_poller.start()
+            log.info("engine.usgs_poller_started")
+        except Exception:
+            log.exception("engine.usgs_poller_start_failed")
+
     # ---------------------------------------------------------------
     # 9.  Main processing loop (4 Hz cadence)
     # ---------------------------------------------------------------
@@ -364,6 +381,12 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
             try:
                 await web_server_task
             except asyncio.CancelledError:
+                pass
+
+        if usgs_poller:
+            try:
+                await usgs_poller.stop()
+            except Exception:
                 pass
 
         try:
