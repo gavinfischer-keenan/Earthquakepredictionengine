@@ -1687,6 +1687,75 @@ body {
   margin: 4px 0;
 }
 
+.radar-legend-card {
+  padding: 8px 10px;
+}
+
+.radar-legend-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.legend-row b {
+  color: var(--text-primary);
+}
+
+.legend-line {
+  width: 18px;
+  height: 0px;
+  border-top: 2px solid #fff;
+  display: inline-block;
+}
+
+.line-hayward {
+  border-color: #ef4444;
+  border-style: dashed;
+}
+
+.line-sanandreas {
+  border-color: #f59e0b;
+  border-style: solid;
+}
+
+.line-calaveras {
+  border-color: #d97706;
+  border-style: dashed;
+}
+
+.line-regional {
+  border-color: #38bdf8;
+  border-style: dashed;
+}
+
+.legend-zone-swatch {
+  width: 14px;
+  height: 8px;
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px dashed #f59e0b;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.legend-quake-swatch {
+  width: 10px;
+  height: 10px;
+  background: #f97316;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 /* --------------------------------------------------------------------------
    9. Urban Profiler & Cultural Noise
    -------------------------------------------------------------------------- */
