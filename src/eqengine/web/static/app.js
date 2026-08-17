@@ -502,13 +502,14 @@
   }
 
   // -------------------------------------------------------------------------
-  // Oscilloscope Renderer (60 FPS Canvas)
+  // Oscilloscope Renderer (Sample-Fitted Strip Chart)
   // -------------------------------------------------------------------------
   function renderOscilloscope() {
     const channels = ['EHZ', 'ENZ', 'ENN', 'ENE'];
     const windowSec = state.windowSec || 30;
+    const numSamples = Math.round(windowSec * SAMPLING_RATE);
 
-    // Synchronize time with the latest incoming seismic sample timestamp
+    // Determine current display time from latest channel sample
     let latestT = 0;
     for (const ch of channels) {
       const tsArr = state.timestamps[ch];
@@ -517,14 +518,14 @@
         if (lastTs > latestT) latestT = lastTs;
       }
     }
-    const now = state.paused
+    const endT = state.paused
       ? (state.lastPausedTimestamp || latestT || (Date.now() / 1000))
       : (latestT || (Date.now() / 1000));
-    const startT = now - windowSec;
+    const startT = endT - windowSec;
 
     // Update UTC clock display
     if (elements.utcClock) {
-      elements.utcClock.textContent = new Date(now * 1000).toISOString().substring(11, 23);
+      elements.utcClock.textContent = new Date(endT * 1000).toISOString().substring(11, 23);
     }
 
     channels.forEach((ch) => {
@@ -548,21 +549,21 @@
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // 1. High-contrast oscilloscope background
+      // 1. Clear background
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Subtle grid lines
+      // 2. Draw Time Grid (scaled to exact canvas width)
       ctx.strokeStyle = '#182234';
       ctx.lineWidth = 1;
       ctx.beginPath();
       // Center horizontal zero line
       ctx.moveTo(0, h / 2);
       ctx.lineTo(w, h / 2);
-      // Vertical time lines
-      const secStep = windowSec <= 30 ? 5 : (windowSec <= 120 ? 15 : 60);
+
+      const secStep = windowSec <= 15 ? 2 : (windowSec <= 30 ? 5 : (windowSec <= 120 ? 15 : 60));
       const firstSec = Math.ceil(startT / secStep) * secStep;
-      for (let t = firstSec; t <= now; t += secStep) {
+      for (let t = firstSec; t <= endT; t += secStep) {
         const x = ((t - startT) / windowSec) * w;
         if (x >= 0 && x <= w) {
           ctx.moveTo(x, 0);
@@ -579,15 +580,17 @@
       ctx.stroke();
 
       const rawBuf = state.buffers[ch];
-      const rawTs = state.timestamps[ch];
       if (!rawBuf || rawBuf.length === 0) return;
 
-      // Filter and center data
-      const filtered = filterData(rawBuf, state.filterMode);
+      // Slice exact visible window (e.g. 3,000 samples for 30s)
+      const visibleRaw = rawBuf.slice(-numSamples);
+      const filtered = filterData(visibleRaw, state.filterMode);
+      const nVisible = filtered.length;
+      if (nVisible < 2) return;
 
       // Calculate peak amplitude for scaling
       let pk = 15;
-      for (let i = 0; i < filtered.length; i++) {
+      for (let i = 0; i < nVisible; i++) {
         const abs = Math.abs(filtered[i]);
         if (abs > pk) pk = abs;
       }
@@ -600,7 +603,7 @@
       }
 
       // Update telemetry badges
-      const lastVal = filtered[filtered.length - 1] || 0;
+      const lastVal = filtered[nVisible - 1] || 0;
       if (elements.values[ch]) {
         elements.values[ch].textContent = Math.round(lastVal).toLocaleString();
       }
@@ -618,7 +621,7 @@
         elements.pgaENE.textContent = (maxVal * 1.9e-6).toFixed(4);
       }
 
-      // 3. Draw Seismic Trace with phosphor glow
+      // 3. Draw Seismic Trace (guaranteed 100% fitted to canvas width)
       ctx.save();
       ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
       ctx.lineWidth = 1.8;
@@ -626,23 +629,19 @@
       ctx.shadowBlur = 3;
       ctx.beginPath();
 
-      let started = false;
-      const count = filtered.length;
-      for (let i = 0; i < count; i++) {
-        const t = rawTs[i];
-        if (t < startT) continue;
-        if (t > now + 1.0) continue;
+      // If buffer is still filling on startup, align to right side
+      const xOffset = nVisible < numSamples ? ((numSamples - nVisible) / (numSamples - 1)) * w : 0;
+      const xSpan = w - xOffset;
 
-        const x = ((t - startT) / windowSec) * w;
+      for (let i = 0; i < nVisible; i++) {
+        const x = xOffset + (i / Math.max(nVisible - 1, 1)) * xSpan;
         const val = filtered[i];
-        // Clamp Y to canvas bounds
         const normalizedY = (val / maxVal);
         const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
         const y = h / 2 - clampedY * (h / 2) * 0.88;
 
-        if (!started) {
+        if (i === 0) {
           ctx.moveTo(x, y);
-          started = true;
         } else {
           ctx.lineTo(x, y);
         }
@@ -659,7 +658,7 @@
         // Trigger pins
         state.triggers.forEach((trig) => {
           const trigTime = trig.start_time;
-          if (trigTime >= startT && trigTime <= now) {
+          if (trigTime >= startT && trigTime <= endT) {
             const xPercent = ((trigTime - startT) / windowSec) * 100;
             if (xPercent >= 0 && xPercent <= 100) {
               const flag = document.createElement('div');
@@ -679,7 +678,7 @@
         // USGS External Earthquakes & Theoretical Wavefronts
         state.usgsEvents.forEach((uEvt) => {
           const pArr = uEvt.p_arrival;
-          if (pArr && pArr >= startT && pArr <= now + 15) {
+          if (pArr && pArr >= startT && pArr <= endT) {
             const xPercent = ((pArr - startT) / windowSec) * 100;
             if (xPercent >= 0 && xPercent <= 100) {
               const flag = document.createElement('div');
