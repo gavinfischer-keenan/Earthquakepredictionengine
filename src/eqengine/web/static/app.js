@@ -1098,7 +1098,116 @@
     state.activeTab = tabName;
     const targetPanel = document.getElementById(`tab-${tabName}`);
     if (targetPanel) targetPanel.classList.add('active');
+
+    if (tabName === 'ml') {
+      fetchMlDataset();
+    }
   });
+
+  // -------------------------------------------------------------------------
+  // Machine Learning Dataset & Annotation Handler
+  // -------------------------------------------------------------------------
+  async function fetchMlDataset() {
+    try {
+      const [sumRes, evRes] = await Promise.all([
+        fetch('/api/ml/summary'),
+        fetch('/api/ml/events?limit=50'),
+      ]);
+      const summary = await sumRes.json();
+      const eventsData = await evRes.json();
+
+      const countEl = document.getElementById('mlStatCount');
+      const diskEl = document.getElementById('mlStatDisk');
+      if (countEl) countEl.textContent = summary.total_annotated_events || 0;
+      if (diskEl) diskEl.textContent = `${summary.disk_size_mb || 0} MB`;
+
+      const tbody = document.getElementById('mlEventsTableBody');
+      if (tbody && eventsData.events) {
+        if (eventsData.events.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" class="text-muted text-center">No ground-truth events tagged yet. Click a quick tag above to record your first ML training snippet!</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = '';
+        eventsData.events.forEach((evt) => {
+          const row = document.createElement('tr');
+          const timeStr = new Date(evt.start_time * 1000).toISOString().substring(11, 23);
+          const feats = evt.features || {};
+          row.innerHTML = `
+            <td><code>${evt.event_id || '--'}</code></td>
+            <td>${timeStr}</td>
+            <td><b style="color: #38bdf8;">${evt.label || '--'}</b></td>
+            <td><span class="ch-tag" style="background: rgba(255,255,255,0.1);">${evt.category || '--'}</span></td>
+            <td>${evt.duration_sec ? evt.duration_sec + 's' : '--'}</td>
+            <td>${feats.pga_resultant_m_s2 !== undefined ? feats.pga_resultant_m_s2.toFixed(5) : '--'}</td>
+            <td>${feats.dominant_freq_hz !== undefined ? feats.dominant_freq_hz + ' Hz' : '--'}</td>
+            <td>${feats.spectral_centroid_hz !== undefined ? feats.spectral_centroid_hz + ' Hz' : '--'}</td>
+            <td><code>${evt.snippet_file || '--'}</code></td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch ML dataset summary:', err);
+    }
+  }
+
+  async function annotateCurrentWindow(label, category, notes, durationSec = 30.0) {
+    try {
+      const resp = await fetch('/api/ml/annotate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: label,
+          category: category,
+          notes: notes,
+          duration_sec: durationSec,
+          confidence: 1.0,
+        }),
+      });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        playAlertSound('advisory');
+        fetchMlDataset();
+      }
+    } catch (err) {
+      console.error('Failed to annotate event:', err);
+    }
+  }
+
+  // Quick-tag button listeners
+  document.querySelectorAll('.btn-tag').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const label = btn.getAttribute('data-label');
+      const category = btn.getAttribute('data-category') || 'human_indoor';
+      const notes = btn.getAttribute('data-notes') || '';
+      annotateCurrentWindow(label, category, notes, 30.0);
+    });
+  });
+
+  // Custom annotation form listener
+  const mlSaveBtn = document.getElementById('mlSaveCustomBtn');
+  if (mlSaveBtn) {
+    mlSaveBtn.addEventListener('click', () => {
+      const labelInput = document.getElementById('mlCustomLabel');
+      const catSelect = document.getElementById('mlCustomCategory');
+      const durSelect = document.getElementById('mlCustomDuration');
+      const notesInput = document.getElementById('mlCustomNotes');
+
+      const label = labelInput ? labelInput.value.trim() : '';
+      if (!label) {
+        alert('Please enter an Event Label before saving.');
+        return;
+      }
+      const category = catSelect ? catSelect.value : 'custom';
+      const duration = durSelect ? parseFloat(durSelect.value) : 30.0;
+      const notes = notesInput ? notesInput.value.trim() : '';
+
+      annotateCurrentWindow(label, category, notes, duration);
+      if (labelInput) labelInput.value = '';
+      if (notesInput) notesInput.value = '';
+    });
+  }
 
   elements.windowSelect.addEventListener('change', (e) => {
     state.windowSec = parseInt(e.target.value, 10);

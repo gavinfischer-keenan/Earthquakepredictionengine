@@ -101,6 +101,7 @@
         <button class="tab-btn" data-tab="stalta">📊 STA/LTA & RSAM</button>
         <button class="tab-btn" data-tab="hodogram">🌐 3D Particle Motion</button>
         <button class="tab-btn" data-tab="events">📋 Event Log</button>
+        <button class="tab-btn" data-tab="ml">🤖 ML Dataset & Annotations</button>
       </div>
 
       <div class="toolbar-controls">
@@ -330,6 +331,130 @@
                 <tr><td colspan="8" class="text-muted text-center">No triggers recorded yet. Listening to live SeedLink stream...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. ML Annotation & Ground-Truth Dataset Builder -->
+      <section class="tab-panel" id="tab-ml">
+        <div class="ml-container">
+          <div class="panel-header">
+            <h3>🤖 ML Training Dataset & Real-Time Event Annotator</h3>
+            <p class="panel-desc">Tag live vibrations to train machine learning models to classify human activity, traffic, stadium events, and real earthquakes.</p>
+          </div>
+
+          <!-- Quick Tag Presets -->
+          <div class="ml-quick-section">
+            <h4 class="section-title">⚡ Quick Annotate Recent Window (Last 30 Seconds)</h4>
+            <div class="quick-tag-grid">
+              <button class="btn btn-tag" data-label="Gavin: Stairs" data-category="human_indoor" data-notes="Footsteps walking on internal staircase">
+                🏃 Gavin: Stairs
+              </button>
+              <button class="btn btn-tag" data-label="Gavin: 3rd Floor Jump" data-category="human_indoor" data-notes="Jumping / high impact on 3rd floor">
+                🦘 Gavin: 3rd Floor Jump
+              </button>
+              <button class="btn btn-tag" data-label="Heavy Truck Traffic" data-category="traffic" data-notes="Semi / heavy construction truck passing nearby">
+                🚛 Heavy Truck
+              </button>
+              <button class="btn btn-tag" data-label="Garbage Truck" data-category="traffic" data-notes="Garbage truck stop-and-go hydraulic vibration">
+                🗑️ Garbage Truck
+              </button>
+              <button class="btn btn-tag" data-label="Cal Football Stadium Event" data-category="stadium" data-notes="Cal Memorial Stadium game crowd rumble / roar">
+                🏈 Cal Stadium (100 yds)
+              </button>
+              <button class="btn btn-tag" data-label="Greek Theatre Concert" data-category="concert" data-notes="Greek Theatre live music acoustic/ground coupling">
+                🎸 Greek Theatre Concert
+              </button>
+              <button class="btn btn-tag" data-label="Local Microquake" data-category="geophysical" data-notes="Local fault motion or felt shake">
+                ⚡ Local Earthquake
+              </button>
+              <button class="btn btn-tag" data-label="High Wind / Storm" data-category="environmental" data-notes="Tree root swaying / wind coupling to house">
+                💨 Wind / Weather
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom Annotation Form -->
+          <div class="ml-custom-section">
+            <h4 class="section-title">✏️ Custom Ground-Truth Annotation</h4>
+            <div class="custom-form-row">
+              <div class="form-item">
+                <label>Event Label:</label>
+                <input type="text" id="mlCustomLabel" placeholder="e.g. Door slammed, Washing machine spin cycle..." class="form-input">
+              </div>
+              <div class="form-item">
+                <label>Category:</label>
+                <select id="mlCustomCategory" class="form-select">
+                  <option value="human_indoor">Human / Indoor</option>
+                  <option value="traffic">Traffic / Vehicles</option>
+                  <option value="stadium">Cal Stadium Event</option>
+                  <option value="concert">Greek Theatre Concert</option>
+                  <option value="geophysical">Geophysical / Earthquake</option>
+                  <option value="environmental">Environmental / Weather</option>
+                  <option value="custom">Other Custom</option>
+                </select>
+              </div>
+              <div class="form-item">
+                <label>Window Length:</label>
+                <select id="mlCustomDuration" class="form-select">
+                  <option value="15">Last 15 Seconds</option>
+                  <option value="30" selected>Last 30 Seconds</option>
+                  <option value="60">Last 60 Seconds</option>
+                </select>
+              </div>
+              <div class="form-item form-item-wide">
+                <label>Context Notes:</label>
+                <input type="text" id="mlCustomNotes" placeholder="Optional context or description" class="form-input">
+              </div>
+              <div class="form-item-action">
+                <button class="btn btn-primary" id="mlSaveCustomBtn">💾 Save & Label Snippet</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ML Dataset Metrics Cards -->
+          <div class="ml-stats-row" id="mlStatsRow">
+            <div class="stat-card">
+              <span class="stat-label">TOTAL LABELED SNIPPETS</span>
+              <span class="stat-num" id="mlStatCount">0</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">DATASET DISK USAGE</span>
+              <span class="stat-num" id="mlStatDisk">0.0 MB</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">ML TRAINING FORMATS</span>
+              <span class="stat-desc">JSONL + 4-Ch NPZ Arrays (100 Hz)</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">TARGET PROCESSING NODE</span>
+              <span class="stat-desc">Node 02 (Ryzen / PyTorch / GPU)</span>
+            </div>
+          </div>
+
+          <!-- Catalog Table -->
+          <div class="ml-table-section">
+            <h4 class="section-title">📦 Recorded Ground-Truth Dataset Catalog</h4>
+            <div class="table-responsive">
+              <table class="events-table">
+                <thead>
+                  <tr>
+                    <th>Event ID</th>
+                    <th>Timestamp (UTC)</th>
+                    <th>Label</th>
+                    <th>Category</th>
+                    <th>Duration</th>
+                    <th>Peak PGA (m/s²)</th>
+                    <th>Dominant Freq</th>
+                    <th>Spectral Centroid</th>
+                    <th>NPZ Snippet File</th>
+                  </tr>
+                </thead>
+                <tbody id="mlEventsTableBody">
+                  <tr><td colspan="9" class="text-muted text-center">No ground-truth events tagged yet. Click a quick tag above to record your first ML training snippet!</td></tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>

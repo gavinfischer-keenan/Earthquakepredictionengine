@@ -362,6 +362,21 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
             if now - last_heartbeat >= heartbeat_interval:
                 rsam.compute(trace.data)
                 await health.report()
+
+                # Log continuous 1-minute ML baseline telemetry
+                try:
+                    from eqengine.ml.dataset_logger import get_dataset_logger, compute_spectral_features
+                    spec = compute_spectral_features(trace.data, sampling_rate=float(config.sampling_rate))
+                    await get_dataset_logger().log_1min_telemetry(
+                        timestamp=now,
+                        rsam=getattr(rsam, "current_rsam", 0.0),
+                        noise_floor=getattr(health, "noise_floor", 0.0),
+                        pga_resultant=0.0,
+                        spectral_centroid=spec.get("spectral_centroid_hz", 0.0),
+                    )
+                except Exception:
+                    pass
+
                 last_heartbeat = now
 
             # Pace the loop

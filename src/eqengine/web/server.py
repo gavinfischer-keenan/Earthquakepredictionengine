@@ -189,6 +189,66 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         return {"status": "ok", "event": sim_usgs}
 
     # ------------------------------------------------------------------
+    # ML Dataset & Annotation Routes
+    # ------------------------------------------------------------------
+
+    @app.post("/api/ml/annotate")
+    async def annotate_event(payload: dict[str, Any]) -> dict[str, Any]:
+        """Extract recent waveform window from ring buffer, compute features, and save to ML dataset."""
+        label = payload.get("label", "unlabeled").strip()
+        category = payload.get("category", "custom").strip()
+        notes = payload.get("notes", "").strip()
+        confidence = float(payload.get("confidence", 1.0))
+        duration_sec = min(max(float(payload.get("duration_sec", 30.0)), 5.0), 120.0)
+
+        if ring_buffer is None:
+            raise HTTPException(status_code=503, detail="RingBuffer not active")
+
+        # Extract waveform samples from ring buffer for all channels
+        channel_data: dict[str, Any] = {}
+        now = time.time()
+        start_time = now - duration_sec
+        end_time = now
+
+        for ch in ("EHZ", "ENZ", "ENN", "ENE"):
+            tr = ring_buffer.get_latest(ch, duration_sec=duration_sec)
+            if tr is not None:
+                channel_data[ch] = tr.data
+                start_time = float(tr.stats.starttime.timestamp)
+                end_time = float(tr.stats.endtime.timestamp)
+
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+
+        record = await logger.log_annotated_event(
+            label=label,
+            start_time=start_time,
+            end_time=end_time,
+            channel_data=channel_data,
+            category=category,
+            annotator="user_gavin",
+            notes=notes,
+            confidence=confidence,
+            sampling_rate=float(config.sampling_rate),
+        )
+
+        return {"status": "ok", "message": f"Recorded '{label}' to ML dataset", "event": record}
+
+    @app.get("/api/ml/events")
+    async def get_ml_events(limit: int = 100) -> dict[str, Any]:
+        """Return recently recorded and annotated ML training events."""
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+        return {"events": logger.get_recent_events(limit=limit)}
+
+    @app.get("/api/ml/summary")
+    async def get_ml_summary() -> dict[str, Any]:
+        """Return dataset size, class distributions, and file paths."""
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+        return logger.get_dataset_summary()
+
+    # ------------------------------------------------------------------
     # WebSocket Route
     # ------------------------------------------------------------------
 
