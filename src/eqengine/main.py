@@ -236,6 +236,8 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
 
     log.info("engine.loop_starting", cadence_hz=4, primary_channel=primary_channel)
 
+    last_emitted_trigger_onsets: dict[str, float] = {}
+
     try:
         while not _shutdown_event.is_set():
             cycle_start = time.time()
@@ -287,6 +289,13 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
             # f) Process each trigger
             for trigger in triggers:
                 try:
+                    on_t = float(trigger.start_time.timestamp)
+                    ch = trigger.channel
+                    # Only process new triggers once (skip if we already evaluated this onset within 15 seconds)
+                    if abs(on_t - last_emitted_trigger_onsets.get(ch, 0.0)) < 15.0:
+                        continue
+                    last_emitted_trigger_onsets[ch] = on_t
+
                     # False-positive filter validation (spectral ratio, noise floor, duration)
                     result = fp_filter.validate(trigger, trace, noise_model)
                     if not result.passed:

@@ -199,15 +199,20 @@ function handleTriggerEvent(trig) {
   state.triggers.push(trig);
   if (state.triggers.length > 100) state.triggers.shift();
 
+  const ratio = trig.sta_lta_ratio || trig.peak_sta_lta || 0;
+  const severity = ratio >= 12.0 ? 'warning' : ratio >= 6.0 ? 'advisory' : 'info';
+  const typeLabel = ratio >= 12.0 ? 'Elevated Seismic Onset' : 'STA/LTA Transient Motion';
+
   addEventToTable({
+    id: `trig-${trig.channel || 'EHZ'}-${Math.round((trig.start_time || 0) * 10)}`,
     timestamp: trig.start_time,
-    severity: (trig.sta_lta_ratio || trig.peak_sta_lta) > 8 ? 'warning' : 'advisory',
+    severity: severity,
     mag: '--',
     distance: 'LOCAL (Hayward)',
-    staLta: `${(trig.sta_lta_ratio || trig.peak_sta_lta || 0).toFixed(1)}x`,
+    staLta: `${ratio.toFixed(1)}x`,
     channel: trig.channel || 'EHZ',
-    type: 'Local P-Wave Onset',
-    status: 'Confirmed Pick',
+    type: typeLabel,
+    status: 'Local Sensor Trigger',
   });
 }
 

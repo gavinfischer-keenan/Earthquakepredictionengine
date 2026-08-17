@@ -10,8 +10,18 @@ import { inspectEventSnippet } from './review_studio.js';
 const SEVERITY_RANKS = { info: 1, advisory: 2, warning: 3, critical: 4 };
 
 export function addEventToTable(evt) {
-  state.allEvents.push(evt);
-  if (state.allEvents.length > 200) state.allEvents.shift();
+  // Prevent duplicate events within 10 seconds for the same channel/type
+  const isDuplicate = state.allEvents.some((e) => {
+    return e.id === evt.id || (
+      e.channel === evt.channel &&
+      e.type === evt.type &&
+      Math.abs((e.timestamp || 0) - (evt.timestamp || 0)) < 10.0
+    );
+  });
+  if (isDuplicate) return;
+
+  state.allEvents.unshift(evt);
+  if (state.allEvents.length > 200) state.allEvents.pop();
   if (state.activeTab === 'events') {
     renderEventsTable();
   }
