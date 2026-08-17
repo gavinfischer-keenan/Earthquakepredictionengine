@@ -813,6 +813,37 @@ body {
   font-weight: 600;
 }
 
+.events-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.events-table th.sortable:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.events-table th .sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.events-table th.sortable.sorted {
+  color: var(--ch-enz);
+  background: rgba(0, 210, 255, 0.08);
+  border-bottom: 2px solid var(--ch-enz);
+}
+
+.events-table th.sortable.sorted .sort-arrow {
+  color: var(--ch-enz);
+  opacity: 1;
+  font-weight: 800;
+}
+
 .events-table td {
   padding: 8px;
   border-bottom: 1px solid var(--border-subtle);

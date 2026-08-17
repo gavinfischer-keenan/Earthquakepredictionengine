@@ -314,17 +314,17 @@
             <p class="panel-desc">All triggers, PhaseNet picks, and issued early warnings recorded by the engine.</p>
           </div>
           <div class="table-responsive">
-            <table class="events-table">
+            <table class="events-table" id="eventsTable">
               <thead>
                 <tr>
-                  <th>Timestamp (UTC)</th>
-                  <th>Severity</th>
-                  <th>Est. Mag</th>
-                  <th>Distance</th>
-                  <th>STA/LTA</th>
-                  <th>Channel</th>
-                  <th>Type</th>
-                  <th>Status</th>
+                  <th class="sortable sorted" data-col="timestamp">Timestamp (UTC) <span class="sort-arrow">▼</span></th>
+                  <th class="sortable" data-col="severity">Severity <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="mag">Est. Mag <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="distance">Distance <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="staLta">STA/LTA <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="channel">Channel <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="type">Type <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="status">Status <span class="sort-arrow">⇅</span></th>
                 </tr>
               </thead>
               <tbody id="eventsTableBody">
@@ -436,18 +436,18 @@
           <div class="ml-table-section">
             <h4 class="section-title">📦 Recorded Ground-Truth Dataset Catalog</h4>
             <div class="table-responsive">
-              <table class="events-table">
+              <table class="events-table" id="mlEventsTable">
                 <thead>
                   <tr>
-                    <th>Event ID</th>
-                    <th>Timestamp (UTC)</th>
-                    <th>Label</th>
-                    <th>Category</th>
-                    <th>Duration</th>
-                    <th>Peak PGA (m/s²)</th>
-                    <th>Dominant Freq</th>
-                    <th>Spectral Centroid</th>
-                    <th>NPZ Snippet File</th>
+                    <th class="sortable" data-ml-col="event_id">Event ID <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable sorted" data-ml-col="timestamp">Timestamp (UTC) <span class="sort-arrow">▼</span></th>
+                    <th class="sortable" data-ml-col="label">Label <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="category">Category <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="duration">Duration <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="pga">Peak PGA (m/s²) <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="dom_freq">Dominant Freq <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="centroid">Spectral Centroid <span class="sort-arrow">⇅</span></th>
+                    <th class="sortable" data-ml-col="file">NPZ Snippet File <span class="sort-arrow">⇅</span></th>
                   </tr>
                 </thead>
                 <tbody id="mlEventsTableBody">
