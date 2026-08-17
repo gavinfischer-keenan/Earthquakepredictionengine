@@ -8,10 +8,25 @@ import { filterData } from '../dsp.js';
 
 export function renderOscilloscope() {
   const windowSec = state.windowSec || 30;
-  const now = Date.now() / 1000;
-  const endT = state.paused
-    ? state.lastPausedTimestamp || now + (state.smoothClockOffset || 0)
-    : now + (state.smoothClockOffset || 0);
+
+  let latestSampleT = 0;
+  for (const ch of CHANNELS) {
+    const tsArr = state.timestamps[ch];
+    if (tsArr && tsArr.length > 0) {
+      const t = tsArr[tsArr.length - 1];
+      if (t > latestSampleT) latestSampleT = t;
+    }
+  }
+
+  const localNow = Date.now() / 1000;
+  let endT;
+  if (state.paused) {
+    endT = state.lastPausedTimestamp || latestSampleT || localNow;
+  } else if (latestSampleT > 0 && Math.abs(latestSampleT - (localNow + (state.smoothClockOffset || 0))) < 2.0) {
+    endT = localNow + (state.smoothClockOffset || 0);
+  } else {
+    endT = latestSampleT || localNow;
+  }
   const startT = endT - windowSec;
 
   CHANNELS.forEach((ch) => {
@@ -108,13 +123,19 @@ export function renderOscilloscope() {
     const rawTs = state.timestamps[ch];
     if (!rawBuf || rawBuf.length === 0) return;
 
-    // Slice visible samples for [startT - 1, endT]
+    // Slice visible samples for [startT - 0.5, endT]
     const nTotal = rawBuf.length;
     let startIdx = 0;
-    for (let i = nTotal - 1; i >= 0; i--) {
-      if (rawTs && rawTs[i] < startT - 0.5) {
-        startIdx = Math.max(0, i);
-        break;
+    if (rawTs && rawTs.length > 0) {
+      for (let i = 0; i < nTotal; i++) {
+        if (rawTs[i] >= startT - 0.5) {
+          startIdx = Math.max(0, i - 1);
+          break;
+        }
+      }
+      // If all recorded samples are older than startT - 0.5 (stream lag or pause), show the latest available buffer window
+      if (startIdx === 0 && rawTs[nTotal - 1] < startT - 0.5) {
+        startIdx = Math.max(0, nTotal - (windowSec * SAMPLING_RATE));
       }
     }
 

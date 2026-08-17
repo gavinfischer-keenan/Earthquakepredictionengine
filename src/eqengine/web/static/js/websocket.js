@@ -9,22 +9,36 @@ import { addEventToTable } from './views/tables.js';
 
 let ws = null;
 let reconnectTimer = null;
+let watchdogStarted = false;
 
 export function connectWebSocket() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = `${protocol}//${window.location.host}/ws/live`;
 
-  if (elements.footerConnection) {
+  if (elements.footerConnection && !state.connected) {
     elements.footerConnection.textContent = `Connecting to ${wsUrl}...`;
   }
 
-  ws = new WebSocket(wsUrl);
+  try {
+    ws = new WebSocket(wsUrl);
+  } catch (err) {
+    console.error('WebSocket connection error:', err);
+    scheduleReconnect();
+    return;
+  }
 
   ws.onopen = () => {
     state.connected = true;
     if (elements.statusPulse) elements.statusPulse.classList.add('online');
     if (elements.footerConnection) elements.footerConnection.textContent = `Connected to ${wsUrl}`;
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
   };
 
   ws.onmessage = (event) => {
@@ -40,12 +54,31 @@ export function connectWebSocket() {
     state.connected = false;
     if (elements.statusPulse) elements.statusPulse.classList.remove('online');
     if (elements.footerConnection) elements.footerConnection.textContent = 'Disconnected. Reconnecting...';
-    reconnectTimer = setTimeout(connectWebSocket, 2000);
+    scheduleReconnect();
   };
 
-  ws.onerror = () => {
-    ws.close();
+  ws.onerror = (err) => {
+    console.warn('WebSocket encountered error:', err);
   };
+
+  // Start background watchdog once to continuously monitor connection health
+  if (!watchdogStarted) {
+    watchdogStarted = true;
+    setInterval(() => {
+      if (!state.connected || !ws || ws.readyState === WebSocket.CLOSED) {
+        connectWebSocket();
+      }
+    }, 2500);
+  }
+}
+
+function scheduleReconnect() {
+  if (!reconnectTimer) {
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectWebSocket();
+    }, 2000);
+  }
 }
 
 export function handleMessage(msg) {
