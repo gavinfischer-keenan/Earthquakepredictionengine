@@ -39,6 +39,7 @@ export const elements = {
     ENN: document.getElementById('canvas-ENN'),
     ENE: document.getElementById('canvas-ENE'),
     spectrogram: document.getElementById('spectrogramCanvas'),
+    specWaveform: document.getElementById('specWaveformCanvas'),
     helicorder: document.getElementById('helicorderCanvas'),
     hodoH: document.getElementById('hodoHCanvas'),
     hodoV: document.getElementById('hodoVCanvas'),

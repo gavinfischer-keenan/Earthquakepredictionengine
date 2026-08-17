@@ -161,7 +161,7 @@
       <!-- 1. Oscilloscope View -->
       <section class="tab-panel active" id="tab-oscilloscope">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — How to read live 4-channel seismograms (Normal vs Earthquake)</span>
             <span class="guide-chevron">▼ Details</span>
@@ -269,7 +269,7 @@
       <!-- 2. Spectrogram View -->
       <section class="tab-panel" id="tab-spectrogram">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Understanding the HD Frequency Waterfall (0–50 Hz)</span>
             <span class="guide-chevron">▼ Details</span>
@@ -291,19 +291,23 @@
         </div>
 
         <div class="spectrogram-container">
-          <div class="panel-header">
-            <h3>Real-Time Waterfall Spectrogram (EHZ 0–50 Hz)</h3>
-            <p class="panel-desc">Visualizes energy distribution over time. Earthquakes show strong low-frequency energy (1–5 Hz); cultural noise appears above 10 Hz.</p>
-          </div>
-          <div class="spectrogram-wrapper">
-            <div class="spectrogram-axis-y">
-              <span>50 Hz</span>
-              <span>37.5 Hz</span>
-              <span>25 Hz</span>
-              <span>12.5 Hz</span>
-              <span>0 Hz</span>
+          <div class="panel-header-compact">
+            <div class="panel-header-title">
+              <h3>🌈 High-Definition Spectrogram & Synchronized Waveform (0–50 Hz)</h3>
+              <span class="panel-desc">Continuous STFT energy distribution aligned with real-time ground velocity waveform</span>
             </div>
-            <canvas id="spectrogramCanvas" class="spectrogram-canvas"></canvas>
+            <div class="panel-header-badges">
+              <span class="meta-badge">0–50 Hz Full Band</span>
+              <span class="meta-badge">100 Hz Sample Rate</span>
+            </div>
+          </div>
+          <div class="spectrogram-dual-wrapper">
+            <div class="spec-waveform-wrapper">
+              <canvas id="specWaveformCanvas" class="spec-waveform-canvas"></canvas>
+            </div>
+            <div class="spec-waterfall-wrapper">
+              <canvas id="spectrogramCanvas" class="spectrogram-canvas"></canvas>
+            </div>
           </div>
         </div>
       </section>
@@ -311,7 +315,7 @@
       <!-- 3. Helicorder Drum Plot View -->
       <section class="tab-panel" id="tab-helicorder">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — How the 24-Hour Helicorder Drum Works</span>
             <span class="guide-chevron">▼ Details</span>
@@ -346,7 +350,7 @@
       <!-- 4. STA/LTA & RSAM View -->
       <section class="tab-panel" id="tab-stalta">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Understanding STA/LTA & RSAM Energy</span>
             <span class="guide-chevron">▼ Details</span>
@@ -393,7 +397,7 @@
       <!-- 5. 3D Particle Motion Hodogram -->
       <section class="tab-panel" id="tab-hodogram">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Reading 3D Particle Motion Orbits</span>
             <span class="guide-chevron">▼ Details</span>
@@ -435,7 +439,7 @@
       <!-- 6. Event History Log -->
       <section class="tab-panel" id="tab-events">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Early Warnings, Severity Badges & USGS Detections</span>
             <span class="guide-chevron">▼ Details</span>
@@ -486,7 +490,7 @@
       <!-- 7. ML Annotation & Ground-Truth Dataset Builder -->
       <section class="tab-panel" id="tab-ml">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — How Machine Learning Learns the Environment</span>
             <span class="guide-chevron">▼ Details</span>
@@ -713,7 +717,7 @@
       <!-- 8. Live Epicenter Radar & Faults Map -->
       <section class="tab-panel" id="tab-radar">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Live Epicenter Radar, Fault Lines & Wavefront Circles</span>
             <span class="guide-chevron">▼ Details</span>
@@ -773,7 +777,7 @@
       <!-- 9. Environmental & Urban Vibration Profiler -->
       <section class="tab-panel" id="tab-environment">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Identifying the World Around Us</span>
             <span class="guide-chevron">▼ Details</span>
@@ -910,7 +914,7 @@
       <!-- 10. AI Phase Picker & Probability Traces (PhaseNet / EQTransformer Emulation) -->
       <section class="tab-panel" id="tab-phasenet">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Real-Time AI Phase Picking & Wadati Distance Derivation</span>
             <span class="guide-chevron">▼ Details</span>
@@ -970,7 +974,7 @@
       <!-- 11. Peterson Noise Model (Global Standard PSD Curve) -->
       <section class="tab-panel" id="tab-psd">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Reading the USGS Peterson Noise Spectrum & What Being Inside / Outside the Lines Means</span>
             <span class="guide-chevron">▼ Details</span>
@@ -1005,7 +1009,7 @@
       <!-- 12. Seismic Audio Synthesizer (Sonification) -->
       <section class="tab-panel" id="tab-sonification">
         <!-- Science Interpretation Guide -->
-        <div class="science-guide">
+        <div class="science-guide collapsed">
           <div class="guide-toggle">
             <span>💡 <b>Observatory Guide</b> — Listening to the Earth: Seismic Sonification</span>
             <span class="guide-chevron">▼ Details</span>
