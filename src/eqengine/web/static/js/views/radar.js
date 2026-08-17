@@ -1,6 +1,7 @@
 /**
  * Epicenter Radar View: Geospatial Leaflet Map, 500-Mile California Fault System,
- * The Geysers Hydrothermal Field Zone, and Sized Earthquake Event Markers.
+ * Special Seismic Swarm/Geothermal Cluster Zones (with PR Photos & Hover Popups),
+ * and Magnitude-Sized Earthquake Event Markers.
  */
 
 import { state } from '../state.js';
@@ -9,24 +10,139 @@ let leafletMap = null;
 let stationMarker = null;
 let quakeMarkers = [];
 let elapsedTimer = null;
-let geysersPolygon = null;
+let clusterPolygons = [];
 
-// The Geysers Geothermal Field Polygon (centered ~38.78° N, 122.75° W)
-const GEYSERS_COORDS = [
-  [38.86, -122.84],
-  [38.89, -122.76],
-  [38.84, -122.66],
-  [38.75, -122.64],
-  [38.69, -122.73],
-  [38.72, -122.83],
-  [38.79, -122.88],
+// ===========================================================================
+// California Special Seismic Cluster / Geothermal / Volcanic Zones
+// ===========================================================================
+export const CLUSTER_ZONES = [
+  {
+    id: 'geysers',
+    name: '⚡ The Geysers Geothermal Field',
+    location: 'Cobb / Mayacamas Highlands (~65 mi North of Berkeley)',
+    image: '/static/assets/images/geysers_site.jpg',
+    color: '#f59e0b',
+    coords: [
+      [38.86, -122.84],
+      [38.89, -122.76],
+      [38.84, -122.66],
+      [38.75, -122.64],
+      [38.69, -122.73],
+      [38.72, -122.83],
+      [38.79, -122.88],
+    ],
+    center: [38.78, -122.75],
+    radiusKm: 13.0,
+    whatIsThere: "World's largest complex of geothermal power plants (~725 MW baseload clean electricity) spanning 45 square miles across Sonoma & Lake Counties, with over 350 active steam turbine wells.",
+    whyItSwarms: "Treated municipal wastewater is injected 2–3 km deep into boiling Franciscan graywacke rock (~240°C), generating 30–50 induced micro-earthquakes per day (M 0.5–2.5) from thermal contraction and micro-fracturing.",
+    statusBadge: "🟢 NORMAL AMBIENT HYDROTHERMAL BACKGROUND",
+    statusColor: '#10b981',
+  },
+  {
+    id: 'long_valley',
+    name: '🌋 Long Valley Caldera & Mammoth Mountain',
+    location: 'Mono County / Eastern Sierra (~190 mi East of Berkeley)',
+    image: '/static/assets/images/long_valley_caldera.jpg',
+    color: '#ec4899',
+    coords: [
+      [37.78, -118.98],
+      [37.78, -118.72],
+      [37.64, -118.68],
+      [37.58, -118.82],
+      [37.62, -119.02],
+      [37.72, -119.04],
+    ],
+    center: [37.70, -118.87],
+    radiusKm: 22.0,
+    whatIsThere: "A 20-mile-wide active volcanic caldera formed by a super-eruption 760,000 years ago, surrounded by Mammoth Mountain and Hot Creek hydrothermal fumaroles.",
+    whyItSwarms: "Recurring magmatic fluid migration, resurgent dome inflation, and supercritical hydrothermal gas releases trigger episodic volcanic earthquake swarms.",
+    statusBadge: "🟡 ACTIVE VOLCANIC HYDROTHERMAL SWARM ZONE",
+    statusColor: '#f59e0b',
+  },
+  {
+    id: 'salton_sea',
+    name: '🌊 Salton Sea & Brawley Seismic Zone',
+    location: 'Imperial Valley (~460 mi Southeast of Berkeley)',
+    image: '/static/assets/images/salton_sea_field.jpg',
+    color: '#06b6d4',
+    coords: [
+      [33.35, -115.75],
+      [33.35, -115.45],
+      [33.00, -115.45],
+      [33.00, -115.75],
+    ],
+    center: [33.15, -115.60],
+    radiusKm: 30.0,
+    whatIsThere: "11 geothermal power plants, bubbling volcanic mud pots (Salton Buttes), and lithium extraction facilities along the tectonic rift zone.",
+    whyItSwarms: "An active continental rift pull-apart basin between the San Andreas and Imperial Faults, creating intense strike-slip transform swarm sequences (hundreds of quakes in hours).",
+    statusBadge: "⚡ TECTONIC-VOLCANIC SPREADING RIFT",
+    statusColor: '#06b6d4',
+  },
+  {
+    id: 'coso',
+    name: '♨️ Coso Volcanic & Geothermal Field',
+    location: 'China Lake / Inyo County (~280 mi Southeast)',
+    color: '#8b5cf6',
+    coords: [
+      [36.12, -117.90],
+      [36.12, -117.70],
+      [35.92, -117.70],
+      [35.92, -117.90],
+    ],
+    center: [36.02, -117.80],
+    radiusKm: 16.0,
+    whatIsThere: "270 MW geothermal power complex situated on China Lake Naval Weapons Station with 38 Pleistocene rhyolite lava domes.",
+    whyItSwarms: "High regional crustal heat flow and active hydrothermal fluid circulation trigger continuous induced micro-seismicity (M 1.0–2.8).",
+    statusBadge: "🟢 NORMAL INDUCED GEOTHERMAL BACKGROUND",
+    statusColor: '#10b981',
+  },
+  {
+    id: 'parkfield',
+    name: '🔬 Parkfield Creeping Segment ("Earthquake Capital")',
+    location: 'Monterey / Fresno Counties (~160 mi South)',
+    color: '#10b981',
+    coords: [
+      [36.05, -120.55],
+      [36.05, -120.30],
+      [35.75, -120.30],
+      [35.75, -120.55],
+    ],
+    center: [35.90, -120.43],
+    radiusKm: 18.0,
+    whatIsThere: "The world's most instrumented earthquake observatory (USGS SAFOD deep borehole, laser creepmeters, borehole strainmeters).",
+    whyItSwarms: "Tectonic transition zone between the locked San Andreas Fault and the creeping central section, with repeating M6.0 characteristic ruptures.",
+    statusBadge: "🔬 TECTONIC TRANSITION & CREEP BENCHMARK",
+    statusColor: '#10b981',
+  },
+  {
+    id: 'san_ramon',
+    name: '🏙️ San Ramon Valley Fault Swarm Zone',
+    location: 'East Bay Hills (~18 mi Southeast of Berkeley)',
+    color: '#f43f5e',
+    coords: [
+      [37.82, -122.04],
+      [37.82, -121.92],
+      [37.72, -121.92],
+      [37.72, -122.04],
+    ],
+    center: [37.77, -121.98],
+    radiusKm: 8.0,
+    whatIsThere: "Suburban East Bay hills overlying the Calaveras, Concord, and Las Trampas fault stepover structures.",
+    whyItSwarms: "Episodic shallow strike-slip earthquake swarms (often generating 100+ micro-quakes within a few days) on unmapped cross-faults.",
+    statusBadge: "⚠️ PERIODIC SHALLOW EAST BAY SWARM ZONE",
+    statusColor: '#f43f5e',
+  },
 ];
 
-export function isInGeysersZone(lat, lon) {
-  // Fast radial check (~12 km radius around center 38.78, -122.75)
-  const dLat = (lat - 38.78) * 111.0;
-  const dLon = (lon - (-122.75)) * 87.0;
-  return Math.sqrt(dLat * dLat + dLon * dLon) <= 13.0;
+export function getClusterZoneForEvent(lat, lon) {
+  for (const zone of CLUSTER_ZONES) {
+    const dLat = (lat - zone.center[0]) * 111.0;
+    const dLon = (lon - zone.center[1]) * 111.0 * Math.cos((zone.center[0] * Math.PI) / 180);
+    if (Math.sqrt(dLat * dLat + dLon * dLon) <= zone.radiusKm) {
+      return zone;
+    }
+  }
+  return null;
 }
 
 export function formatElapsedTime(timeSec) {
@@ -64,7 +180,7 @@ export async function fetchRadarEvents() {
       });
     }
 
-    // 2. Fetch directly from USGS 48-hour feed if local buffer is building
+    // 2. Fetch directly from USGS 48-hour feed
     if (state.usgsEvents.length < 20) {
       const usgsResp = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson');
       if (usgsResp.ok) {
@@ -133,14 +249,14 @@ export function initRadarMap() {
   // Home Station Marker (Berkeley Hills AM.R1A3D)
   const stationIcon = L.divIcon({
     className: 'station-radar-marker',
-    html: '<div style="width:18px;height:18px;background:#00ff88;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 14px #00ff88;cursor:pointer;"></div>',
+    html: '<div style="width:18px;height:18px;background:#00ff88;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 16px #00ff88;cursor:pointer;"></div>',
     iconSize: [18, 18],
     iconAnchor: [9, 9],
   });
   stationMarker = L.marker([37.8696, -122.2491], { icon: stationIcon }).addTo(leafletMap);
   stationMarker.bindPopup(`
-    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5;">
-      <b style="color: #00ff88; font-size: 13px;">AM.R1A3D Berkeley Hills</b><br>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; min-width: 220px;">
+      <b style="color: #00ff88; font-size: 13px;">🏠 AM.R1A3D Berkeley Hills</b><br>
       <b>Coordinates:</b> 37.8696° N, 122.2491° W<br>
       <b>Elevation:</b> ~240m above sea level<br>
       <b>Fault:</b> Hayward Fault Zone (~400m West)<br>
@@ -290,24 +406,51 @@ export function initRadarMap() {
     .bindPopup('<b>Mendocino Fracture Zone / Gorda Plate Boundary</b>');
 
   // =========================================================================
-  // The Geysers Geothermal Field Overlay (Geyserville Area)
+  // California Swarm / Geothermal / Volcanic Cluster Overlays
   // =========================================================================
-  geysersPolygon = L.polygon(GEYSERS_COORDS, {
-    color: '#f59e0b',
-    weight: 2.0,
-    dashArray: '6, 6',
-    fillColor: '#f59e0b',
-    fillOpacity: 0.14,
-  }).addTo(leafletMap);
+  clusterPolygons.forEach((p) => leafletMap.removeLayer(p));
+  clusterPolygons = [];
 
-  geysersPolygon.bindPopup(`
-    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5;">
-      <b style="color: #f59e0b; font-size: 13px;">⚡ The Geysers Geothermal Field</b><br>
-      <b>Location:</b> Cobb / Geyserville Highlands (~65 mi North)<br>
-      <b>Activity:</b> Continuous low-level induced microseismicity (M 1.0–2.5) from hydrothermal steam production & water injection.<br>
-      <span style="color: #38bdf8;">Events here are normal continuous background and generally filtered.</span>
-    </div>
-  `);
+  CLUSTER_ZONES.forEach((zone) => {
+    const poly = L.polygon(zone.coords, {
+      color: zone.color,
+      weight: 2.0,
+      dashArray: '5, 5',
+      fillColor: zone.color,
+      fillOpacity: 0.16,
+    }).addTo(leafletMap);
+
+    const popupHtml = `
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; max-width: 290px; color: #f8fafc;">
+        ${zone.image ? `
+          <div style="margin: -8px -8px 8px -8px; overflow: hidden; border-radius: 6px 6px 0 0;">
+            <img src="${zone.image}" alt="${zone.name}" style="width: 100%; height: 130px; object-fit: cover; display: block;" />
+          </div>
+        ` : ''}
+        <div style="font-size: 12px; font-weight: 700; color: ${zone.color}; margin-bottom: 2px;">${zone.name}</div>
+        <div style="color: #94a3b8; font-size: 10px; margin-bottom: 6px;">📍 ${zone.location}</div>
+        <div style="margin-bottom: 4px;"><b style="color: #38bdf8;">WHAT IS THERE:</b> ${zone.whatIsThere}</div>
+        <div style="margin-bottom: 6px;"><b style="color: #f59e0b;">WHY IT SWARMS:</b> ${zone.whyItSwarms}</div>
+        <div style="color: ${zone.statusColor || '#10b981'}; font-size: 9.5px; font-weight: 600; background: rgba(255,255,255,0.06); padding: 3px 6px; border-radius: 3px; border: 1px solid ${zone.color}40;">
+          ${zone.statusBadge}
+        </div>
+      </div>
+    `;
+
+    poly.bindPopup(popupHtml, { maxWidth: 310, className: 'cluster-zone-popup' });
+
+    // Interactive Hover & Click Behaviors
+    poly.on('mouseover', function (e) {
+      this.setStyle({ fillOpacity: 0.35, weight: 3 });
+      this.openPopup(e.latlng);
+    });
+
+    poly.on('mouseout', function () {
+      this.setStyle({ fillOpacity: 0.16, weight: 2 });
+    });
+
+    clusterPolygons.push(poly);
+  });
 
   // Radar range rings (10, 25, 50, 100, 250, 500 miles)
   [16.09, 40.23, 80.47, 160.93, 402.33, 804.67].forEach((km, idx) => {
@@ -362,8 +505,8 @@ export function updateRadarMap() {
     const distMi = evt.distance_miles !== undefined ? evt.distance_miles : (evt.distance_km ? evt.distance_km * 0.621371 : 0);
     if (distMi < closestDist) closestDist = distMi;
 
-    const inGeysers = isInGeysersZone(evt.latitude, evt.longitude);
-    if (inGeysers) geysersCount++;
+    const matchedZone = getClusterZoneForEvent(evt.latitude, evt.longitude);
+    if (matchedZone && matchedZone.id === 'geysers') geysersCount++;
 
     // Sized by magnitude (Raspberry Shake StationView style)
     let radius = 3.5;
@@ -373,23 +516,30 @@ export function updateRadarMap() {
     else if (mag >= 1.5) radius = 5.5;
     else radius = 3.5;
 
-    // Color-coded by magnitude & geothermal category
-    let color = '#38bdf8'; // Sky blue for micro-quakes (<1.5)
-    if (mag >= 4.0) color = '#ef4444'; // Red (Strong)
-    else if (mag >= 2.5) color = '#f97316'; // Orange (Moderate)
-    else if (mag >= 1.5) color = '#eab308'; // Gold (Light)
-
-    if (inGeysers) {
-      color = '#eab308'; // Ambient geothermal
+    // Standardized Geophysical Magnitude Coloring:
+    // 🔵 Sky Blue: Microseism (M < 1.5 - Unfelt / Ambient)
+    // 🟡 Gold/Amber: Minor (M 1.5 - 2.4 - Light motion)
+    // 🟠 Orange: Moderate (M 2.5 - 3.9 - Noticeable shaking)
+    // 🔴 Red: Strong (M >= 4.0 - Significant shaking / Warning)
+    let color = '#38bdf8'; // Blue (<1.5)
+    let magCategory = 'Microseism (Unfelt)';
+    if (mag >= 4.0) {
+      color = '#ef4444'; // Red
+      magCategory = 'Strong Quake (Widely Felt)';
+    } else if (mag >= 2.5) {
+      color = '#f97316'; // Orange
+      magCategory = 'Light Quake (Noticeable)';
+    } else if (mag >= 1.5) {
+      color = '#eab308'; // Gold
+      magCategory = 'Minor Quake (Sensors)';
     }
 
     const circle = L.circleMarker([evt.latitude, evt.longitude], {
       radius: radius,
-      color: inGeysers ? '#f59e0b' : color,
+      color: matchedZone ? matchedZone.color : color,
       fillColor: color,
-      fillOpacity: inGeysers ? 0.45 : 0.75,
-      weight: inGeysers ? 1.5 : 2,
-      dashArray: inGeysers ? '2, 3' : undefined,
+      fillOpacity: matchedZone ? 0.6 : 0.8,
+      weight: matchedZone ? 2.0 : 1.8,
     }).addTo(leafletMap);
 
     const timeUtc = new Date(evt.time * 1000).toISOString().substring(11, 19);
@@ -398,24 +548,25 @@ export function updateRadarMap() {
     const distStr = `${distMi.toFixed(1)} mi (${(distMi * 1.60934).toFixed(1)} km)`;
 
     circle.bindPopup(`
-      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; min-width: 230px;">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; min-width: 240px; color: #f8fafc;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; border-bottom: 1px solid #334155; padding-bottom: 4px;">
           <span style="font-weight: 700; color: ${color}; font-size: 13px;">M ${mag.toFixed(1)} Earthquake</span>
           <span style="color: #64748b; font-size: 9px;">USGS FEED</span>
         </div>
         <div style="font-weight: 600; color: #f8fafc; margin-bottom: 6px;">${evt.place || 'Regional Seismic Event'}</div>
+        <div style="color: #cbd5e1;"><b>Classification:</b> <span style="color: ${color}; font-weight: 600;">${magCategory}</span></div>
         <div style="color: #cbd5e1;"><b>Distance:</b> ${distStr} from Berkeley</div>
         <div style="color: #cbd5e1;"><b>Depth:</b> ${depthStr}</div>
         <div style="color: #cbd5e1;"><b>Origin Time:</b> ${timeUtc} UTC</div>
         <div style="color: #00ff88; margin-top: 4px; font-weight: 600; background: rgba(0,255,136,0.1); padding: 2px 4px; border-radius: 3px;">
           <b>Elapsed:</b> <span class="live-elapsed" data-time="${evt.time}">${elapsedStr}</span>
         </div>
-        ${inGeysers ? `
-          <div style="color: #f59e0b; margin-top: 4px; font-size: 9.5px; background: rgba(245,158,11,0.12); padding: 3px 6px; border-radius: 3px; border: 1px solid rgba(245,158,11,0.3);">
-            ⚡ <b>The Geysers Field:</b> Low-level hydrothermal microseism (normal background).
+        ${matchedZone ? `
+          <div style="color: ${matchedZone.color}; margin-top: 5px; font-size: 9.5px; background: rgba(255,255,255,0.06); padding: 4px 6px; border-radius: 3px; border: 1px solid ${matchedZone.color}40;">
+            <b>${matchedZone.name}:</b> Localized swarm activity (normal background).
           </div>
         ` : ''}
-        ${evt.url ? `<div style="margin-top: 6px;"><a href="${evt.url}" target="_blank" style="color: #38bdf8; text-decoration: underline; font-size: 10px;">USGS Event Page ↗</a></div>` : ''}
+        ${evt.url ? `<div style="margin-top: 6px;"><a href="${evt.url}" target="_blank" style="color: #38bdf8; text-decoration: underline; font-size: 10px;">USGS Event Details ↗</a></div>` : ''}
       </div>
     `);
     quakeMarkers.push(circle);
@@ -448,44 +599,42 @@ export function updateRadarMap() {
   // -------------------------------------------------------------------------
   // Update Overlay HUD Stats & Regional Benchmarks
   // -------------------------------------------------------------------------
-  const count48h = active48hEvents.length;
   const countEl = document.getElementById('radarQuakeCount');
-  if (countEl) countEl.textContent = `${count48h} Events`;
+  if (countEl) {
+    countEl.textContent = `${active48hEvents.length} Events (48h)`;
+  }
+
+  const maxMagEl = document.getElementById('radarMaxMag');
+  if (maxMagEl) {
+    maxMagEl.textContent = maxMag > 0 ? `M ${maxMag.toFixed(1)}` : '--';
+    maxMagEl.style.color = maxMag >= 4.0 ? '#ef4444' : maxMag >= 2.5 ? '#f97316' : '#38bdf8';
+  }
+
+  const closestEl = document.getElementById('radarClosestQuake');
+  if (closestEl) {
+    closestEl.textContent = closestDist < 9999 ? `${closestDist.toFixed(1)} mi` : '--';
+  }
 
   const badgeEl = document.getElementById('radarActivityBadge');
-  const weirdEl = document.getElementById('radarWeirdAlert');
-  const maxMagEl = document.getElementById('radarMaxMag');
-  const closestEl = document.getElementById('radarClosestQuake');
+  const alertEl = document.getElementById('radarWeirdAlert');
+  const totalCount = active48hEvents.length;
 
-  if (maxMagEl) maxMagEl.textContent = maxMag > 0 ? `M ${maxMag.toFixed(1)}` : '--';
-  if (closestEl) closestEl.textContent = closestDist < 9990 ? `${closestDist.toFixed(1)} mi` : '--';
-
-  if (count48h > 400 || maxMag >= 5.0 || (closestDist < 15 && maxMag >= 3.5)) {
-    if (badgeEl) {
-      badgeEl.textContent = '⚡ WEIRD / SWARM';
-      badgeEl.className = 'radar-status-badge badge-weird';
-    }
-    if (weirdEl) {
-      weirdEl.textContent = 'High-rate swarm or moderate-to-strong shaking detected!';
-      weirdEl.style.color = '#ef4444';
-    }
-  } else if (count48h > 260 || maxMag >= 3.5 || closestDist < 25) {
-    if (badgeEl) {
+  if (badgeEl && alertEl) {
+    if (totalCount > 350 || maxMag >= 4.5 || closestDist <= 15.0) {
+      badgeEl.textContent = '⚡ ANOMALOUS (WEIRD)';
+      badgeEl.className = 'radar-status-badge badge-anomalous';
+      alertEl.style.color = '#ef4444';
+      alertEl.textContent = `High seismic energy detected! (${totalCount} events, Max M${maxMag.toFixed(1)})`;
+    } else if (totalCount > 250 || maxMag >= 3.5 || closestDist <= 30.0) {
       badgeEl.textContent = '🟡 ELEVATED';
       badgeEl.className = 'radar-status-badge badge-elevated';
-    }
-    if (weirdEl) {
-      weirdEl.textContent = 'Moderately elevated regional activity or local cluster';
-      weirdEl.style.color = '#f59e0b';
-    }
-  } else {
-    if (badgeEl) {
+      alertEl.style.color = '#f59e0b';
+      alertEl.textContent = `Elevated regional activity (${totalCount} events in 48h)`;
+    } else {
       badgeEl.textContent = '🟢 NORMAL';
       badgeEl.className = 'radar-status-badge badge-normal';
-    }
-    if (weirdEl) {
-      weirdEl.textContent = 'Seismicity within normal California background range';
-      weirdEl.style.color = '#22c55e';
+      alertEl.style.color = '#22c55e';
+      alertEl.textContent = `Seismicity within normal California background range (${geysersCount} in The Geysers)`;
     }
   }
 }

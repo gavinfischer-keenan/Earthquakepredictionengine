@@ -772,14 +772,24 @@
 
               <!-- Map Legend Card -->
               <div class="radar-hud-card radar-legend-card">
-                <span class="hud-label">MAP FAULTS & ZONES LEGEND</span>
+                <span class="hud-label">MAP LEGEND & EARTHQUAKE DOT COLORS</span>
+                
+                <div class="legend-section-title">MAGNITUDE DOTS (SIZED BY ENERGY)</div>
+                <div class="radar-legend-grid">
+                  <div class="legend-row"><span class="legend-dot dot-micro"></span><span><b>Blue:</b> M &lt; 1.5 (Microseisms / Unfelt)</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-minor"></span><span><b>Gold:</b> M 1.5 – 2.4 (Minor / Instrument)</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-light"></span><span><b>Orange:</b> M 2.5 – 3.9 (Noticeable)</span></div>
+                  <div class="legend-row"><span class="legend-dot dot-strong"></span><span><b>Red:</b> M ≥ 4.0 (Strong / Warning)</span></div>
+                </div>
+
+                <div class="legend-section-title" style="margin-top: 6px;">FAULT LINES & VOLCANIC/GEOTHERMAL ZONES</div>
                 <div class="radar-legend-grid">
                   <div class="legend-row"><span class="legend-line line-hayward"></span><span><b>Hayward Fault</b> (~400m West)</span></div>
-                  <div class="legend-row"><span class="legend-line line-sanandreas"></span><span><b>San Andreas Fault</b> (Plate Boundary)</span></div>
-                  <div class="legend-row"><span class="legend-line line-calaveras"></span><span><b>Calaveras / Rodgers Creek</b></span></div>
-                  <div class="legend-row"><span class="legend-line line-regional"></span><span><b>Regional Faults</b> (500-mi network)</span></div>
-                  <div class="legend-row"><span class="legend-zone-swatch"></span><span><b>The Geysers Field</b> (Hydrothermal)</span></div>
-                  <div class="legend-row"><span class="legend-quake-swatch"></span><span><b>Earthquake Dots</b> (Sized M1–M5+)</span></div>
+                  <div class="legend-row"><span class="legend-line line-sanandreas"></span><span><b>San Andreas Fault</b> (Boundary)</span></div>
+                  <div class="legend-row"><span class="legend-zone-swatch swatch-geysers"></span><span><b>The Geysers (Cobb):</b> Hydrothermal</span></div>
+                  <div class="legend-row"><span class="legend-zone-swatch swatch-longvalley"></span><span><b>Long Valley:</b> Volcanic Caldera</span></div>
+                  <div class="legend-row"><span class="legend-zone-swatch swatch-salton"></span><span><b>Salton Sea:</b> Spreading Rift</span></div>
+                  <div class="legend-row"><span class="legend-zone-swatch swatch-parkfield"></span><span><b>Parkfield:</b> Creep Benchmark</span></div>
                 </div>
               </div>
             </div>
