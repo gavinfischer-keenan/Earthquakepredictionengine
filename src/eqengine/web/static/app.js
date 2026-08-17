@@ -651,41 +651,91 @@
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
+      const plotH = h - 22; // Leave bottom 22px for X-axis time markings
+      const xSpan = Math.max(w - 32, 10);
+
       // 1. Clear background
       ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, w, h);
 
-      // 2. Draw Time Grid (scaled to exact canvas width)
-      ctx.strokeStyle = '#182234';
+      // 2. Draw Zero Axis
+      ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      // Center horizontal zero line
-      ctx.moveTo(0, h / 2);
-      ctx.lineTo(w, h / 2);
+      ctx.moveTo(0, plotH / 2);
+      ctx.lineTo(xSpan, plotH / 2);
+      ctx.stroke();
 
+      // 3. Draw Time Grid & Real UTC Timestamps on X-Axis
       const secStep = windowSec <= 15 ? 2 : (windowSec <= 30 ? 5 : (windowSec <= 120 ? 15 : 60));
       const firstSec = Math.ceil(startT / secStep) * secStep;
+
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+
       for (let t = firstSec; t <= endT; t += secStep) {
-        const x = ((t - startT) / windowSec) * w;
-        if (x >= 0 && x <= w) {
+        const x = ((t - startT) / windowSec) * xSpan;
+        if (x >= 0 && x <= xSpan) {
+          // Vertical grid line through waveform
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
           ctx.moveTo(x, 0);
-          ctx.lineTo(x, h);
+          ctx.lineTo(x, plotH);
+          ctx.stroke();
+
+          // Time tick mark on axis
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+          ctx.beginPath();
+          ctx.moveTo(x, plotH);
+          ctx.lineTo(x, plotH + 5);
+          ctx.stroke();
+
+          // Real UTC time label (HH:MM:SS)
+          const d = new Date(t * 1000);
+          const timeLabel = d.toISOString().substring(11, 19);
+          const relSec = Math.round(t - endT);
+          const relLabel = relSec === 0 ? 'NOW' : `${relSec}s`;
+
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(timeLabel, x, plotH + 16);
+
+          // Subtle relative marker near top
+          ctx.fillStyle = '#334155';
+          ctx.fillText(relLabel, x, 11);
         }
       }
+
+      // Time Axis baseline bar
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, plotH);
+      ctx.lineTo(w, plotH);
       ctx.stroke();
 
-      // Zero-crossing accent line
-      ctx.strokeStyle = '#25354d';
-      ctx.beginPath();
-      ctx.moveTo(0, h / 2);
-      ctx.lineTo(w, h / 2);
-      ctx.stroke();
+      // Rightmost Live Indicator badge on X-axis
+      ctx.font = '8px JetBrains Mono';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#00ff88';
+      ctx.fillText('LIVE 🔴', w - 4, plotH + 16);
 
       const rawBuf = state.buffers[ch];
+      const rawTs = state.timestamps[ch];
       if (!rawBuf || rawBuf.length === 0) return;
 
-      // Slice exact visible window (e.g. 3,000 samples for 30s)
-      const visibleRaw = rawBuf.slice(-numSamples);
+      // Slice visible samples for [startT - 1, endT]
+      const nTotal = rawBuf.length;
+      let startIdx = 0;
+      for (let i = nTotal - 1; i >= 0; i--) {
+        if (rawTs && rawTs[i] < startT - 0.5) {
+          startIdx = Math.max(0, i);
+          break;
+        }
+      }
+
+      const visibleRaw = rawBuf.slice(startIdx);
+      const visibleTs = rawTs ? rawTs.slice(startIdx) : [];
       const filtered = filterData(visibleRaw, state.filterMode);
       const nVisible = filtered.length;
       if (nVisible < 2) return;
@@ -752,41 +802,49 @@
         elements.pgaENE.textContent = (maxVal * 1.9e-6).toFixed(4);
       }
 
-      // 3. Draw 4-Minute Dynamic Normal Baseline Corridor (±baselineNormal)
-      const normYHeight = Math.min((baselineNormal / maxVal) * (h / 2) * 0.88, h / 2 - 4);
+      // 4. Draw 4-Minute Dynamic Normal Baseline Corridor (±baselineNormal)
+      const normYHeight = Math.min((baselineNormal / maxVal) * (plotH / 2) * 0.88, plotH / 2 - 4);
       ctx.fillStyle = 'rgba(0, 255, 136, 0.04)';
-      ctx.fillRect(0, h / 2 - normYHeight, w, normYHeight * 2);
+      ctx.fillRect(0, plotH / 2 - normYHeight, xSpan, normYHeight * 2);
 
       ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.moveTo(0, h / 2 - normYHeight);
-      ctx.lineTo(w, h / 2 - normYHeight);
-      ctx.moveTo(0, h / 2 + normYHeight);
-      ctx.lineTo(w, h / 2 + normYHeight);
+      ctx.moveTo(0, plotH / 2 - normYHeight);
+      ctx.lineTo(xSpan, plotH / 2 - normYHeight);
+      ctx.moveTo(0, plotH / 2 + normYHeight);
+      ctx.lineTo(xSpan, plotH / 2 + normYHeight);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 4. Draw Seismic Trace (guaranteed 100% fitted to canvas width)
+      // 5. Draw Seismic Trace (mapped strictly to UTC time)
       ctx.save();
       ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 1.6;
       ctx.shadowColor = CH_COLORS[ch] || '#00ff88';
-      ctx.shadowBlur = 3;
+      ctx.shadowBlur = 2;
       ctx.beginPath();
 
-      const xSpan = Math.max(w - 24, 10);
+      const dt = 1.0 / SAMPLING_RATE;
+      let hasStarted = false;
 
       for (let i = 0; i < nVisible; i++) {
-        const x = (i / Math.max(nVisible - 1, 1)) * xSpan;
+        const sTime = visibleTs && visibleTs.length > i
+          ? visibleTs[i]
+          : (endT - (nVisible - 1 - i) * dt);
+
+        const x = ((sTime - startT) / windowSec) * xSpan;
+        if (x < -5 || x > xSpan + 5) continue;
+
         const val = filtered[i];
         const normalizedY = (val / maxVal);
         const clampedY = Math.max(-0.95, Math.min(0.95, normalizedY));
-        const y = h / 2 - clampedY * (h / 2) * 0.85;
+        const y = plotH / 2 - clampedY * (plotH / 2) * 0.85;
 
-        if (i === 0) {
+        if (!hasStarted) {
           ctx.moveTo(x, y);
+          hasStarted = true;
         } else {
           ctx.lineTo(x, y);
         }
@@ -794,15 +852,15 @@
       ctx.stroke();
       ctx.restore();
 
-      // 5. Draw Floating 4-Min Normal Bar & Needle on Right Edge
+      // 6. Draw Floating 4-Min Normal Bar & Needle on Right Edge
       const barW = 6;
       const barX = w - 16;
-      const barTop = h / 2 - normYHeight;
-      const barBottom = h / 2 + normYHeight;
+      const barTop = plotH / 2 - normYHeight;
+      const barBottom = plotH / 2 + normYHeight;
       const barH = Math.max(barBottom - barTop, 6);
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.fillRect(barX - 2, 6, barW + 4, h - 12);
+      ctx.fillRect(barX - 2, 4, barW + 4, plotH - 8);
 
       ctx.fillStyle = devRatio > 3.0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(0, 255, 136, 0.35)';
       ctx.fillRect(barX, barTop, barW, barH);
@@ -813,7 +871,7 @@
 
       // Current excursion needle
       const curNormY = Math.max(-1.0, Math.min(1.0, (lastVal / maxVal)));
-      const needleY = h / 2 - curNormY * (h / 2) * 0.88;
+      const needleY = plotH / 2 - curNormY * (plotH / 2) * 0.88;
       ctx.fillStyle = devRatio > 3.0 ? '#ef4444' : (devRatio > 1.8 ? '#f59e0b' : '#fff');
       ctx.shadowColor = ctx.fillStyle;
       ctx.shadowBlur = 6;
@@ -828,7 +886,7 @@
 
       ctx.font = '8px JetBrains Mono';
       ctx.fillStyle = '#64748b';
-      ctx.fillText('4m', barX - 14, h / 2 + 3);
+      ctx.fillText('4m', barX - 14, plotH / 2 + 3);
 
       // -------------------------------------------------------------------
       // Drop Symbology & Annotations on Live Traces
@@ -2077,18 +2135,37 @@
   }
 
   // -------------------------------------------------------------------------
-  // Main Animation Loop
+  // Main Animation Loop (Optimized: Only active tab renders per frame)
   // -------------------------------------------------------------------------
+  let lastHelicorderRender = 0;
+
   function mainLoop() {
-    renderOscilloscope();
-    renderSpectrogram();
-    renderHelicorder();
     renderTelemetry();
-    renderHodogram();
-    renderUrbanProfiler();
-    renderPhaseNet();
-    renderPetersonCurve();
-    renderSonificationVisualizer();
+
+    const tab = state.activeTab || 'traces';
+
+    if (tab === 'traces') {
+      renderOscilloscope();
+    } else if (tab === 'spectrogram') {
+      renderSpectrogram();
+    } else if (tab === 'helicorder') {
+      const now = Date.now();
+      if (now - lastHelicorderRender > 1000) {
+        renderHelicorder();
+        lastHelicorderRender = now;
+      }
+    } else if (tab === 'hodogram') {
+      renderHodogram();
+    } else if (tab === 'environment') {
+      renderUrbanProfiler();
+    } else if (tab === 'phasenet') {
+      renderPhaseNet();
+    } else if (tab === 'psd') {
+      renderPetersonCurve();
+    } else if (tab === 'sonification') {
+      renderSonificationVisualizer();
+    }
+
     requestAnimationFrame(mainLoop);
   }
 
