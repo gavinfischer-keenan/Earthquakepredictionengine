@@ -61,6 +61,18 @@ class TriggerEvent:
         return float(self.start_time.timestamp)
 
     @property
+    def off_time(self) -> float:
+        """POSIX timestamp of the trigger offset, or on_time + 1.0 if still active."""
+        if self.end_time is not None:
+            return float(self.end_time.timestamp)
+        return float(self.start_time.timestamp) + 1.0
+
+    @property
+    def duration(self) -> float:
+        """Duration of trigger window in seconds."""
+        return max(0.0, self.off_time - self.on_time)
+
+    @property
     def sta_lta_ratio(self) -> float:
         """Peak STA/LTA ratio."""
         return self.peak_sta_lta

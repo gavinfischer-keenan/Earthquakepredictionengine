@@ -265,37 +265,26 @@ export function renderOscilloscope() {
     ctx.arc(xSpan - 2, lastY, 3, 0, Math.PI * 2);
     ctx.fill();
 
-    // 7. Render Trigger Event Drop Markers & AI Pick Overlays
-    if (overlay) {
-      const oCtx = overlay.getContext('2d');
-      if (overlay.width !== canvas.width || overlay.height !== canvas.height) {
-        overlay.width = canvas.width;
-        overlay.height = canvas.height;
-      }
-      oCtx.resetTransform();
-      oCtx.scale(dpr, dpr);
-      oCtx.clearRect(0, 0, w, h);
+    // 7. Render Trigger Event Drop Markers & AI Pick Overlays directly onto waveform canvas
+    state.activeTriggers.forEach((trig) => {
+      if (trig.channel === ch || trig.channel === 'ALL') {
+        const tTime = trig.timestamp || 0;
+        if (tTime >= startT && tTime <= endT) {
+          const tx = ((tTime - startT) / windowSec) * xSpan;
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath();
+          ctx.moveTo(tx, 0);
+          ctx.lineTo(tx, plotH);
+          ctx.stroke();
+          ctx.setLineDash([]);
 
-      state.activeTriggers.forEach((trig) => {
-        if (trig.channel === ch || trig.channel === 'ALL') {
-          const tTime = trig.timestamp || 0;
-          if (tTime >= startT && tTime <= endT) {
-            const tx = ((tTime - startT) / windowSec) * xSpan;
-            oCtx.strokeStyle = '#ef4444';
-            oCtx.lineWidth = 1.5;
-            oCtx.setLineDash([3, 3]);
-            oCtx.beginPath();
-            oCtx.moveTo(tx, 0);
-            oCtx.lineTo(tx, plotH);
-            oCtx.stroke();
-            oCtx.setLineDash([]);
-
-            oCtx.fillStyle = '#ef4444';
-            oCtx.font = '9px JetBrains Mono';
-            oCtx.fillText('🚨 TRIGGER', tx + 4, 18);
-          }
+          ctx.fillStyle = '#ef4444';
+          ctx.font = '9px JetBrains Mono, monospace';
+          ctx.fillText('🚨 TRIGGER', tx + 4, 18);
         }
-      });
-    }
+      }
+    });
   });
 }

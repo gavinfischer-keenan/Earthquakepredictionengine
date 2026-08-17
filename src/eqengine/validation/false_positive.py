@@ -160,7 +160,15 @@ class FalsePositiveFilter:
     # Individual checks
     # ------------------------------------------------------------------
     def _check_duration(self, trigger: _TriggerLike) -> bool:
-        duration = trigger.off_time - trigger.on_time
+        on_t = getattr(trigger, "on_time", None)
+        if on_t is None:
+            start_t = getattr(trigger, "start_time", 0.0)
+            on_t = float(getattr(start_t, "timestamp", start_t))
+        off_t = getattr(trigger, "off_time", None)
+        if off_t is None:
+            end_t = getattr(trigger, "end_time", None)
+            off_t = float(end_t.timestamp) if end_t is not None else on_t + 1.0
+        duration = max(0.0, float(off_t) - float(on_t))
         ok = duration >= self.min_trigger_duration_sec
         log.debug(
             "check.duration",

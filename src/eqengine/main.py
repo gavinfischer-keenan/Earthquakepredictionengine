@@ -286,81 +286,84 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
 
             # f) Process each trigger
             for trigger in triggers:
-                # False-positive filter validation (spectral ratio, noise floor, duration)
-                result = fp_filter.validate(trigger, trace, noise_model)
-                if not result.passed:
-                    log.debug(
-                        "engine.trigger_rejected",
-                        reason=result.rejection_reason,
-                        checks=result.checks,
+                try:
+                    # False-positive filter validation (spectral ratio, noise floor, duration)
+                    result = fp_filter.validate(trigger, trace, noise_model)
+                    if not result.passed:
+                        log.debug(
+                            "engine.trigger_rejected",
+                            reason=result.rejection_reason,
+                            checks=result.checks,
+                        )
+                        continue
+
+                    health.record_trigger()
+
+                    # Broadcast confirmed trigger symbology to connected browsers
+                    await broadcaster.broadcast_trigger({
+                        "channel": trigger.channel,
+                        "start_time": float(trigger.start_time.timestamp),
+                        "end_time": float(trigger.end_time.timestamp) if trigger.end_time else None,
+                        "peak_sta_lta": trigger.peak_sta_lta,
+                        "sta_lta_ratio": trigger.sta_lta_ratio,
+                        "start_sample": trigger.start_sample,
+                        "end_sample": trigger.end_sample,
+                    })
+
+                    # Magnitude estimation
+                    mag_est: float | None = None
+                    if magnitude_estimator is not None:
+                        try:
+                            accel_traces_dict: dict[str, obspy.Trace] = {}
+                            for ch in ("ENZ", "ENN", "ENE"):
+                                if ch in channels:
+                                    t = ring_buffer.get_latest(ch, duration_sec=window_sec)
+                                    if t is not None:
+                                        accel_traces_dict[ch] = t
+                            est_res = magnitude_estimator.estimate(
+                                trace,
+                                accel_traces=accel_traces_dict or None,
+                                p_arrival=trigger.start_time,
+                                window_sec=float(getattr(config, "pd_window_sec", 3.0)),
+                            )
+                            mag_est = est_res.magnitude if est_res else None
+                        except Exception:
+                            log.exception("engine.magnitude_estimation_failed")
+
+                    # ML validation
+                    ml_result = None
+                    if ml_picker is not None:
+                        try:
+                            stream = obspy.Stream([trace])
+                            ml_result = ml_picker.validate_p_wave(
+                                stream,
+                                obspy.UTCDateTime(trigger.on_time),
+                            )
+                        except Exception:
+                            log.exception("engine.ml_validation_failed")
+
+                    # Cooldown check
+                    if not alert_manager.should_alert():
+                        log.debug("engine.alert_cooldown_active")
+                        continue
+
+                    # Create & dispatch alert
+                    alert = alert_manager.create_alert(
+                        trigger=trigger,
+                        magnitude_est=mag_est,
+                        ml_result=ml_result,
+                        config=config,
                     )
-                    continue
-
-                health.record_trigger()
-
-                # Broadcast confirmed trigger symbology to connected browsers
-                await broadcaster.broadcast_trigger({
-                    "channel": trigger.channel,
-                    "start_time": float(trigger.start_time.timestamp),
-                    "end_time": float(trigger.end_time.timestamp) if trigger.end_time else None,
-                    "peak_sta_lta": trigger.peak_sta_lta,
-                    "sta_lta_ratio": trigger.sta_lta_ratio,
-                    "start_sample": trigger.start_sample,
-                    "end_sample": trigger.end_sample,
-                })
-
-                # Magnitude estimation
-                mag_est: float | None = None
-                if magnitude_estimator is not None:
-                    try:
-                        accel_traces_dict: dict[str, obspy.Trace] = {}
-                        for ch in ("ENZ", "ENN", "ENE"):
-                            if ch in channels:
-                                t = ring_buffer.get_latest(ch, duration_sec=window_sec)
-                                if t is not None:
-                                    accel_traces_dict[ch] = t
-                        est_res = magnitude_estimator.estimate(
-                            trace,
-                            accel_traces=accel_traces_dict or None,
-                            p_arrival=trigger.start_time,
-                            window_sec=float(getattr(config, "pd_window_sec", 3.0)),
-                        )
-                        mag_est = est_res.magnitude if est_res else None
-                    except Exception:
-                        log.exception("engine.magnitude_estimation_failed")
-
-                # ML validation
-                ml_result = None
-                if ml_picker is not None:
-                    try:
-                        stream = obspy.Stream([trace])
-                        ml_result = ml_picker.validate_p_wave(
-                            stream,
-                            obspy.UTCDateTime(trigger.on_time),
-                        )
-                    except Exception:
-                        log.exception("engine.ml_validation_failed")
-
-                # Cooldown check
-                if not alert_manager.should_alert():
-                    log.debug("engine.alert_cooldown_active")
-                    continue
-
-                # Create & dispatch alert
-                alert = alert_manager.create_alert(
-                    trigger=trigger,
-                    magnitude_est=mag_est,
-                    ml_result=ml_result,
-                    config=config,
-                )
-                health.record_confirmed()
-                await send_alert(alert)
-                log.info(
-                    "engine.alert_dispatched",
-                    alert_id=alert.alert_id,
-                    severity=alert.severity,
-                    magnitude=alert.estimated_magnitude,
-                )
+                    health.record_confirmed()
+                    await send_alert(alert)
+                    log.info(
+                        "engine.alert_dispatched",
+                        alert_id=alert.alert_id,
+                        severity=alert.severity,
+                        magnitude=alert.estimated_magnitude,
+                    )
+                except Exception:
+                    log.exception("engine.trigger_processing_failed")
 
             # g) Periodic RSAM & heartbeat
             now = time.time()
