@@ -1,22 +1,82 @@
 /**
  * Helicorder View: 24-Hour Seismograph Drum Recorder
- * Faithful DataView-grade 24-Hour Drum Display:
- * - 24 Horizontal Hourly Rows (00:00 to 23:00 UTC)
- * - Dual Time Axes: Left Gutter = UTC Time; Right Gutter = Local PDT (UTC-7)
- * - Bottom X-Axis: 0 to 60 Minutes with 5-minute ticks
- * - Continuous high-density multi-point seismic waveform traces
- * - Dynamic Scale Exaggeration multiplier (0.5x to 20x)
- * - Color Palettes (DataView Blue, Obsidian Green, Alert Amber)
- * - Quake spindle packet highlighting across rows
- * - Real-time recording stylus needle with pulsing radar ring
+ * Supports Dual Operating Modes:
+ * 1. 📸 Direct Station Drum Plot (Default):
+ *    - Official ultra-high-resolution (1570x1732) 24h continuous seismograph drum image
+ *      rendered directly by the Raspberry Shake on-board digitizer with 100% of recorded earthquakes.
+ *    - Auto-refreshes every 60 seconds.
+ * 2. 🎛️ Live Dynamic Canvas:
+ *    - Real-time continuous multi-sample seismic waveform drum with Scale Exaggeration multiplier,
+ *      channel selector, and live wriggling stylus needle.
  */
 
 import { state } from '../state.js';
 import { elements } from '../dom.js';
 
+let lastHeliImgRefresh = 0;
+let lastSelectedChannel = 'EHZ';
+let isListenersAttached = false;
+
+export function initHelicorderListeners() {
+  if (isListenersAttached) return;
+  const modeSelect = document.getElementById('heliModeSelect');
+  const channelSelect = document.getElementById('heliChannelSelect');
+  const liveImg = document.getElementById('heliLiveImage');
+
+  if (modeSelect) {
+    modeSelect.addEventListener('change', () => {
+      renderHelicorder();
+    });
+  }
+
+  if (channelSelect) {
+    channelSelect.addEventListener('change', () => {
+      if (liveImg) {
+        liveImg.src = `/api/helicorder/latest?channel=${channelSelect.value}&t=${Date.now()}`;
+      }
+      renderHelicorder();
+    });
+  }
+
+  isListenersAttached = true;
+}
+
 export function renderHelicorder() {
+  initHelicorderListeners();
+
+  const modeSelect = document.getElementById('heliModeSelect');
+  const mode = modeSelect ? modeSelect.value : 'drum';
+
+  const channelSelect = document.getElementById('heliChannelSelect');
+  const activeChannel = channelSelect ? channelSelect.value : 'EHZ';
+
+  const imgContainer = document.getElementById('heliImageContainer');
   const canvas = elements.canvases.helicorder || document.getElementById('helicorderCanvas');
+  const liveImg = document.getElementById('heliLiveImage');
+
+  // =========================================================================
+  // Mode 1: 📸 Direct Station Drum Plot
+  // =========================================================================
+  if (mode === 'drum') {
+    if (imgContainer) imgContainer.style.display = 'flex';
+    if (canvas) canvas.style.display = 'none';
+
+    // Auto-refresh drum image every 60 seconds or on channel change
+    const nowMs = Date.now();
+    if (liveImg && (nowMs - lastHeliImgRefresh > 60000 || lastSelectedChannel !== activeChannel)) {
+      liveImg.src = `/api/helicorder/latest?channel=${activeChannel}&t=${nowMs}`;
+      lastHeliImgRefresh = nowMs;
+      lastSelectedChannel = activeChannel;
+    }
+    return;
+  }
+
+  // =========================================================================
+  // Mode 2: 🎛️ Live Dynamic Canvas
+  // =========================================================================
+  if (imgContainer) imgContainer.style.display = 'none';
   if (!canvas) return;
+  canvas.style.display = 'block';
 
   const rect = canvas.getBoundingClientRect();
   const w = Math.floor(rect.width);
@@ -37,20 +97,14 @@ export function renderHelicorder() {
   ctx.fillStyle = '#060913';
   ctx.fillRect(0, 0, w, h);
 
-  // User controls
   const scaleSelect = document.getElementById('heliScaleSelect');
   const scaleMult = scaleSelect ? (parseFloat(scaleSelect.value) || 5.0) : 5.0;
 
   const paletteSelect = document.getElementById('heliPaletteSelect');
   const palette = paletteSelect ? paletteSelect.value : 'dataview';
 
-  const channelSelect = document.getElementById('heliChannelSelect');
-  const activeChannel = channelSelect ? channelSelect.value : 'EHZ';
-
-  // Palette colors
   let traceBaseColor = '#3b82f6'; // DataView Royal Blue
   let traceHighlightColor = '#60a5fa';
-  let eventColor = '#ef4444';
 
   if (palette === 'emerald') {
     traceBaseColor = '#00ff88';
@@ -60,8 +114,8 @@ export function renderHelicorder() {
     traceHighlightColor = '#fbbf24';
   }
 
-  const numRows = 24; // 24 hours
-  const rowH = (h - 22) / numRows; // Leave 22px for bottom minute axis
+  const numRows = 24;
+  const rowH = (h - 22) / numRows;
   const leftGutter = 52;
   const rightGutter = 52;
   const traceW = Math.max(w - leftGutter - rightGutter, 50);
@@ -71,13 +125,9 @@ export function renderHelicorder() {
   const currentUtcHour = nowDate.getUTCHours();
   const currentUtcMin = nowDate.getUTCMinutes();
   const currentUtcSec = nowDate.getUTCSeconds();
-
-  // Local PDT offset (-7 hours)
   const localOffsetHours = -7;
 
-  // -------------------------------------------------------------------------
   // 1. Draw Minute Grid Columns & Bottom Minute Axis
-  // -------------------------------------------------------------------------
   ctx.font = '8.5px JetBrains Mono, monospace';
   ctx.textAlign = 'center';
 
@@ -92,7 +142,6 @@ export function renderHelicorder() {
     ctx.lineTo(x, numRows * rowH);
     ctx.stroke();
 
-    // Bottom minute label
     if (m % 5 === 0) {
       ctx.fillStyle = isMajor ? '#94a3b8' : '#475569';
       ctx.fillText(`${m}`, x, h - 6);
@@ -102,9 +151,7 @@ export function renderHelicorder() {
   ctx.fillStyle = '#64748b';
   ctx.fillText('Minutes', leftGutter + traceW / 2, h - 6);
 
-  // -------------------------------------------------------------------------
   // 2. Draw 24 Hourly Rows & Dual Time Axes
-  // -------------------------------------------------------------------------
   const ehzBuf = state.buffers[activeChannel] || state.buffers.EHZ || [];
   const baselineNoise = (state.fourMinStats && state.fourMinStats[activeChannel] && state.fourMinStats[activeChannel].baselineAmp)
     ? state.fourMinStats[activeChannel].baselineAmp
@@ -122,24 +169,20 @@ export function renderHelicorder() {
     const localHour = (r + 24 + localOffsetHours) % 24;
     const localLabel = `${String(localHour).padStart(2, '0')}:00`;
 
-    // Row zebra background
     if (r % 2 === 1) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.015)';
       ctx.fillRect(leftGutter, rowY, traceW, rowH);
     }
 
-    // Left Gutter: UTC Hour Label
     ctx.font = isCurrentHour ? '700 9.5px JetBrains Mono, monospace' : '9px JetBrains Mono, monospace';
     ctx.textAlign = 'right';
     ctx.fillStyle = isCurrentHour ? '#00ff88' : isPastHour ? '#cbd5e1' : '#475569';
     ctx.fillText(utcLabel, leftGutter - 6, centerY + 3);
 
-    // Right Gutter: Local PDT Hour Label
     ctx.textAlign = 'left';
     ctx.fillStyle = isCurrentHour ? '#00ff88' : isPastHour ? '#94a3b8' : '#334155';
     ctx.fillText(localLabel, leftGutter + traceW + 6, centerY + 3);
 
-    // Baseline axis
     ctx.strokeStyle = isCurrentHour ? 'rgba(0, 255, 136, 0.3)' : 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -147,20 +190,17 @@ export function renderHelicorder() {
     ctx.lineTo(leftGutter + traceW, centerY);
     ctx.stroke();
 
-    // -----------------------------------------------------------------------
     // 3. Draw Continuous High-Density Waveform across the Hour
-    // -----------------------------------------------------------------------
     if (isPastHour || isCurrentHour) {
       const maxMinute = isCurrentHour ? currentUtcMin : 59;
       const rowStartTs = dayStartUtc + r * 3600;
 
-      // Draw dense multi-segment seismic line
-      const pointsPerMinute = 12; // 12 points per minute = 720 points per row (dense silky waveform)
+      const pointsPerMinute = 12;
       const totalPoints = (maxMinute + 1) * pointsPerMinute;
 
       ctx.save();
       ctx.beginPath();
-      ctx.rect(leftGutter, rowY - rowH * 0.5, traceW, rowH * 2.0); // Clip slightly
+      ctx.rect(leftGutter, rowY - rowH * 0.5, traceW, rowH * 2.0);
       ctx.clip();
 
       ctx.strokeStyle = isCurrentHour ? traceHighlightColor : traceBaseColor;
@@ -180,7 +220,6 @@ export function renderHelicorder() {
 
         const entry = state.helicorderMinutePeaks ? state.helicorderMinutePeaks[minTs] : null;
 
-        // Check if quake happened in this window
         let isQuake = false;
         if (state.triggers && state.triggers.length > 0) {
           isQuake = state.triggers.some((t) => Math.abs((t.start_time || 0) - minTs) < 90);
@@ -193,7 +232,6 @@ export function renderHelicorder() {
           const wavePhase = Math.sin(ptIdx * 1.8) * Math.cos(ptIdx * 0.4);
           amp = wavePhase * (peak / Math.max(baselineNoise, 10.0)) * (rowH * 0.12) * scaleMult;
         } else {
-          // Authentic ambient seismic carrier wave (1-2 Hz microseisms)
           const ambientWave = Math.sin(ptIdx * 1.57 + r * 13) * Math.sin(ptIdx * 0.3 + m);
           const noiseFlutter = Math.sin(ptIdx * 3.7 + r * 7) * 0.4;
           amp = (ambientWave + noiseFlutter) * (rowH * 0.08) * scaleMult;
@@ -204,7 +242,6 @@ export function renderHelicorder() {
           amp += quakeBurst * (rowH * 0.9) * scaleMult;
         }
 
-        // Clamp to avoid total blowout
         const clampedAmp = Math.max(-rowH * 1.8, Math.min(rowH * 1.8, amp));
         const y = centerY - clampedAmp;
 
@@ -218,14 +255,11 @@ export function renderHelicorder() {
       ctx.stroke();
       ctx.restore();
 
-      // ---------------------------------------------------------------------
       // 4. Live Recording Stylus Needle (Current Hour Only)
-      // ---------------------------------------------------------------------
       if (isCurrentHour) {
         const activeRatio = (currentUtcMin * 60 + currentUtcSec) / 3600;
         const activeX = leftGutter + activeRatio * traceW;
 
-        // Draw live wriggling waveform tail (last 100 samples ~ 1 sec)
         if (ehzBuf.length >= 10) {
           const nTail = Math.min(ehzBuf.length, 80);
           const tailSlice = ehzBuf.slice(-nTail);
@@ -248,7 +282,6 @@ export function renderHelicorder() {
           ctx.stroke();
         }
 
-        // Pulsing Red recording stylus pen
         ctx.fillStyle = '#ef4444';
         ctx.shadowColor = '#ef4444';
         ctx.shadowBlur = 8;
@@ -257,7 +290,6 @@ export function renderHelicorder() {
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Glowing Stylus Halo
         ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -267,14 +299,10 @@ export function renderHelicorder() {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // 5. Helicorder Outer Border
-  // -------------------------------------------------------------------------
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.lineWidth = 1;
   ctx.strokeRect(leftGutter, 0, traceW, numRows * rowH);
 
-  // Time labels header
   ctx.font = '8px JetBrains Mono, monospace';
   ctx.fillStyle = '#64748b';
   ctx.textAlign = 'left';

@@ -114,6 +114,28 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
             "samples": trace.data.tolist(),
         }
 
+    @app.get("/api/helicorder/latest")
+    async def get_latest_helicorder(channel: str = "EHZ") -> Response:
+        """Fetch the official high-resolution 24-hour Helicorder drum plot directly from Raspberry Shake."""
+        shake_host = config.shake_host
+        try:
+            import httpx
+            import re
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(f"http://{shake_host}/heli/")
+                if res.status_code == 200:
+                    pattern = rf'href=[\"\']({config.station}_{channel.upper()}[^\"\']+\.gif)[^\"\']*[\"\']'
+                    matches = re.findall(pattern, res.text)
+                    if matches:
+                        img_filename = matches[0]
+                        img_res = await client.get(f"http://{shake_host}/heli/{img_filename}")
+                        if img_res.status_code == 200:
+                            return Response(content=img_res.content, media_type="image/gif")
+        except Exception as e:
+            log.warning("helicorder.fetch_failed", error=str(e))
+
+        raise HTTPException(status_code=502, detail="Could not fetch helicorder drum from Raspberry Shake")
+
     @app.post("/api/simulate-trigger")
     async def simulate_trigger(magnitude: float = 3.5, distance_km: float = 25.0) -> dict[str, Any]:
         """Simulate an earthquake trigger to test instant warning symbology on the dashboard."""
