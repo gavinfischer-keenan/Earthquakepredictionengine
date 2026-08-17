@@ -1,50 +1,71 @@
 /**
- * Oscilloscope View: 4-Channel Real-Time Seismograms with UTC Time Axis
- * Features: Bulletproof index-aligned waveform rendering across all 4 channels,
- * dynamic UTC time axis, auto-gain with 25% vertical headroom, and 4-minute baseline corridor.
+ * Oscilloscope View: Multi-Channel Real-Time Seismogram Display
+ * Features:
+ * - Phase-Locked Loop (PLL) Playhead Clock for 100% Stutter-Free 60 FPS Gliding
+ * - True Timestamp-Aligned Coordinate Mapping
+ * - Multi-Channel Auto-Gain (Geophone vs Accelerometer)
+ * - 4-Minute Dynamic Normal Baseline Corridors
+ * - Real UTC Time Grid & Interactive Markers
  */
 
-import { state, CHANNELS, CH_COLORS, SAMPLING_RATE } from '../state.js';
+import { state, CHANNELS, SAMPLING_RATE } from '../state.js';
 import { elements } from '../dom.js';
 import { filterData } from '../dsp.js';
 
+const CH_COLORS = {
+  EHZ: '#00ff88', // Emerald Green (Velocity Geophone)
+  ENZ: '#00d2ff', // Cyan Blue (Vertical Acceleration)
+  ENN: '#ffaa00', // Amber Orange (North-South Acceleration)
+  ENE: '#d080ff', // Vivid Purple (East-West Acceleration)
+};
+
+// Phase-Locked Loop (PLL) smooth playhead clock state
+let pllPlayheadT = 0;
+let lastFramePerfNow = performance.now();
+
 export function renderOscilloscope() {
   const windowSec = state.windowSec || 30;
-  const nWindowSamples = windowSec * SAMPLING_RATE; // e.g. 3,000 samples for 30s
+  const nWindowSamples = Math.round(windowSec * SAMPLING_RATE);
 
-  // Determine latest global stream timestamp
-  let latestSampleT = state.latestStreamTimestamp || 0;
-  if (latestSampleT === 0) {
-    for (const ch of CHANNELS) {
-      const tsArr = state.timestamps[ch];
-      if (tsArr && tsArr.length > 0) {
-        const t = tsArr[tsArr.length - 1];
-        if (t > latestSampleT) latestSampleT = t;
-      }
-    }
-  }
+  // -------------------------------------------------------------------------
+  // 1. Advance Phase-Locked Loop (PLL) Playhead Clock
+  // -------------------------------------------------------------------------
+  const nowPerf = performance.now();
+  const dtSec = Math.max(0, Math.min((nowPerf - lastFramePerfNow) / 1000.0, 0.1));
+  lastFramePerfNow = nowPerf;
 
-  // Smooth forward progression between packet arrivals
-  let endT;
+  const ehzTs = state.timestamps.EHZ || [];
+  const latestReceivedT = state.latestStreamTimestamp || (ehzTs.length > 0 ? ehzTs[ehzTs.length - 1] : 0);
+
   if (state.paused) {
-    endT = state.lastPausedTimestamp || latestSampleT || (Date.now() / 1000);
-  } else if (latestSampleT > 0) {
-    const elapsed = Math.max((Date.now() - (state.lastPacketArrivalLocalMs || Date.now())) / 1000.0, 0.0);
-    endT = latestSampleT + Math.min(elapsed, 0.5);
+    // Retain paused position
+  } else if (latestReceivedT > 0) {
+    if (pllPlayheadT === 0 || Math.abs(pllPlayheadT - latestReceivedT) > 4.0) {
+      // Sync playhead with a tiny 150ms buffer for seamless jitter absorption
+      pllPlayheadT = latestReceivedT - 0.15;
+    } else {
+      // Advance playhead smoothly at real-time clock speed with micro-drift compensation
+      const drift = (latestReceivedT - 0.15) - pllPlayheadT;
+      const rateTrim = Math.max(-0.25, Math.min(0.25, drift * 0.6));
+      pllPlayheadT += dtSec * (1.0 + rateTrim);
+    }
   } else {
-    endT = Date.now() / 1000;
+    pllPlayheadT = Date.now() / 1000;
   }
 
+  const endT = state.paused ? (state.lastPausedTimestamp || pllPlayheadT) : pllPlayheadT;
   const startT = endT - windowSec;
 
+  // -------------------------------------------------------------------------
+  // 2. Render Channels
+  // -------------------------------------------------------------------------
   CHANNELS.forEach((ch) => {
     const canvas = elements.canvases[ch];
-    const overlay = elements.overlays[ch];
     if (!canvas || !state.visibleChannels[ch]) return;
 
     const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
+    const w = Math.floor(rect.width);
+    const h = Math.floor(rect.height);
     if (w <= 0 || h <= 0) return;
 
     // Handle Retina pixel ratio
@@ -59,7 +80,7 @@ export function renderOscilloscope() {
     ctx.scale(dpr, dpr);
 
     const plotH = h - 22; // Leave bottom 22px for X-axis time markings
-    const xSpan = w;      // Full 100% width utilization
+    const xSpan = w;
 
     // 1. Clear background
     ctx.fillStyle = '#0a0e17';
@@ -127,16 +148,30 @@ export function renderOscilloscope() {
     ctx.fillStyle = '#00ff88';
     ctx.fillText('LIVE 🔴', w - 6, plotH + 16);
 
-    const rawBuf = state.buffers[ch];
-    if (!rawBuf || rawBuf.length === 0) return;
-
-    // Take the most recent window samples (up to nWindowSamples)
+    const rawBuf = state.buffers[ch] || [];
+    const tsBuf = state.timestamps[ch] || [];
     const nAvailable = rawBuf.length;
-    const nTake = Math.min(nAvailable, nWindowSamples);
-    const visibleRaw = rawBuf.slice(-nTake);
-    const filtered = filterData(visibleRaw, state.filterMode);
-    const nVisible = filtered.length;
+    if (nAvailable < 2 || tsBuf.length !== nAvailable) return;
+
+    // Extract visible samples matching the timestamp window [startT - 0.2s, endT + 0.2s]
+    let startIdx = 0;
+    while (startIdx < nAvailable && tsBuf[startIdx] < startT - 0.2) {
+      startIdx++;
+    }
+
+    const visibleRaw = [];
+    const visibleTs = [];
+    for (let i = startIdx; i < nAvailable; i++) {
+      if (tsBuf[i] <= endT + 0.2) {
+        visibleRaw.push(rawBuf[i]);
+        visibleTs.push(tsBuf[i]);
+      }
+    }
+
+    const nVisible = visibleRaw.length;
     if (nVisible < 2) return;
+
+    const filtered = filterData(visibleRaw, state.filterMode);
 
     // Calculate peak amplitude for auto-gain scaling
     const isGeophone = ch === 'EHZ';
@@ -146,7 +181,7 @@ export function renderOscilloscope() {
       if (abs > pk) pk = abs;
     }
 
-    // Dynamic auto-gain with 25% safety headroom
+    // Dynamic auto-gain with safety headroom
     let maxVal = 100;
     if (state.gainMode === 'auto') {
       maxVal = Math.max(pk * 1.45, isGeophone ? 25.0 : 3.0);
@@ -154,7 +189,7 @@ export function renderOscilloscope() {
       maxVal = Math.max(parseFloat(state.gainMode) * (isGeophone ? 1.0 : 0.1), isGeophone ? 10.0 : 2.0);
     }
 
-    // Maintain 4-minute rolling baseline statistics (24,000 samples @ 100 Hz = 240s)
+    // Maintain 4-minute rolling baseline statistics
     if (!state.fourMinStats[ch]) state.fourMinStats[ch] = { baselineAmp: isGeophone ? 35 : 2.0, history: [] };
     const stats = state.fourMinStats[ch];
 
@@ -218,7 +253,7 @@ export function renderOscilloscope() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 5. Draw Continuous Waveform Trace
+    // 5. Draw Continuous Waveform Trace (True Timestamp-Aligned Gliding)
     ctx.save();
     ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
     ctx.lineWidth = 1.6;
@@ -226,18 +261,19 @@ export function renderOscilloscope() {
     ctx.shadowBlur = 2;
     ctx.beginPath();
 
-    // Map samples directly so newest sample is always at right edge x = xSpan
-    const xOffset = xSpan * (1.0 - (nVisible / nWindowSamples));
+    let hasStartedPath = false;
 
     for (let i = 0; i < nVisible; i++) {
-      const x = xOffset + (i / Math.max(nVisible - 1, 1)) * (xSpan - xOffset);
+      const sampleT = visibleTs[i];
+      const x = ((sampleT - startT) / windowSec) * xSpan;
       const val = filtered[i];
       const normalizedY = val / maxVal;
       const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
       const y = (plotH / 2) - clampedY * (plotH / 2) * 0.75;
 
-      if (i === 0) {
+      if (!hasStartedPath) {
         ctx.moveTo(x, y);
+        hasStartedPath = true;
       } else {
         ctx.lineTo(x, y);
       }
@@ -260,33 +296,11 @@ export function renderOscilloscope() {
     ctx.lineTo(bracketX + 4, plotH / 2 + normYHeight);
     ctx.stroke();
 
-    // Live Stylus Dot at rightmost sample position
-    ctx.fillStyle = CH_COLORS[ch] || '#00ff88';
-    ctx.beginPath();
-    ctx.arc(xSpan - 2, lastY, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 7. Render Trigger Event Drop Markers & AI Pick Overlays directly onto waveform canvas
-    const activeTrigs = state.triggers || [];
-    activeTrigs.forEach((trig) => {
-      if (trig.channel === ch || trig.channel === 'ALL') {
-        const tTime = trig.start_time || trig.timestamp || 0;
-        if (tTime >= startT && tTime <= endT) {
-          const tx = ((tTime - startT) / windowSec) * xSpan;
-          ctx.strokeStyle = '#ef4444';
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([3, 3]);
-          ctx.beginPath();
-          ctx.moveTo(tx, 0);
-          ctx.lineTo(tx, plotH);
-          ctx.stroke();
-          ctx.setLineDash([]);
-
-          ctx.fillStyle = '#ef4444';
-          ctx.font = '9px JetBrains Mono, monospace';
-          ctx.fillText('🚨 TRIGGER', tx + 4, 18);
-        }
-      }
-    });
+    // Amplitude scale indicators on Y-Axis
+    ctx.font = '8.5px JetBrains Mono';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'left';
+    ctx.fillText(`+${Math.round(maxVal)}`, 6, 12);
+    ctx.fillText(`-${Math.round(maxVal)}`, 6, plotH - 4);
   });
 }
