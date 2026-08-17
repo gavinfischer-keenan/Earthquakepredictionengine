@@ -700,10 +700,87 @@
   }
 
   // -------------------------------------------------------------------------
-  // Waterfall Spectrogram Renderer
+  // Waterfall Spectrogram Renderer (0–50 Hz Real-Time FFT)
   // -------------------------------------------------------------------------
   const specCanvas = elements.canvases.spectrogram;
   const specCtx = specCanvas ? specCanvas.getContext('2d') : null;
+  let specNoiseFloor = 2.0;
+  let specMaxPower = 6.0;
+
+  function computePowerSpectrum(rawSlice) {
+    const N = 64;
+    if (!rawSlice || rawSlice.length < N) return new Float32Array(32);
+
+    // 1. Demean
+    let sum = 0;
+    for (let i = 0; i < N; i++) sum += rawSlice[i];
+    const mean = sum / N;
+
+    // 2. Apply Hanning window
+    const windowed = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (N - 1)));
+      windowed[i] = (rawSlice[i] - mean) * w;
+    }
+
+    // 3. 32-bin Real DFT (0 Hz to 50 Hz Nyquist)
+    const numBins = 32;
+    const psd = new Float32Array(numBins);
+
+    for (let k = 0; k < numBins; k++) {
+      let real = 0;
+      let imag = 0;
+      const angleStep = (2 * Math.PI * k) / N;
+      for (let n = 0; n < N; n++) {
+        const angle = angleStep * n;
+        real += windowed[n] * Math.cos(angle);
+        imag -= windowed[n] * Math.sin(angle);
+      }
+      const power = real * real + imag * imag;
+      // Convert to dB scale: log10(1 + power)
+      psd[k] = Math.log10(1.0 + power);
+    }
+    return psd;
+  }
+
+  function getSeismicHeatmapColor(val) {
+    // Clamped 0.0 to 1.0
+    const v = Math.max(0, Math.min(1, val));
+    let r = 0, g = 0, b = 0;
+
+    if (v < 0.2) {
+      // Midnight Navy to Deep Blue
+      const t = v / 0.2;
+      r = Math.floor(5 + 10 * t);
+      g = Math.floor(10 + 35 * t);
+      b = Math.floor(25 + 120 * t);
+    } else if (v < 0.4) {
+      // Deep Blue to Cyan / Teal
+      const t = (v - 0.2) / 0.2;
+      r = Math.floor(15 + 10 * t);
+      g = Math.floor(45 + 150 * t);
+      b = Math.floor(145 + 90 * t);
+    } else if (v < 0.6) {
+      // Cyan to Emerald / Yellow
+      const t = (v - 0.4) / 0.2;
+      r = Math.floor(25 + 210 * t);
+      g = Math.floor(195 + 40 * t);
+      b = Math.floor(235 * (1 - t));
+    } else if (v < 0.8) {
+      // Yellow to Vivid Orange / Red
+      const t = (v - 0.6) / 0.2;
+      r = Math.floor(235 + 20 * t);
+      g = Math.floor(235 * (1 - t * 0.7));
+      b = 0;
+    } else {
+      // Red to Hot White
+      const t = (v - 0.8) / 0.2;
+      r = 255;
+      g = Math.floor(70 + 185 * t);
+      b = Math.floor(255 * t);
+    }
+    return `rgb(${r},${g},${b})`;
+  }
 
   function renderSpectrogram() {
     if (!specCanvas || state.activeTab !== 'spectrogram') return;
@@ -712,32 +789,52 @@
     if (specCanvas.width !== rect.width || specCanvas.height !== rect.height) {
       specCanvas.width = rect.width;
       specCanvas.height = rect.height;
+      // Clear with dark background on resize
+      specCtx.fillStyle = '#050814';
+      specCtx.fillRect(0, 0, specCanvas.width, specCanvas.height);
     }
 
     const w = specCanvas.width;
     const h = specCanvas.height;
     const buf = state.buffers.EHZ;
-    if (buf.length < 64) return;
+    if (!buf || buf.length < 64) return;
 
     // Shift previous spectrogram image 2px to the left
     specCtx.drawImage(specCanvas, 2, 0, w - 2, h, 0, 0, w - 2, h);
 
-    // Compute simple 32-band spectral magnitude on latest slice
+    // Compute FFT power spectrum on latest 64 samples
     const slice = buf.slice(-64);
-    const numBands = h;
+    const psd = computePowerSpectrum(slice);
 
-    for (let y = 0; y < h; y++) {
-      const freqIdx = Math.floor(((h - y) / h) * 32);
-      // Synthetic power density estimation from sample gradients
-      const mag = Math.min(Math.abs(slice[freqIdx % slice.length] || 0) / 1500, 1.0);
+    // Adaptively update noise floor and peak power
+    let currentPeak = 0;
+    let currentMin = 999;
+    for (let k = 0; k < psd.length; k++) {
+      if (psd[k] > currentPeak) currentPeak = psd[k];
+      if (psd[k] < currentMin) currentMin = psd[k];
+    }
+    if (currentMin < 999) {
+      specNoiseFloor = specNoiseFloor * 0.95 + currentMin * 0.05;
+    }
+    if (currentPeak > 0) {
+      specMaxPower = Math.max(specMaxPower * 0.98 + currentPeak * 0.02, specNoiseFloor + 2.0);
+    }
 
-      // Viridis-style color mapping
-      const r = Math.floor(mag * 255);
-      const g = Math.floor((1 - Math.abs(mag - 0.5) * 2) * 200 + mag * 55);
-      const b = Math.floor((1 - mag) * 200);
+    const dynamicRange = Math.max(specMaxPower - specNoiseFloor, 1.5);
 
-      specCtx.fillStyle = `rgb(${r},${g},${b})`;
-      specCtx.fillRect(w - 2, y, 2, 1);
+    // Render frequency column from 0 Hz (bottom) to 50 Hz (top)
+    const numBins = psd.length;
+    const binHeight = h / numBins;
+
+    for (let b = 0; b < numBins; b++) {
+      const power = psd[b];
+      const normalized = (power - specNoiseFloor) / dynamicRange;
+      const color = getSeismicHeatmapColor(normalized);
+
+      // Invert Y so 0 Hz is at the bottom and 50 Hz is at the top
+      const y = h - (b + 1) * binHeight;
+      specCtx.fillStyle = color;
+      specCtx.fillRect(w - 2, Math.floor(y), 2, Math.ceil(binHeight) + 1);
     }
   }
 
