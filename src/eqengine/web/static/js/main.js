@@ -35,35 +35,39 @@ function renderTelemetry() {
 let lastHelicorderRender = 0;
 
 function mainLoop() {
-  renderTelemetry();
+  try {
+    renderTelemetry();
 
-  const tab = state.activeTab || 'oscilloscope';
+    const tab = state.activeTab || 'oscilloscope';
 
-  if (tab === 'traces' || tab === 'oscilloscope') {
-    renderOscilloscope();
-  } else if (tab === 'spectrogram') {
-    renderSpectrogram();
-  } else if (tab === 'helicorder') {
-    const now = Date.now();
-    if (now - lastHelicorderRender > 1000) {
-      renderHelicorder();
-      lastHelicorderRender = now;
+    if (tab === 'traces' || tab === 'oscilloscope') {
+      renderOscilloscope();
+    } else if (tab === 'spectrogram') {
+      renderSpectrogram();
+    } else if (tab === 'helicorder') {
+      const now = Date.now();
+      if (now - lastHelicorderRender > 1000) {
+        renderHelicorder();
+        lastHelicorderRender = now;
+      }
+    } else if (tab === 'stalta') {
+      renderStaLta();
+    } else if (tab === 'hodogram') {
+      renderHodogram();
+    } else if (tab === 'environment') {
+      renderUrbanProfiler();
+    } else if (tab === 'phasenet') {
+      renderPhaseNet();
+    } else if (tab === 'psd') {
+      renderPetersonCurve();
+    } else if (tab === 'sonification') {
+      renderSonificationVisualizer();
     }
-  } else if (tab === 'stalta') {
-    renderStaLta();
-  } else if (tab === 'hodogram') {
-    renderHodogram();
-  } else if (tab === 'environment') {
-    renderUrbanProfiler();
-  } else if (tab === 'phasenet') {
-    renderPhaseNet();
-  } else if (tab === 'psd') {
-    renderPetersonCurve();
-  } else if (tab === 'sonification') {
-    renderSonificationVisualizer();
+  } catch (err) {
+    console.error('Render error in mainLoop:', err);
+  } finally {
+    requestAnimationFrame(mainLoop);
   }
-
-  requestAnimationFrame(mainLoop);
 }
 
 // ---------------------------------------------------------------------------

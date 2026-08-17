@@ -139,7 +139,8 @@ export function renderOscilloscope() {
     if (nVisible < 2) return;
 
     // Calculate peak amplitude for auto-gain scaling
-    let pk = 15;
+    const isGeophone = ch === 'EHZ';
+    let pk = isGeophone ? 15 : 1.0;
     for (let i = 0; i < nVisible; i++) {
       const abs = Math.abs(filtered[i]);
       if (abs > pk) pk = abs;
@@ -148,13 +149,13 @@ export function renderOscilloscope() {
     // Dynamic auto-gain with 25% safety headroom
     let maxVal = 100;
     if (state.gainMode === 'auto') {
-      maxVal = Math.max(pk * 1.45, 25.0);
+      maxVal = Math.max(pk * 1.45, isGeophone ? 25.0 : 3.0);
     } else {
-      maxVal = Math.max(parseFloat(state.gainMode), 10.0);
+      maxVal = Math.max(parseFloat(state.gainMode) * (isGeophone ? 1.0 : 0.1), isGeophone ? 10.0 : 2.0);
     }
 
     // Maintain 4-minute rolling baseline statistics (24,000 samples @ 100 Hz = 240s)
-    if (!state.fourMinStats[ch]) state.fourMinStats[ch] = { baselineAmp: 35, history: [] };
+    if (!state.fourMinStats[ch]) state.fourMinStats[ch] = { baselineAmp: isGeophone ? 35 : 2.0, history: [] };
     const stats = state.fourMinStats[ch];
 
     if (Math.random() < 0.2) {
@@ -162,7 +163,7 @@ export function renderOscilloscope() {
       if (stats.history.length > 240) stats.history.shift();
       let sumAmp = 0;
       stats.history.forEach((v) => (sumAmp += v));
-      stats.baselineAmp = Math.max(sumAmp / Math.max(stats.history.length, 1), 12.0);
+      stats.baselineAmp = Math.max(sumAmp / Math.max(stats.history.length, 1), isGeophone ? 12.0 : 1.0);
     }
 
     const baselineNormal = stats.baselineAmp;
@@ -266,9 +267,10 @@ export function renderOscilloscope() {
     ctx.fill();
 
     // 7. Render Trigger Event Drop Markers & AI Pick Overlays directly onto waveform canvas
-    state.activeTriggers.forEach((trig) => {
+    const activeTrigs = state.triggers || [];
+    activeTrigs.forEach((trig) => {
       if (trig.channel === ch || trig.channel === 'ALL') {
-        const tTime = trig.timestamp || 0;
+        const tTime = trig.start_time || trig.timestamp || 0;
         if (tTime >= startT && tTime <= endT) {
           const tx = ((tTime - startT) / windowSec) * xSpan;
           ctx.strokeStyle = '#ef4444';
