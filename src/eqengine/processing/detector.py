@@ -55,6 +55,16 @@ class TriggerEvent:
     end_sample: int | None
     channel: str
 
+    @property
+    def on_time(self) -> float:
+        """POSIX timestamp of the trigger onset."""
+        return float(self.start_time.timestamp)
+
+    @property
+    def sta_lta_ratio(self) -> float:
+        """Peak STA/LTA ratio."""
+        return self.peak_sta_lta
+
 
 # ---------------------------------------------------------------------------
 # Detector
@@ -247,3 +257,5 @@ class Detector:
         each time :meth:`process` is called.
         """
         return self.current_sta_lta_ratio
+
+    detect = process

@@ -66,6 +66,13 @@ class MagnitudeEstimate:
     estimated_s_arrival: float | None   # Unix epoch seconds
     seconds_until_s_wave: float | None
 
+    @property
+    def magnitude(self) -> float | None:
+        """Best-effort magnitude estimate (prefers Pd+distance over τc)."""
+        if self.magnitude_from_pd is not None:
+            return self.magnitude_from_pd
+        return self.magnitude_from_tau_c
+
 
 # ---------------------------------------------------------------------------
 # Estimator
@@ -79,7 +86,7 @@ class MagnitudeEstimator:
     independent, making it safe for concurrent use from multiple channels.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._log = logger.bind(component="MagnitudeEstimator")
 
     # ------------------------------------------------------------------

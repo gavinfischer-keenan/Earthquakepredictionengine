@@ -268,11 +268,19 @@ class RingBuffer:
         tr.stats.starttime = UTCDateTime(start_ts) if start_ts > 0.0 else UTCDateTime(0)
         return tr
 
+    def get_latest(self, channel: str, duration_sec: float) -> Trace:
+        """Return the most recent *duration_sec* as an ObsPy Trace (alias for get_trace)."""
+        return self.get_trace(channel, seconds=duration_sec)
+
     def get_fill_ratio(self, channel: str) -> float:
         """Fraction of the ring buffer that has been written (0.0–1.0)."""
         ring = self._ring(channel)
         with ring.lock:
             return min(ring.total_written / ring.capacity, 1.0)
+
+    def get_fill_ratios(self) -> dict[str, float]:
+        """Fraction of the ring buffer that has been written for each channel."""
+        return {ch: self.get_fill_ratio(ch) for ch in self.channels}
 
     def is_ready(self, channel: str) -> bool:
         """``True`` once at least :attr:`lta_seconds` of data have been buffered."""

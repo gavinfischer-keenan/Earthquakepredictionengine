@@ -87,11 +87,14 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
 
     channels: list[str] = list(getattr(config, "shake_channels", getattr(config, "channels", ["EHZ", "ENZ", "ENN", "ENE"])))
     buf_duration = float(getattr(config, "buffer_duration_sec", 300))
-    sampling_rate = float(getattr(config, "sampling_rate", 100.0))
+    sampling_rate = int(getattr(config, "sampling_rate", 100))
     ring_buffer = RingBuffer(
         channels=channels,
-        duration_sec=buf_duration,
+        buffer_duration_sec=int(buf_duration),
         sampling_rate=sampling_rate,
+        network=getattr(config, "shake_network", getattr(config, "network", "AM")),
+        station=getattr(config, "shake_station", getattr(config, "station", "R1A3D")),
+        lta_seconds=int(getattr(config, "lta_seconds", getattr(config, "lta_window", 20))),
     )
 
     ingest = create_ingest(config, ring_buffer)
@@ -100,26 +103,19 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     # 3.  Detector, preprocessor, magnitude estimator
     # ---------------------------------------------------------------
     from eqengine.processing.detector import Detector
-    from eqengine.processing.preprocessor import Preprocessor
+    from eqengine.processing.preprocessor import preprocess
     from eqengine.processing.magnitude import MagnitudeEstimator
 
     detector = Detector(
-        sta_window=float(getattr(config, "sta_seconds", getattr(config, "sta_window", 0.5))),
-        lta_window=float(getattr(config, "lta_seconds", getattr(config, "lta_window", 20.0))),
+        sta_seconds=float(getattr(config, "sta_seconds", getattr(config, "sta_window", 0.5))),
+        lta_seconds=float(getattr(config, "lta_seconds", getattr(config, "lta_window", 20.0))),
         trigger_on=float(getattr(config, "trigger_on", 4.0)),
         trigger_off=float(getattr(config, "trigger_off", 1.5)),
-        sampling_rate=sampling_rate,
-    )
-
-    preprocessor = Preprocessor(
-        bandpass_low=float(getattr(config, "bandpass_low", 1.0)),
-        bandpass_high=float(getattr(config, "bandpass_high", 10.0)),
-        sampling_rate=sampling_rate,
+        sampling_rate=float(sampling_rate),
     )
 
     magnitude_estimator = MagnitudeEstimator(
-        station_lat=float(getattr(config, "station_lat", 37.8696)),
-        station_lon=float(getattr(config, "station_lon", -122.2491)),
+        p_window_sec=float(getattr(config, "pd_window_sec", 3.0)),
     )
 
     # ---------------------------------------------------------------
@@ -186,10 +182,28 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     )
 
     # ---------------------------------------------------------------
-    # 8.  Start ingest
+    # 8.  Start ingest & Web Server
     # ---------------------------------------------------------------
     ingest.start()
     log.info("engine.ingest_started", mode=getattr(config, "ingest_mode", "udp"))
+
+    web_server_task = None
+    if getattr(config, "web_enabled", True):
+        try:
+            import uvicorn
+            from eqengine.web.server import create_app
+            app = create_app(ring_buffer=ring_buffer, detector=detector)
+            server_config = uvicorn.Config(
+                app=app,
+                host=str(getattr(config, "web_host", "0.0.0.0")),
+                port=int(getattr(config, "web_port", 8088)),
+                log_level="warning",
+            )
+            server = uvicorn.Server(server_config)
+            web_server_task = asyncio.create_task(server.serve())
+            log.info("engine.web_server_started", host=config.web_host, port=config.web_port)
+        except Exception:
+            log.exception("engine.web_server_start_failed")
 
     # ---------------------------------------------------------------
     # 9.  Main processing loop (4 Hz cadence)
@@ -198,6 +212,9 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     last_heartbeat = time.time()
     primary_channel = channels[0] if channels else "EHZ"
     window_sec = float(getattr(config, "lta_window", 30.0))
+
+    from eqengine.web.broadcaster import get_broadcaster
+    broadcaster = get_broadcaster()
 
     log.info("engine.loop_starting", cadence_hz=4, primary_channel=primary_channel)
 
@@ -210,7 +227,21 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                 await asyncio.sleep(0.25)
                 continue
 
-            # b) Get latest window
+            # b) Stream latest waveform slice to web clients
+            if broadcaster.client_count > 0:
+                channel_slices: dict[str, Any] = {}
+                for ch in channels:
+                    t_slice = ring_buffer.get_latest(ch, duration_sec=0.25)
+                    if t_slice is not None and len(t_slice.data) > 0:
+                        channel_slices[ch] = t_slice.data
+                if channel_slices:
+                    await broadcaster.broadcast_waveform(
+                        timestamp=time.time(),
+                        channel_data=channel_slices,
+                        sta_lta_ratios={"EHZ": detector.get_current_ratio()},
+                    )
+
+            # c) Get latest analysis window
             import obspy
 
             trace = ring_buffer.get_latest(primary_channel, duration_sec=window_sec)
@@ -218,16 +249,33 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                 await asyncio.sleep(0.25)
                 continue
 
-            # c) Preprocess
-            if preprocessor is not None:
-                trace = preprocessor.process(trace)
+            # d) Preprocess
+            try:
+                trace = preprocess(
+                    trace,
+                    bandpass_low=float(getattr(config, "bandpass_low", 1.0)),
+                    bandpass_high=float(getattr(config, "bandpass_high", 10.0)),
+                )
+            except Exception:
+                log.exception("engine.preprocess_failed")
 
-            # d) Run detector
+            # e) Run detector
             triggers = detector.detect(trace)
 
-            # e) Process each trigger
+            # f) Process each trigger
             for trigger in triggers:
                 health.record_trigger()
+
+                # Broadcast instant trigger symbology to connected browsers
+                await broadcaster.broadcast_trigger({
+                    "channel": trigger.channel,
+                    "start_time": float(trigger.start_time.timestamp),
+                    "end_time": float(trigger.end_time.timestamp) if trigger.end_time else None,
+                    "peak_sta_lta": trigger.peak_sta_lta,
+                    "sta_lta_ratio": trigger.sta_lta_ratio,
+                    "start_sample": trigger.start_sample,
+                    "end_sample": trigger.end_sample,
+                })
 
                 # False-positive filter
                 result = fp_filter.validate(trigger, trace, noise_model)
@@ -243,16 +291,19 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                 mag_est: float | None = None
                 if magnitude_estimator is not None:
                     try:
-                        # Try to get accelerometer traces for better estimate
-                        accel_traces: list[obspy.Trace] = []
+                        accel_traces_dict: dict[str, obspy.Trace] = {}
                         for ch in ("ENZ", "ENN", "ENE"):
                             if ch in channels:
                                 t = ring_buffer.get_latest(ch, duration_sec=window_sec)
                                 if t is not None:
-                                    accel_traces.append(t)
-                        mag_est = magnitude_estimator.estimate(
-                            trace, accel_traces=accel_traces or None,
+                                    accel_traces_dict[ch] = t
+                        est_res = magnitude_estimator.estimate(
+                            trace,
+                            accel_traces=accel_traces_dict or None,
+                            p_arrival=trigger.start_time,
+                            window_sec=float(getattr(config, "pd_window_sec", 3.0)),
                         )
+                        mag_est = est_res.magnitude if est_res else None
                     except Exception:
                         log.exception("engine.magnitude_estimation_failed")
 
@@ -282,15 +333,17 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                 )
                 health.record_confirmed()
                 await send_alert(alert)
+                log.info(
+                    "engine.alert_dispatched",
+                    alert_id=alert.alert_id,
+                    severity=alert.severity,
+                    magnitude=alert.estimated_magnitude,
+                )
 
-            # f) Heartbeat: RSAM + health status
+            # g) Periodic RSAM & heartbeat
             now = time.time()
-            if (now - last_heartbeat) >= heartbeat_interval:
-                # RSAM on 1-minute of the primary channel
-                rsam_trace = ring_buffer.get_latest(primary_channel, duration_sec=60.0)
-                if rsam_trace is not None and len(rsam_trace.data) > 0:
-                    rsam.compute(rsam_trace.data)
-
+            if now - last_heartbeat >= heartbeat_interval:
+                rsam.compute(trace.data)
                 await health.report()
                 last_heartbeat = now
 
@@ -306,6 +359,13 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
         # 10. Graceful shutdown
         # ---------------------------------------------------------------
         log.info("engine.shutting_down")
+        if web_server_task and not web_server_task.done():
+            web_server_task.cancel()
+            try:
+                await web_server_task
+            except asyncio.CancelledError:
+                pass
+
         try:
             ingest.stop()
         except Exception:

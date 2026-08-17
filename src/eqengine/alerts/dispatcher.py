@@ -292,21 +292,42 @@ async def mqtt_status_hook(status: EngineStatus) -> None:
         "rsam_1min": round(status.rsam_1min, 2),
         "noise_floor": round(status.noise_floor_counts, 2),
         "status": status.status,
-        "timestamp": status.timestamp.isoformat() if hasattr(status.timestamp, "isoformat") else str(status.timestamp),
+        "timestamp": time.time(),
     })
     client.publish(MQTT_TOPIC_RSAM, rsam_payload, qos=0, retain=True)
+
+
+# 5. WebSocket Live Broadcast Hooks ---------------------------------------
+async def websocket_alert_hook(alert: EarthquakeAlert) -> None:
+    """Broadcast alert immediately to connected observatory browsers."""
+    try:
+        from eqengine.web.broadcaster import get_broadcaster
+        await get_broadcaster().broadcast_alert(alert.model_dump())
+    except Exception:
+        log.exception("dispatcher.websocket_alert_hook_failed")
+
+
+async def websocket_status_hook(status: EngineStatus) -> None:
+    """Broadcast engine status and RSAM telemetry to connected observatory browsers."""
+    try:
+        from eqengine.web.broadcaster import get_broadcaster
+        await get_broadcaster().broadcast_status(status.model_dump())
+    except Exception:
+        log.exception("dispatcher.websocket_status_hook_failed")
 
 
 # ---------------------------------------------------------------------------
 # Auto-register built-in hooks on module import
 # ---------------------------------------------------------------------------
 def _register_defaults() -> None:
-    """Register built-in hooks.  MQTT hooks only if MQTT_ENABLED=true."""
+    """Register built-in hooks."""
     register_hook(dashboard_hook)
     register_hook(log_hook)
     register_hook(console_hook)
+    register_hook(websocket_alert_hook)
     register_status_hook(dashboard_status_hook)
     register_status_hook(console_status_hook)
+    register_status_hook(websocket_status_hook)
     if MQTT_ENABLED:
         register_hook(mqtt_alert_hook)
         register_hook(mqtt_event_hook)

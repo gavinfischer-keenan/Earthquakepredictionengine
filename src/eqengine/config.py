@@ -72,9 +72,9 @@ class Settings(BaseSettings):
         default="EHZ",
         description="Primary channel for event detection.",
     )
-    shake_channels: list[str] = Field(
+    shake_channels: list[str] | str = Field(
         default=["EHZ", "ENZ", "ENN", "ENE"],
-        description="All RS4D channels to buffer (comma-separated in env).",
+        description="All RS4D channels to buffer (comma-separated or JSON list).",
     )
 
     # -- Station location ----------------------------------------------------
@@ -151,6 +151,22 @@ class Settings(BaseSettings):
         description="SeisBench model identifier (phasenet, eqtransformer, …).",
     )
 
+    # -- Web server (Standalone Geophysical Observatory) --------------------
+    web_enabled: bool = Field(
+        default=True,
+        description="Enable embedded FastAPI/WebSocket observatory web server.",
+    )
+    web_host: str = Field(
+        default="0.0.0.0",
+        description="Bind host for the embedded web server.",
+    )
+    web_port: int = Field(
+        default=8088,
+        ge=1024,
+        le=65535,
+        description="Port for the embedded web server.",
+    )
+
     # -- Alerting & dashboard ------------------------------------------------
     dashboard_url: str = "http://localhost:5050/api/ingest/earthquake-engine"
     """HTTP endpoint for Berkeley-style dashboard ingestion."""
@@ -223,9 +239,18 @@ class Settings(BaseSettings):
     @field_validator("shake_channels", mode="before")
     @classmethod
     def _parse_channels(cls, v: object) -> list[str]:
-        """Accept a comma-separated string *or* a list."""
+        """Accept a comma-separated string, JSON list, or python list."""
         if isinstance(v, str):
-            return [ch.strip() for ch in v.split(",") if ch.strip()]
+            v_str = v.strip()
+            if v_str.startswith("[") and v_str.endswith("]"):
+                import json
+                try:
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(ch).strip() for ch in parsed]
+                except Exception:
+                    pass
+            return [ch.strip().strip("'\"") for ch in v_str.split(",") if ch.strip()]
         return list(v)  # type: ignore[arg-type]
 
     @model_validator(mode="after")

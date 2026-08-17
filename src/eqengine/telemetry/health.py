@@ -94,7 +94,9 @@ class HealthReporter:
         elif any(v < 0.1 for v in buffer_health.values()):
             status = "degraded"
 
-        channels = getattr(self._config, "channels", [])
+        channels = getattr(self._config, "shake_channels", getattr(self._config, "channels", []))
+        if isinstance(channels, str):
+            channels = [ch.strip() for ch in channels.split(",") if ch.strip()]
 
         return EngineStatus(
             status=status,  # type: ignore[arg-type]
