@@ -33,6 +33,11 @@ class WaveformBroadcaster:
         self._usgs_history: deque[dict[str, Any]] = deque(maxlen=1000)
         self._last_status: dict[str, Any] | None = None
         self._latest_ratios: dict[str, float] = {}
+        self._ring_buffer: Any = None
+
+    def set_ring_buffer(self, ring_buffer: Any) -> None:
+        """Attach RingBuffer reference for seeding newly connected clients."""
+        self._ring_buffer = ring_buffer
 
     async def connect(self, websocket: WebSocket) -> None:
         """Register a new WebSocket connection and send initial state."""
@@ -40,6 +45,21 @@ class WaveformBroadcaster:
         async with self._lock:
             self._clients.add(websocket)
             log.info("broadcaster.client_connected", client=websocket.client.host if websocket.client else "?", total=len(self._clients))
+
+        # Seed initial 35 seconds of waveforms directly from RingBuffer
+        initial_waveforms = {}
+        if self._ring_buffer is not None:
+            try:
+                for ch in getattr(self._ring_buffer, "channels", []):
+                    tr = self._ring_buffer.get_latest(ch, duration_sec=35.0)
+                    if tr is not None and len(tr.data) > 0:
+                        initial_waveforms[ch] = {
+                            "samples": [round(float(v), 2) for v in tr.data],
+                            "start_time": float(tr.stats.starttime.timestamp),
+                            "sampling_rate": float(tr.stats.sampling_rate),
+                        }
+            except Exception:
+                log.exception("broadcaster.seed_waveforms_failed")
 
         # Send initial state snapshot
         try:
@@ -50,6 +70,7 @@ class WaveformBroadcaster:
                 "recent_alerts": list(self._alert_history),
                 "recent_usgs": list(self._usgs_history),
                 "last_status": self._last_status,
+                "initial_waveforms": initial_waveforms,
             }
             await websocket.send_text(json.dumps(init_msg, default=str))
         except Exception:

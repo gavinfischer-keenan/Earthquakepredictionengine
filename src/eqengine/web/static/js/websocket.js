@@ -9,11 +9,23 @@ import { addEventToTable } from './views/tables.js';
 
 let ws = null;
 let reconnectTimer = null;
+let connectTimeoutTimer = null;
 let watchdogStarted = false;
 
 export function connectWebSocket() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
+  }
+
+  if (ws) {
+    try {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.close();
+    } catch (e) {}
+    ws = null;
   }
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -31,7 +43,20 @@ export function connectWebSocket() {
     return;
   }
 
+  if (connectTimeoutTimer) clearTimeout(connectTimeoutTimer);
+  connectTimeoutTimer = setTimeout(() => {
+    if (ws && ws.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket connection attempt timed out. Retrying...');
+      try { ws.close(); } catch (e) {}
+      scheduleReconnect();
+    }
+  }, 3000);
+
   ws.onopen = () => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     state.connected = true;
     if (elements.statusPulse) elements.statusPulse.classList.add('online');
     if (elements.footerConnection) elements.footerConnection.textContent = `Connected to ${wsUrl}`;
@@ -51,6 +76,10 @@ export function connectWebSocket() {
   };
 
   ws.onclose = () => {
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer);
+      connectTimeoutTimer = null;
+    }
     state.connected = false;
     if (elements.statusPulse) elements.statusPulse.classList.remove('online');
     if (elements.footerConnection) elements.footerConnection.textContent = 'Disconnected. Reconnecting...';
@@ -68,7 +97,7 @@ export function connectWebSocket() {
       if (!state.connected || !ws || ws.readyState === WebSocket.CLOSED) {
         connectWebSocket();
       }
-    }, 2500);
+    }, 2000);
   }
 }
 
@@ -77,12 +106,30 @@ function scheduleReconnect() {
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       connectWebSocket();
-    }, 2000);
+    }, 1500);
   }
 }
 
 export function handleMessage(msg) {
-  if (msg.type === 'waveform') {
+  if (msg.type === 'init') {
+    if (msg.initial_waveforms) {
+      for (const [ch, info] of Object.entries(msg.initial_waveforms)) {
+        if (state.buffers[ch] && info.samples && info.samples.length > 0) {
+          state.buffers[ch] = info.samples.slice();
+          const dt = 1.0 / (info.sampling_rate || SAMPLING_RATE);
+          const startT = info.start_time;
+          state.timestamps[ch] = new Array(info.samples.length);
+          for (let i = 0; i < info.samples.length; i++) {
+            state.timestamps[ch][i] = startT + i * dt;
+          }
+          if (ch === 'EHZ' && info.samples.length > 0) {
+            state.latestStreamTimestamp = startT + (info.samples.length - 1) * dt;
+            state.lastPacketArrivalLocalMs = Date.now();
+          }
+        }
+      }
+    }
+  } else if (msg.type === 'waveform') {
     if (!state.paused) {
       const ts = msg.timestamp || Date.now() / 1000;
       state.latestStreamTimestamp = ts;

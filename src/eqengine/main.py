@@ -232,6 +232,7 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
 
     from eqengine.web.broadcaster import get_broadcaster
     broadcaster = get_broadcaster()
+    broadcaster.set_ring_buffer(ring_buffer)
 
     log.info("engine.loop_starting", cadence_hz=4, primary_channel=primary_channel)
 
