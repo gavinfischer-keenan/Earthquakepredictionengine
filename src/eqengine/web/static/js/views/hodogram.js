@@ -19,55 +19,54 @@ export function renderHodogram() {
   const enzBuf = state.buffers.ENZ || [];
   const ehzBuf = state.buffers.EHZ || [];
 
-  // Determine available samples
-  const hasTriaxial = (ennBuf.length >= 10 && eneBuf.length >= 10 && enzBuf.length >= 10);
-  const pts = hasTriaxial
-    ? Math.min(ennBuf.length, 150) // last 1.5s @ 100 Hz
-    : Math.min(ehzBuf.length, 150);
+  // Determine available samples (last 2 seconds @ 100 Hz = 200 pts)
+  const pts = Math.min(Math.max(ehzBuf.length, ennBuf.length, 20), 200);
 
   let nDemeaned = [];
   let eDemeaned = [];
   let zDemeaned = [];
 
-  if (hasTriaxial && pts >= 10) {
+  // Prefer triaxial accelerometers if available, otherwise combine vertical geophone with horizontal
+  if (ennBuf.length >= 10 && eneBuf.length >= 10) {
     const nSlice = ennBuf.slice(-pts);
     const eSlice = eneBuf.slice(-pts);
-    const zSlice = enzBuf.slice(-pts);
+    const zSlice = enzBuf.length >= pts ? enzBuf.slice(-pts) : (ehzBuf.length >= pts ? ehzBuf.slice(-pts) : []);
 
     let sumN = 0, sumE = 0, sumZ = 0;
-    for (let i = 0; i < pts; i++) {
+    for (let i = 0; i < nSlice.length; i++) {
       sumN += nSlice[i];
       sumE += eSlice[i];
-      sumZ += zSlice[i];
+      if (zSlice.length > i) sumZ += zSlice[i];
     }
-    const meanN = sumN / pts;
-    const meanE = sumE / pts;
-    const meanZ = sumZ / pts;
+    const meanN = sumN / nSlice.length;
+    const meanE = sumE / eSlice.length;
+    const meanZ = zSlice.length > 0 ? sumZ / zSlice.length : 0;
 
     nDemeaned = nSlice.map((v) => v - meanN);
     eDemeaned = eSlice.map((v) => v - meanE);
-    zDemeaned = zSlice.map((v) => v - meanZ);
+    zDemeaned = zSlice.length > 0 ? zSlice.map((v) => v - meanZ) : nSlice.map(() => 0);
   } else if (ehzBuf.length >= 10) {
-    // Single geophone mode: generate phase-space trajectory (EHZ vs pseudo-orthogonal derivative)
+    // Single geophone mode: phase-space derivative trajectory
     const zSlice = ehzBuf.slice(-pts);
     let sumZ = 0;
-    for (let i = 0; i < pts; i++) sumZ += zSlice[i];
-    const meanZ = sumZ / pts;
+    for (let i = 0; i < zSlice.length; i++) sumZ += zSlice[i];
+    const meanZ = sumZ / zSlice.length;
     zDemeaned = zSlice.map((v) => v - meanZ);
 
-    // Synthetic horizontal projection for demonstration when accelerometer is idle
-    nDemeaned = new Array(pts);
-    eDemeaned = new Array(pts);
-    for (let i = 0; i < pts; i++) {
+    nDemeaned = new Array(zSlice.length);
+    eDemeaned = new Array(zSlice.length);
+    for (let i = 0; i < zSlice.length; i++) {
       const prev = i > 0 ? zDemeaned[i - 1] : zDemeaned[i];
-      const deriv = (zDemeaned[i] - prev) * 5.0;
+      const deriv = (zDemeaned[i] - prev) * 4.0;
       nDemeaned[i] = deriv;
-      eDemeaned[i] = zDemeaned[i] * 0.7;
+      eDemeaned[i] = zDemeaned[i] * 0.75;
     }
   }
 
-  // Peak calculation for smooth auto-scaling
-  let maxH = 10.0, maxV = 10.0;
+  if (nDemeaned.length < 2) return;
+
+  // Peak calculation for responsive auto-scaling
+  let maxH = 0.1, maxV = 0.1;
   for (let i = 0; i < nDemeaned.length; i++) {
     const absH = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2);
     const absV = Math.abs(zDemeaned[i]);
@@ -75,14 +74,15 @@ export function renderHodogram() {
     if (absV > maxV) maxV = absV;
   }
 
+  const targetH = Math.max(maxH * 1.35, 0.4);
+  const targetV = Math.max(maxV * 1.35, 0.4);
+
   if (!renderHodogram.smoothScaleH) {
-    renderHodogram.smoothScaleH = Math.max(maxH * 1.3, 20.0);
-    renderHodogram.smoothScaleV = Math.max(maxV * 1.3, 20.0);
+    renderHodogram.smoothScaleH = targetH;
+    renderHodogram.smoothScaleV = targetV;
   } else {
-    const targetH = Math.max(maxH * 1.3, 20.0);
-    const targetV = Math.max(maxV * 1.3, 20.0);
-    renderHodogram.smoothScaleH = renderHodogram.smoothScaleH * 0.9 + targetH * 0.1;
-    renderHodogram.smoothScaleV = renderHodogram.smoothScaleV * 0.9 + targetV * 0.1;
+    renderHodogram.smoothScaleH = renderHodogram.smoothScaleH * 0.90 + targetH * 0.10;
+    renderHodogram.smoothScaleV = renderHodogram.smoothScaleV * 0.90 + targetV * 0.10;
   }
 
   const scaleH = renderHodogram.smoothScaleH;
@@ -107,16 +107,16 @@ export function renderHodogram() {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Deep obsidian background
+      // Deep background
       ctx.fillStyle = '#060913';
       ctx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
       const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.76;
+      const radius = Math.min(cx, cy) * 0.78;
 
       // Distance rings
-      ctx.strokeStyle = '#182234';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = 1;
       [0.33, 0.66, 1.0].forEach((rPct) => {
         ctx.beginPath();
@@ -125,7 +125,7 @@ export function renderHodogram() {
       });
 
       // Crosshairs & Compass headings
-      ctx.strokeStyle = '#25354d';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.beginPath();
       ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
       ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
@@ -141,59 +141,53 @@ export function renderHodogram() {
       ctx.textAlign = 'right';
       ctx.fillText('W', cx - radius - 8, cy + 3);
 
-      // Draw Orbit Trail
-      if (nDemeaned.length > 1) {
-        ctx.lineWidth = 1.6;
-        for (let i = 1; i < nDemeaned.length; i++) {
-          const alpha = 0.15 + (i / nDemeaned.length) * 0.85;
-          ctx.strokeStyle = `rgba(255, 170, 0, ${alpha.toFixed(2)})`;
+      // Draw Orbit Trail with gradient opacity
+      ctx.lineWidth = 1.8;
+      for (let i = 1; i < nDemeaned.length; i++) {
+        const alpha = 0.10 + (i / nDemeaned.length) * 0.90;
+        ctx.strokeStyle = `rgba(255, 170, 0, ${alpha.toFixed(2)})`;
 
-          const x0 = cx + (eDemeaned[i - 1] / scaleH) * radius;
-          const y0 = cy - (nDemeaned[i - 1] / scaleH) * radius;
-          const x1 = cx + (eDemeaned[i] / scaleH) * radius;
-          const y1 = cy - (nDemeaned[i] / scaleH) * radius;
+        const x0 = cx + (eDemeaned[i - 1] / scaleH) * radius;
+        const y0 = cy - (nDemeaned[i - 1] / scaleH) * radius;
+        const x1 = cx + (eDemeaned[i] / scaleH) * radius;
+        const y1 = cy - (nDemeaned[i] / scaleH) * radius;
 
-          ctx.beginPath();
-          ctx.moveTo(x0, y0);
-          ctx.lineTo(x1, y1);
-          ctx.stroke();
-        }
-
-        // Live leading particle head
-        const lastIdx = nDemeaned.length - 1;
-        const headX = cx + (eDemeaned[lastIdx] / scaleH) * radius;
-        const headY = cy - (nDemeaned[lastIdx] / scaleH) * radius;
-
-        ctx.fillStyle = '#ffaa00';
-        ctx.shadowColor = '#ffaa00';
-        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Current vector line from center
-        ctx.strokeStyle = 'rgba(255, 170, 0, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(headX, headY);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
         ctx.stroke();
-
-        // Azimuth annotation
-        const azRad = Math.atan2(eDemeaned[lastIdx], nDemeaned[lastIdx]);
-        let azDeg = (azRad * (180 / Math.PI) + 360) % 360;
-        ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = '#ffaa00';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Azimuth: ${azDeg.toFixed(0)}°`, 8, 14);
-        ctx.fillText(`Scale: ±${Math.round(scaleH)} counts`, 8, 26);
-      } else {
-        ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = '#64748b';
-        ctx.textAlign = 'left';
-        ctx.fillText('Listening for triaxial motion...', 8, 14);
       }
+
+      // Live leading particle head
+      const lastIdx = nDemeaned.length - 1;
+      const headX = cx + (eDemeaned[lastIdx] / scaleH) * radius;
+      const headY = cy - (nDemeaned[lastIdx] / scaleH) * radius;
+
+      ctx.fillStyle = '#ffaa00';
+      ctx.shadowColor = '#ffaa00';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(headX, headY, 5.0, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Current vector line from center
+      ctx.strokeStyle = 'rgba(255, 170, 0, 0.45)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(headX, headY);
+      ctx.stroke();
+
+      // Azimuth annotation
+      const azRad = Math.atan2(eDemeaned[lastIdx], nDemeaned[lastIdx]);
+      let azDeg = (azRad * (180 / Math.PI) + 360) % 360;
+      ctx.font = '9.5px JetBrains Mono, monospace';
+      ctx.fillStyle = '#ffaa00';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Back-Azimuth: ${azDeg.toFixed(0)}°`, 10, 16);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Scale: ±${scaleH.toFixed(1)} counts`, 10, 28);
     }
   }
 
@@ -216,16 +210,15 @@ export function renderHodogram() {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Deep obsidian background
       ctx.fillStyle = '#060913';
       ctx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
       const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.76;
+      const radius = Math.min(cx, cy) * 0.78;
 
       // Distance rings
-      ctx.strokeStyle = '#182234';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
       ctx.lineWidth = 1;
       [0.33, 0.66, 1.0].forEach((rPct) => {
         ctx.beginPath();
@@ -234,7 +227,7 @@ export function renderHodogram() {
       });
 
       // Crosshairs
-      ctx.strokeStyle = '#25354d';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.beginPath();
       ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
       ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
@@ -243,70 +236,64 @@ export function renderHodogram() {
       ctx.font = '700 9.5px JetBrains Mono, monospace';
       ctx.fillStyle = '#94a3b8';
       ctx.textAlign = 'center';
-      ctx.fillText('+Z (Up / ENZ)', cx, cy - radius - 6);
+      ctx.fillText('+Z (Up / ENZ/EHZ)', cx, cy - radius - 6);
       ctx.fillText('-Z (Down)', cx, cy + radius + 14);
       ctx.textAlign = 'left';
-      ctx.fillText('+H', cx + radius + 8, cy + 3);
+      ctx.fillText('+H (Horiz)', cx + radius + 8, cy + 3);
       ctx.textAlign = 'right';
       ctx.fillText('-H', cx - radius - 8, cy + 3);
 
       // Draw Vertical Orbit Trail
-      if (zDemeaned.length > 1) {
-        ctx.lineWidth = 1.6;
-        for (let i = 1; i < zDemeaned.length; i++) {
-          const alpha = 0.15 + (i / zDemeaned.length) * 0.85;
-          ctx.strokeStyle = `rgba(0, 210, 255, ${alpha.toFixed(2)})`;
+      ctx.lineWidth = 1.8;
+      for (let i = 1; i < zDemeaned.length; i++) {
+        const alpha = 0.10 + (i / zDemeaned.length) * 0.90;
+        ctx.strokeStyle = `rgba(0, 210, 255, ${alpha.toFixed(2)})`;
 
-          const hMag0 = Math.sqrt(nDemeaned[i - 1] ** 2 + eDemeaned[i - 1] ** 2);
-          const hMag1 = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2);
+        const hMag0 = Math.sqrt(nDemeaned[i - 1] ** 2 + eDemeaned[i - 1] ** 2);
+        const hMag1 = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2);
 
-          const x0 = cx + (hMag0 / scaleH) * radius * 0.8;
-          const y0 = cy - (zDemeaned[i - 1] / scaleV) * radius;
-          const x1 = cx + (hMag1 / scaleH) * radius * 0.8;
-          const y1 = cy - (zDemeaned[i] / scaleV) * radius;
+        const x0 = cx + (hMag0 / scaleH) * radius * 0.85;
+        const y0 = cy - (zDemeaned[i - 1] / scaleV) * radius;
+        const x1 = cx + (hMag1 / scaleH) * radius * 0.85;
+        const y1 = cy - (zDemeaned[i] / scaleV) * radius;
 
-          ctx.beginPath();
-          ctx.moveTo(x0, y0);
-          ctx.lineTo(x1, y1);
-          ctx.stroke();
-        }
-
-        // Live leading particle head
-        const lastIdx = zDemeaned.length - 1;
-        const lastHMag = Math.sqrt(nDemeaned[lastIdx] ** 2 + eDemeaned[lastIdx] ** 2);
-        const headX = cx + (lastHMag / scaleH) * radius * 0.8;
-        const headY = cy - (zDemeaned[lastIdx] / scaleV) * radius;
-
-        ctx.fillStyle = '#00d2ff';
-        ctx.shadowColor = '#00d2ff';
-        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Current vector line from center
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(headX, headY);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
         ctx.stroke();
-
-        // Polarization & scale annotations
-        const incRad = Math.atan2(zDemeaned[lastIdx], Math.max(lastHMag, 0.1));
-        const incDeg = incRad * (180 / Math.PI);
-        ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = '#00d2ff';
-        ctx.textAlign = 'left';
-        ctx.fillText(`Inclination: ${incDeg.toFixed(0)}°`, 8, 14);
-        ctx.fillText(`Scale: ±${Math.round(scaleV)} counts`, 8, 26);
-      } else {
-        ctx.font = '9px JetBrains Mono, monospace';
-        ctx.fillStyle = '#64748b';
-        ctx.textAlign = 'left';
-        ctx.fillText('Listening for vertical motion...', 8, 14);
       }
+
+      // Live leading particle head
+      const lastIdx = zDemeaned.length - 1;
+      const lastHMag = Math.sqrt(nDemeaned[lastIdx] ** 2 + eDemeaned[lastIdx] ** 2);
+      const headX = cx + (lastHMag / scaleH) * radius * 0.85;
+      const headY = cy - (zDemeaned[lastIdx] / scaleV) * radius;
+
+      ctx.fillStyle = '#00d2ff';
+      ctx.shadowColor = '#00d2ff';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(headX, headY, 5.0, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Current vector line from center
+      ctx.strokeStyle = 'rgba(0, 210, 255, 0.45)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(headX, headY);
+      ctx.stroke();
+
+      // Inclination & scale annotations
+      const incRad = Math.atan2(zDemeaned[lastIdx], Math.max(lastHMag, 0.05));
+      const incDeg = incRad * (180 / Math.PI);
+      ctx.font = '9.5px JetBrains Mono, monospace';
+      ctx.fillStyle = '#00d2ff';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Inclination Angle: ${incDeg.toFixed(0)}°`, 10, 16);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Scale: ±${scaleV.toFixed(1)} counts`, 10, 28);
     }
   }
 }
