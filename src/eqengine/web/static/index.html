@@ -352,21 +352,21 @@
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
           <div class="guide-toggle">
-            <span>💡 <b>Observatory Guide</b> — Understanding STA/LTA & RSAM Energy</span>
+            <span>💡 <b>Observatory Guide</b> — How to Read STA/LTA Trigger Ratios vs 60-Minute RSAM History</span>
             <span class="guide-chevron">▼ Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
-              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
-              <p><b>STA/LTA:</b> Ratio of Short-Term Average (1s) to Long-Term Average (10s) background. <b>RSAM:</b> Real-time Seismic Amplitude Measurement (continuous 1-minute velocity power).</p>
+              <h5 style="color: var(--ch-enz);">ℹ️ LEFT: STA/LTA (INSTANT TRIGGER)</h5>
+              <p>Compares fast 0.5s sudden ground velocity against 10s background average. <b>Normal is ~1.0x</b>. Sharp P-waves spike vertically past the <b>6.5x Trigger Threshold</b>.</p>
             </div>
             <div class="guide-col">
-              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
-              <p>Normal STA/LTA ratio fluctuates between 0.8x and 1.5x (trigger threshold is calibrated to 6.5x to prevent false alarms). Normal background RSAM is &lt;50 counts. Heavy trucks briefly bump RSAM to 150–400 counts.</p>
+              <h5 style="color: #00d2ff;">🟢 RIGHT: RSAM (60-MIN HOME ENERGY)</h5>
+              <p><b>Real-Time Seismic Amplitude Measurement:</b> Demeaned RMS ground vibration per minute. <b>Cyan/Green (&lt;2x baseline)</b> = your home's quiet ambient baseline (~20–45 counts). <b>Amber (2–5x)</b> = footsteps, wind, or passing delivery trucks. <b>Red (&gt;5x baseline)</b> = true seismic tremors or earthquakes.</p>
             </div>
             <div class="guide-col">
-              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
-              <p>STA/LTA spikes vertically past 6.5x (often 15x–100x) within 0.1s. RSAM surges into thousands (2,000 to 50,000+ counts) and remains elevated across consecutive 1-minute bars.</p>
+              <h5 style="color: #f59e0b;">🏠 YOUR HOME'S NORMAL BASELINE</h5>
+              <p>Living directly on the Hayward fault zone means your home has natural background hum (wind, doors, HVAC). The engine continuously tracks this dynamic baseline so normal everyday living stays in the green/cyan zone!</p>
             </div>
           </div>
         </div>
@@ -375,7 +375,7 @@
           <div class="telemetry-card">
             <div class="card-header">
               <h4>STA/LTA Ratio Monitor & Trigger Threshold</h4>
-              <span class="threshold-badge">Trigger ON: 6.5x | OFF: 2.0x</span>
+              <span class="threshold-badge" id="staBadge">Trigger ON: 6.5x | OFF: 2.0x</span>
             </div>
             <div class="canvas-wrapper-sm">
               <canvas id="staltaCanvas" class="stalta-canvas"></canvas>
@@ -384,8 +384,8 @@
 
           <div class="telemetry-card">
             <div class="card-header">
-              <h4>Real-Time Seismic Amplitude Measurement (RSAM 1-Min)</h4>
-              <span class="rsam-badge" id="rsamValue">RSAM: --</span>
+              <h4>60-Minute RSAM Energy Trend (EHZ Ground Velocity RMS)</h4>
+              <span class="rsam-badge" id="rsamValue">RSAM: -- counts RMS</span>
             </div>
             <div class="canvas-wrapper-sm">
               <canvas id="rsamCanvas" class="rsam-canvas"></canvas>

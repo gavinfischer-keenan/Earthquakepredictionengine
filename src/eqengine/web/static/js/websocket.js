@@ -152,12 +152,13 @@ export function handleMessage(msg) {
               const minKey = Math.floor(sTime / 60) * 60;
               const v = samples[i];
               if (!state.helicorderMinutePeaks[minKey]) {
-                state.helicorderMinutePeaks[minKey] = { min: v, max: v, sum: v, count: 1 };
+                state.helicorderMinutePeaks[minKey] = { min: v, max: v, sum: v, sumSq: v * v, count: 1 };
               } else {
                 const entry = state.helicorderMinutePeaks[minKey];
                 if (v < entry.min) entry.min = v;
                 if (v > entry.max) entry.max = v;
                 entry.sum += v;
+                entry.sumSq = (entry.sumSq || 0) + v * v;
                 entry.count++;
               }
             }
