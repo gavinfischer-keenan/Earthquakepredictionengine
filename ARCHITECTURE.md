@@ -98,6 +98,11 @@ The runtime pipeline consists of five primary sequential processing stages with 
 - **`RSAMCalculator`**: Real-time Seismic Amplitude Measurement tracking 1-minute RMS amplitudes and 1-hour historical trends.
 - **`HealthReporter`**: Emits periodic health status snapshots containing station uptime, buffer fill ratios, trigger counts, and noise floor metrics.
 
+### 8. Standalone Geophysical Observatory Web App (`eqengine.web`)
+- **Embedded Web Server**: FastAPI server (`eqengine.web.server`) providing REST endpoints (`/api/status`, `/api/alerts`, `/api/history`, `/api/waveform`, `/api/config`) on configurable port (default `8088`).
+- **High-Speed WebSocket (`/ws/live`)**: Broadcasts real-time 100 Hz 4-channel raw and preprocessed waveform chunks, STA/LTA characteristic ratios, and immediate early warning overlays.
+- **Observatory UI (`eqengine.web.static`)**: Single-page high-resolution Canvas waveform visualizer with UTC time-axis ticks, dynamic helicorder-style displays, and interactive telemetry dials.
+
 ---
 
 ## Configuration & Environment
@@ -105,8 +110,9 @@ The runtime pipeline consists of five primary sequential processing stages with 
 Configuration is managed through `eqengine.config.Settings` (backed by Pydantic and `.env`):
 - Station identifiers: `SHAKE_STATION`, `SHAKE_NETWORK`, `SHAKE_IP`
 - Ingest settings: `INGEST_MODE`, `UDP_PORT`, `SEEDLINK_PORT`
-- Algorithm parameters: `STA_SECONDS`, `LTA_SECONDS`, `TRIGGER_ON`, `TRIGGER_OFF`
+- Algorithm parameters: `STA_SECONDS`, `LTA_SECONDS`, `TRIGGER_ON`, `TRIGGER_OFF`, `MIN_TRIGGER_DURATION_SEC`
 - Filter bands: `BANDPASS_LOW`, `BANDPASS_HIGH`
+- Web server: `WEB_ENABLED`, `WEB_HOST`, `WEB_PORT`
 - Alerting: `DASHBOARD_URL`, `ALERT_COOLDOWN_SEC`
 - USGS polling: `USGS_ENABLED`, `USGS_POLL_INTERVAL_SEC`, `USGS_FEED_URL`
 
@@ -126,3 +132,4 @@ The test suite covers 100% of pipeline modules under `tests/`:
 - `tests/test_telemetry.py`: RSAM calculations, rolling history, health reporter status.
 - `tests/test_validation.py`: NoiseModel serialization, MLPicker fallbacks, validation results.
 - `tests/test_ingest.py`: UDP Datacast packet parsing and storage.
+- `tests/test_web.py`: FastAPI server status, config, history, waveform endpoints, and WebSocket broadcaster.

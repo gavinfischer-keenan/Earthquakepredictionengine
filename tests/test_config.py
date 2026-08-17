@@ -26,6 +26,9 @@ class TestSettings:
         assert cfg.lta_seconds == 20.0
         assert cfg.trigger_on == 6.5
         assert cfg.trigger_off == 2.0
+        assert cfg.min_trigger_duration_sec == 1.2
+        assert cfg.web_enabled is True
+        assert cfg.web_port == 8088
         assert cfg.ingest_mode == IngestMode.SEEDLINK
         assert cfg.log_level == LogLevel.INFO
 
