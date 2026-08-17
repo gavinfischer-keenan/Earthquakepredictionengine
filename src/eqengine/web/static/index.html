@@ -337,9 +337,41 @@
         </div>
 
         <div class="helicorder-container">
-          <div class="panel-header">
-            <h3>24-Hour Helicorder Drum Record (EHZ)</h3>
-            <p class="panel-desc">Continuous 24-hour strip record (1 hour per row). Quakes appear as multi-minute packet bursts crossing rows.</p>
+          <div class="panel-header helicorder-header">
+            <div class="header-left">
+              <h3>24-Hour Helicorder Drum Record</h3>
+              <p class="panel-desc">Continuous 24-hour strip record (1 hour per row). Quakes appear as multi-minute packet bursts crossing rows.</p>
+            </div>
+            <div class="helicorder-controls">
+              <div class="control-item">
+                <label for="heliChannelSelect">Channel:</label>
+                <select id="heliChannelSelect" class="hud-select">
+                  <option value="EHZ" selected>EHZ (Ground Velocity)</option>
+                  <option value="ENZ">ENZ (Vertical Accel)</option>
+                  <option value="ENN">ENN (N-S Accel)</option>
+                  <option value="ENE">ENE (E-W Accel)</option>
+                </select>
+              </div>
+              <div class="control-item">
+                <label for="heliScaleSelect">Scale:</label>
+                <select id="heliScaleSelect" class="hud-select">
+                  <option value="0.5">0.5x</option>
+                  <option value="1">1.0x</option>
+                  <option value="2">2.0x</option>
+                  <option value="5" selected>5.0x (Exaggerated)</option>
+                  <option value="10">10.0x (High Gain)</option>
+                  <option value="20">20.0x (Max Boost)</option>
+                </select>
+              </div>
+              <div class="control-item">
+                <label for="heliPaletteSelect">Palette:</label>
+                <select id="heliPaletteSelect" class="hud-select">
+                  <option value="dataview" selected>DataView Blue</option>
+                  <option value="emerald">Obsidian Green</option>
+                  <option value="amber">Alert Amber</option>
+                </select>
+              </div>
+            </div>
           </div>
           <div class="helicorder-wrapper">
             <canvas id="helicorderCanvas" class="helicorder-canvas"></canvas>
