@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Leaflet Interactive Geospatial Radar Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <div class="observatory-app">
@@ -95,11 +98,16 @@
     <!-- Control Toolbar -->
     <nav class="toolbar">
       <div class="tab-group" id="viewTabs">
-        <button class="tab-btn active" data-tab="oscilloscope">📈 Seismograms (4-Ch)</button>
-        <button class="tab-btn" data-tab="spectrogram">🌈 Waterfall Spectrogram</button>
+        <button class="tab-btn active" data-tab="oscilloscope">📈 Seismograms</button>
+        <button class="tab-btn" data-tab="spectrogram">🌈 HD Spectrogram</button>
         <button class="tab-btn" data-tab="helicorder">📜 24h Helicorder</button>
         <button class="tab-btn" data-tab="stalta">📊 STA/LTA & RSAM</button>
-        <button class="tab-btn" data-tab="hodogram">🌐 3D Particle Motion</button>
+        <button class="tab-btn" data-tab="hodogram">🌐 3D Orbit</button>
+        <button class="tab-btn" data-tab="radar">🗺️ Epicenter Radar</button>
+        <button class="tab-btn" data-tab="environment">🏟️ Urban Profiler</button>
+        <button class="tab-btn" data-tab="phasenet">🎯 AI PhaseNet</button>
+        <button class="tab-btn" data-tab="psd">🔬 Peterson Noise</button>
+        <button class="tab-btn" data-tab="sonification">🔊 Earth Audio</button>
         <button class="tab-btn" data-tab="events">📋 Event Log</button>
         <button class="tab-btn" data-tab="ml">🤖 ML Dataset & Annotations</button>
       </div>
@@ -608,6 +616,334 @@
                   <tr><td colspan="9" class="text-muted text-center">No ground-truth events tagged yet. Click a quick tag above to record your first ML training snippet!</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. Live Epicenter Radar & Faults Map -->
+      <section class="tab-panel" id="tab-radar">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Live Epicenter Radar, Fault Lines & Wavefront Circles</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Geospatial tracking of earthquakes within 500 miles on an interactive map showing major California fault zones (Hayward, San Andreas, Calaveras).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 REAL-TIME PROPAGATION</h5>
+              <p>When an earthquake occurs, animated wavefront rings expand outward at <b>P-wave speed (6.0 km/s)</b> and <b>S-wave speed (3.5 km/s)</b> directly toward your home station in Berkeley.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT TO LOOK FOR</h5>
+              <p>Gold circle = USGS epicenter. Blue circle = P-wave (fast compression). Red circle = S-wave (damaging shear). Station marker shows arrival countdown timer.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="radar-container">
+          <div class="radar-map-wrapper">
+            <div id="radarMap" class="radar-leaflet-map"></div>
+            <div class="radar-hud-overlay">
+              <div class="radar-hud-card">
+                <span class="hud-label">HOME OBSERVATORY</span>
+                <span class="hud-val">Berkeley Hills (AM.R1A3D)</span>
+                <span class="hud-sub">37.8696° N, 122.2491° W</span>
+              </div>
+              <div class="radar-hud-card">
+                <span class="hud-label">NEAREST MAJOR FAULT</span>
+                <span class="hud-val" style="color: #ef4444;">Hayward Fault Trace</span>
+                <span class="hud-sub">~400 meters West</span>
+              </div>
+              <div class="radar-hud-card">
+                <span class="hud-label">EARTHQUAKES IN RADAR</span>
+                <span class="hud-val" id="radarQuakeCount">0 Events</span>
+                <span class="hud-sub">&lt;500 miles radius</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9. Environmental & Urban Vibration Profiler -->
+      <section class="tab-panel" id="tab-environment">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Identifying the World Around Us</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Separates ambient seismic energy into 5 distinct environmental frequency bands to monitor local activity in the Berkeley neighborhood.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 CAL STADIUM & GREEK THEATRE</h5>
+              <p><b>Cal Stadium (100 yds):</b> Crowd roar & stomping (2–5 Hz band).<br>
+                 <b>Greek Theatre:</b> Concert acoustic sub-bass coupling (25–45 Hz band).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ TRAFFIC & INDOOR ACTIVITY</h5>
+              <p><b>Trucks / Buses:</b> 8–14 Hz rolling road vibration.<br>
+                 <b>Human Footsteps:</b> Rapid vertical micro-transients.<br>
+                 <b>Wind:</b> 0.1–0.5 Hz horizontal building sway.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="env-container">
+          <div class="env-grid">
+            <!-- Cal Stadium Card -->
+            <div class="env-card" id="envCardStadium">
+              <div class="env-card-header">
+                <span class="env-icon">🏈</span>
+                <div class="env-title-group">
+                  <h4>Cal Memorial Stadium (100 yds)</h4>
+                  <span class="env-sub">Game Crowd Roar & Stomping (2–5 Hz)</span>
+                </div>
+                <span class="env-badge" id="envBadgeStadium">QUIET</span>
+              </div>
+              <div class="env-meter-bar">
+                <div class="env-meter-fill" id="envFillStadium" style="width: 5%;"></div>
+              </div>
+              <div class="env-details">
+                <span>Power: <b id="envValStadium">0.12</b> µm/s</span>
+                <span>Excitement: <b id="envLevelStadium">Baseline</b></span>
+              </div>
+            </div>
+
+            <!-- Greek Theatre Card -->
+            <div class="env-card" id="envCardConcert">
+              <div class="env-card-header">
+                <span class="env-icon">🎸</span>
+                <div class="env-title-group">
+                  <h4>Greek Theatre Concerts</h4>
+                  <span class="env-sub">Acoustic Sub-Bass Resonance (25–45 Hz)</span>
+                </div>
+                <span class="env-badge" id="envBadgeConcert">IDLE</span>
+              </div>
+              <div class="env-meter-bar">
+                <div class="env-meter-fill" id="envFillConcert" style="width: 8%; background: #d080ff;"></div>
+              </div>
+              <div class="env-details">
+                <span>Sub-Bass: <b id="envValConcert">0.05</b> µm/s</span>
+                <span>Music Coupling: <b id="envLevelConcert">No Live Audio</b></span>
+              </div>
+            </div>
+
+            <!-- Heavy Traffic Card -->
+            <div class="env-card" id="envCardTraffic">
+              <div class="env-card-header">
+                <span class="env-icon">🚛</span>
+                <div class="env-title-group">
+                  <h4>Heavy Truck & Bus Traffic</h4>
+                  <span class="env-sub">Roadway Acoustic-Ground Waves (8–14 Hz)</span>
+                </div>
+                <span class="env-badge" id="envBadgeTraffic">LIGHT</span>
+              </div>
+              <div class="env-meter-bar">
+                <div class="env-meter-fill" id="envFillTraffic" style="width: 12%; background: #ffaa00;"></div>
+              </div>
+              <div class="env-details">
+                <span>Road Power: <b id="envValTraffic">0.25</b> µm/s</span>
+                <span>Traffic Flow: <b id="envLevelTraffic">Normal Street</b></span>
+              </div>
+            </div>
+
+            <!-- Human / Indoor Card -->
+            <div class="env-card" id="envCardHuman">
+              <div class="env-card-header">
+                <span class="env-icon">🏃</span>
+                <div class="env-title-group">
+                  <h4>Indoor Human Activity</h4>
+                  <span class="env-sub">Stairs, Floor Impacts & Door Transients</span>
+                </div>
+                <span class="env-badge" id="envBadgeHuman">QUIET</span>
+              </div>
+              <div class="env-meter-bar">
+                <div class="env-meter-fill" id="envFillHuman" style="width: 15%; background: #00ff88;"></div>
+              </div>
+              <div class="env-details">
+                <span>Impact Level: <b id="envValHuman">0.001</b> m/s²</span>
+                <span>Motion: <b id="envLevelHuman">Idle / Still</b></span>
+              </div>
+            </div>
+
+            <!-- Wind / Building Sway Card -->
+            <div class="env-card" id="envCardWind">
+              <div class="env-card-header">
+                <span class="env-icon">💨</span>
+                <div class="env-title-group">
+                  <h4>Wind & Structural Sway</h4>
+                  <span class="env-sub">Long-Period Rocking & Tree Roots (0.1–0.5 Hz)</span>
+                </div>
+                <span class="env-badge" id="envBadgeWind">CALM</span>
+              </div>
+              <div class="env-meter-bar">
+                <div class="env-meter-fill" id="envFillWind" style="width: 6%; background: #38bdf8;"></div>
+              </div>
+              <div class="env-details">
+                <span>Tilt Power: <b id="envValWind">0.02</b> µm/s</span>
+                <span>Atmosphere: <b id="envLevelWind">Calm / Light Breeze</b></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Multi-Band Energy Distribution Canvas -->
+          <div class="env-canvas-card">
+            <div class="panel-header">
+              <h4>Real-Time 5-Band Spectral Energy History (Last 5 Minutes)</h4>
+            </div>
+            <div class="canvas-wrapper-sm">
+              <canvas id="envEnergyCanvas" class="env-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. AI Phase Picker & Probability Traces (PhaseNet / EQTransformer Emulation) -->
+      <section class="tab-panel" id="tab-phasenet">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Real-Time AI Phase Picking & Wadati Distance Derivation</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Real-time deep learning emulation computing instantaneous P-wave probability P(P) and S-wave probability P(S) curves on incoming waveform streams.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 AUTOMATIC PICKS</h5>
+              <p>When P(P) &gt; 0.6, the engine flags a precise P-wave arrival timestamp T_P. When P(S) &gt; 0.6, it records T_S.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WADATI DISTANCE CALCULATION</h5>
+              <p>Using the arrival time difference (T_S - T_P), the engine derives epicentral distance: Distance ≈ 8.0 × (T_S - T_P) km.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="phasenet-container">
+          <div class="phasenet-meta-row">
+            <div class="stat-card">
+              <span class="stat-label">LATEST P-PICK</span>
+              <span class="stat-num" id="aiPickP">--:--:--</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">LATEST S-PICK</span>
+              <span class="stat-num" id="aiPickS">--:--:--</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">S - P TIME LAG</span>
+              <span class="stat-num" id="aiLagSP">-- s</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">EST. EPICENTRAL DISTANCE</span>
+              <span class="stat-num" id="aiEstDist" style="color: #38bdf8;">-- mi</span>
+            </div>
+          </div>
+          <div class="phasenet-canvas-stack">
+            <div class="phase-canvas-card">
+              <span class="phase-label">1. Normalized Seismogram (EHZ & ENZ Velocity/Acceleration)</span>
+              <canvas id="phaseWaveformCanvas" class="phase-canvas"></canvas>
+            </div>
+            <div class="phase-canvas-card">
+              <span class="phase-label" style="color: #38bdf8;">2. P-Wave Arrival Probability Curve P(P) [0.0 to 1.0]</span>
+              <canvas id="phasePCanvas" class="phase-canvas"></canvas>
+            </div>
+            <div class="phase-canvas-card">
+              <span class="phase-label" style="color: #ffaa00;">3. S-Wave Arrival Probability Curve P(S) [0.0 to 1.0]</span>
+              <canvas id="phaseSCanvas" class="phase-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11. Peterson Noise Model (Global Standard PSD Curve) -->
+      <section class="tab-panel" id="tab-psd">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — USGS Peterson Global Noise Models (NLNM / NHNM)</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Power Spectral Density (PSD) in dB relative to (m/s²)²/Hz plotted against the globally recognized USGS Peterson New Low/High Noise Models.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 GLOBAL BASELINES</h5>
+              <p><b>NLNM (Green Curve):</b> The quietest seismic vaults on Earth.<br>
+                 <b>NHNM (Red Curve):</b> The upper boundary of high-noise urban environments.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ PACIFIC OCEAN MICROSEISMS</h5>
+              <p>Look for the distinct peak at 0.15–0.3 Hz (3–7s period)—this is the continuous pulse of Pacific Ocean surf crashing on the California coast!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="psd-container">
+          <div class="psd-canvas-wrapper">
+            <canvas id="petersonCanvas" class="psd-canvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- 12. Seismic Audio Synthesizer (Sonification) -->
+      <section class="tab-panel" id="tab-sonification">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Listening to the Earth: Seismic Sonification</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Pitch-shifts and time-compresses inaudible infrasound seismic waves (1–10 Hz) into the human audible audio spectrum (50–1000 Hz).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT YOU WILL HEAR</h5>
+              <p><b>Quiet Ambient:</b> A gentle deep resonant oceanic purr.<br>
+                 <b>Heavy Truck:</b> A low roaring growl passing from left to right.<br>
+                 <b>Cal Stadium:</b> A vibrating rumble.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ EARTHQUAKE SONIFICATION</h5>
+              <p>An earthquake sounds like a dramatic acoustic snap (sharp P-wave click) followed by a deep rolling thunderous explosion (S-wave rumble).</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="sonification-container">
+          <div class="sonification-card">
+            <div class="son-controls">
+              <button class="btn btn-primary" id="sonPlayBtn">▶ Listen to Live Earth Audio</button>
+              <div class="control-group">
+                <label>Pitch Shift:</label>
+                <select id="sonSpeedSelect" class="form-select">
+                  <option value="10">10x Speed (Sub-Bass)</option>
+                  <option value="25" selected>25x Speed (Audible Earth)</option>
+                  <option value="50">50x Speed (High Pitch)</option>
+                  <option value="100">100x Speed (Rapid Chirp)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label>Volume:</label>
+                <input type="range" id="sonVolSlider" min="0" max="100" value="70" class="form-range">
+              </div>
+            </div>
+            <div class="son-visualizer-wrapper">
+              <canvas id="sonVisualizer" class="son-canvas"></canvas>
             </div>
           </div>
         </div>

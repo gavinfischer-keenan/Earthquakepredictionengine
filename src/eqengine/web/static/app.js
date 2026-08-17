@@ -1431,6 +1431,563 @@
   }
 
   // -------------------------------------------------------------------------
+  // 8. Geospatial Epicenter Radar & Faults Map
+  // -------------------------------------------------------------------------
+  let leafletMap = null;
+  let stationMarker = null;
+  let quakeMarkers = [];
+
+  function initRadarMap() {
+    if (leafletMap || typeof L === 'undefined') return;
+    const mapEl = document.getElementById('radarMap');
+    if (!mapEl) return;
+
+    leafletMap = L.map('radarMap', {
+      center: [37.8696, -122.2491],
+      zoom: 10,
+      zoomControl: true,
+    });
+
+    // Dark Matter tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; CartoDB & USGS',
+      maxZoom: 19,
+      subdomains: 'abcd',
+    }).addTo(leafletMap);
+
+    // Berkeley Home Station Marker
+    const stationIcon = L.divIcon({
+      className: 'station-radar-marker',
+      html: '<div style="width:16px;height:16px;background:#00ff88;border:2px solid #fff;border-radius:50%;box-shadow:0 0 10px #00ff88;"></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+    stationMarker = L.marker([37.8696, -122.2491], { icon: stationIcon }).addTo(leafletMap);
+    stationMarker.bindPopup('<b>AM.R1A3D Berkeley Hills</b><br>Lat: 37.8696° N, Lon: -122.2491° W<br>Elev: ~240m | Hayward Fault Zone');
+
+    // 1. Hayward Fault Trace
+    const haywardCoords = [
+      [37.45, -121.88], [37.54, -121.96], [37.64, -122.05], [37.73, -122.14],
+      [37.81, -122.21], [37.87, -122.25], [37.93, -122.31], [38.01, -122.38]
+    ];
+    L.polyline(haywardCoords, { color: '#ef4444', weight: 3.5, opacity: 0.85, dashArray: '6, 6' })
+      .addTo(leafletMap)
+      .bindPopup('<b>Hayward Fault Zone</b><br>Active strike-slip fault ~400m West of station.');
+
+    // 2. San Andreas Fault Trace
+    const sanAndreasCoords = [
+      [36.80, -121.55], [37.15, -121.90], [37.50, -122.25], [37.75, -122.50],
+      [38.00, -122.80], [38.30, -123.05], [38.60, -123.35]
+    ];
+    L.polyline(sanAndreasCoords, { color: '#f59e0b', weight: 2.5, opacity: 0.75 })
+      .addTo(leafletMap)
+      .bindPopup('<b>San Andreas Fault</b><br>Major Pacific-North American plate boundary.');
+
+    // 3. Calaveras Fault Trace
+    const calaverasCoords = [
+      [36.90, -121.35], [37.20, -121.65], [37.45, -121.85], [37.75, -121.97], [38.00, -122.10]
+    ];
+    L.polyline(calaverasCoords, { color: '#ea580c', weight: 2.0, opacity: 0.75 })
+      .addTo(leafletMap)
+      .bindPopup('<b>Calaveras Fault Zone</b>');
+
+    // Radar distance range rings
+    [16.09, 40.23, 80.47, 160.93, 402.33, 804.67].forEach((km, idx) => {
+      const labels = ['10 mi', '25 mi', '50 mi', '100 mi', '250 mi', '500 mi'];
+      L.circle([37.8696, -122.2491], {
+        radius: km * 1000,
+        color: '#1e293b',
+        fill: false,
+        weight: 1,
+        dashArray: '4, 8'
+      }).addTo(leafletMap).bindTooltip(`Radar Range: ${labels[idx]}`, { sticky: true });
+    });
+  }
+
+  function updateRadarMap() {
+    if (!leafletMap || typeof L === 'undefined') return;
+    leafletMap.invalidateSize();
+
+    quakeMarkers.forEach(m => leafletMap.removeLayer(m));
+    quakeMarkers = [];
+
+    const quakes = state.usgsEvents || [];
+    const countEl = document.getElementById('radarQuakeCount');
+    if (countEl) countEl.textContent = `${quakes.length} Events (<500 mi)`;
+
+    quakes.forEach((eq) => {
+      if (!eq.latitude || !eq.longitude) return;
+      const mag = eq.mag || 1.5;
+      const radius = Math.max(mag * 4, 6);
+      const color = mag >= 4.0 ? '#ef4444' : (mag >= 2.5 ? '#f59e0b' : '#38bdf8');
+
+      const marker = L.circleMarker([eq.latitude, eq.longitude], {
+        radius: radius,
+        fillColor: color,
+        color: '#ffffff',
+        weight: 1.5,
+        opacity: 0.9,
+        fillOpacity: 0.65
+      }).addTo(leafletMap);
+
+      const timeStr = new Date(eq.time).toISOString().replace('T', ' ').slice(0, 19);
+      marker.bindPopup(`
+        <b>M ${mag.toFixed(1)} — ${eq.place}</b><br>
+        Distance: ${eq.distance_km ? (eq.distance_km * 0.621371).toFixed(1) : '--'} mi<br>
+        Depth: ${eq.depth_km || '--'} km<br>
+        Time: ${timeStr} UTC
+      `);
+      quakeMarkers.push(marker);
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // 9. Environmental & Urban Vibration Profiler
+  // -------------------------------------------------------------------------
+  const envHistory = [];
+
+  function renderUrbanProfiler() {
+    if (state.activeTab !== 'environment') return;
+    const ehzBuf = state.buffers.EHZ;
+    const enzBuf = state.buffers.ENZ;
+    if (ehzBuf.length < 256) return;
+
+    const fftSlice = ehzBuf.slice(-256);
+    let pwrWind = 0;    // 0.1 - 0.5 Hz (bins 0-1)
+    let pwrStadium = 0; // 2 - 5 Hz (bins 5-13)
+    let pwrTraffic = 0; // 8 - 14 Hz (bins 20-36)
+    let pwrConcert = 0; // 25 - 45 Hz (bins 64-115)
+
+    const fft = computeFFT(fftSlice);
+    for (let k = 0; k < 128; k++) {
+      const mag = Math.sqrt(fft.real[k]**2 + fft.imag[k]**2);
+      if (k <= 1) pwrWind += mag;
+      else if (k >= 5 && k <= 13) pwrStadium += mag;
+      else if (k >= 20 && k <= 36) pwrTraffic += mag;
+      else if (k >= 64 && k <= 115) pwrConcert += mag;
+    }
+
+    const enzSlice = enzBuf.slice(-100);
+    let enzMax = 0;
+    enzSlice.forEach(v => { const a = Math.abs(v - 16384); if (a > enzMax) enzMax = a; });
+    const pwrHuman = (enzMax / 16384.0) * 9.81; // m/s²
+
+    const valStadium = (pwrStadium / 1000.0).toFixed(2);
+    const valConcert = (pwrConcert / 1200.0).toFixed(2);
+    const valTraffic = (pwrTraffic / 800.0).toFixed(2);
+    const valWind = (pwrWind / 500.0).toFixed(2);
+    const valHuman = pwrHuman.toFixed(4);
+
+    const fillStadium = document.getElementById('envFillStadium');
+    const fillConcert = document.getElementById('envFillConcert');
+    const fillTraffic = document.getElementById('envFillTraffic');
+    const fillHuman = document.getElementById('envFillHuman');
+    const fillWind = document.getElementById('envFillWind');
+
+    if (fillStadium) fillStadium.style.width = `${Math.min(valStadium * 80, 100)}%`;
+    if (fillConcert) fillConcert.style.width = `${Math.min(valConcert * 90, 100)}%`;
+    if (fillTraffic) fillTraffic.style.width = `${Math.min(valTraffic * 60, 100)}%`;
+    if (fillHuman) fillHuman.style.width = `${Math.min(pwrHuman * 4000, 100)}%`;
+    if (fillWind) fillWind.style.width = `${Math.min(valWind * 70, 100)}%`;
+
+    const elValStadium = document.getElementById('envValStadium');
+    const elValConcert = document.getElementById('envValConcert');
+    const elValTraffic = document.getElementById('envValTraffic');
+    const elValHuman = document.getElementById('envValHuman');
+    const elValWind = document.getElementById('envValWind');
+
+    if (elValStadium) elValStadium.textContent = valStadium;
+    if (elValConcert) elValConcert.textContent = valConcert;
+    if (elValTraffic) elValTraffic.textContent = valTraffic;
+    if (elValHuman) elValHuman.textContent = valHuman;
+    if (elValWind) elValWind.textContent = valWind;
+
+    const badgeStadium = document.getElementById('envBadgeStadium');
+    const levelStadium = document.getElementById('envLevelStadium');
+    if (badgeStadium && levelStadium) {
+      if (valStadium > 0.8) {
+        badgeStadium.textContent = 'ROAR!';
+        badgeStadium.style.color = '#ef4444';
+        levelStadium.textContent = 'STADIUM TOUCHDOWN / CHEER';
+      } else if (valStadium > 0.3) {
+        badgeStadium.textContent = 'ACTIVE';
+        badgeStadium.style.color = '#f59e0b';
+        levelStadium.textContent = 'Crowd Murmur / Game in Progress';
+      } else {
+        badgeStadium.textContent = 'QUIET';
+        badgeStadium.style.color = '#00ff88';
+        levelStadium.textContent = 'Normal Baseline';
+      }
+    }
+
+    if (Math.random() < 0.25) {
+      envHistory.push({
+        t: Date.now(),
+        stadium: parseFloat(valStadium),
+        concert: parseFloat(valConcert),
+        traffic: parseFloat(valTraffic),
+        human: parseFloat(valHuman) * 10,
+        wind: parseFloat(valWind)
+      });
+      if (envHistory.length > 300) envHistory.shift();
+    }
+
+    const canvas = document.getElementById('envEnergyCanvas');
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.fillStyle = '#0a0e17';
+      ctx.fillRect(0, 0, w, h);
+
+      if (envHistory.length > 1) {
+        const bands = [
+          { key: 'stadium', color: '#38bdf8', label: 'Stadium (2-5Hz)' },
+          { key: 'traffic', color: '#ffaa00', label: 'Traffic (8-14Hz)' },
+          { key: 'concert', color: '#d080ff', label: 'Concerts (25-45Hz)' },
+          { key: 'wind', color: '#00ff88', label: 'Wind/Tilt (0.1-0.5Hz)' }
+        ];
+
+        const step = w / Math.max(envHistory.length, 60);
+        bands.forEach((b) => {
+          ctx.strokeStyle = b.color;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          envHistory.forEach((pt, idx) => {
+            const x = idx * step;
+            const y = h - (Math.min(pt[b.key], 2.0) / 2.0) * (h - 20) - 10;
+            if (idx === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        });
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 10. AI PhaseNet Picker Emulation
+  // -------------------------------------------------------------------------
+  function renderPhaseNet() {
+    if (state.activeTab !== 'phasenet') return;
+    const ehzBuf = state.buffers.EHZ;
+    if (ehzBuf.length < 1000) return;
+
+    const slice = ehzBuf.slice(-1000); // 10s @ 100 Hz
+    const pProb = new Float32Array(1000);
+    const sProb = new Float32Array(1000);
+
+    let peakP = 0, idxP = -1;
+    let peakS = 0, idxS = -1;
+
+    for (let i = 20; i < 1000; i++) {
+      const diff1 = Math.abs(slice[i] - slice[i - 5]);
+      const diff2 = Math.abs(slice[i] - slice[i - 20]);
+      pProb[i] = Math.min(Math.max((diff1 - 30) / 120.0, 0.0), 1.0);
+      sProb[i] = Math.min(Math.max((diff2 - 60) / 200.0, 0.0), 1.0);
+
+      if (pProb[i] > peakP && pProb[i] > 0.4) { peakP = pProb[i]; idxP = i; }
+      if (sProb[i] > peakS && sProb[i] > 0.4) { peakS = sProb[i]; idxS = i; }
+    }
+
+    const aiPickP = document.getElementById('aiPickP');
+    const aiPickS = document.getElementById('aiPickS');
+    const aiLagSP = document.getElementById('aiLagSP');
+    const aiEstDist = document.getElementById('aiEstDist');
+
+    if (idxP > 0 && idxS > idxP) {
+      const dtSec = (idxS - idxP) / 100.0;
+      const distMi = (dtSec * 8.0 * 0.621371).toFixed(1);
+      if (aiPickP) aiPickP.textContent = `T-${((1000 - idxP)/100).toFixed(1)}s`;
+      if (aiPickS) aiPickS.textContent = `T-${((1000 - idxS)/100).toFixed(1)}s`;
+      if (aiLagSP) aiLagSP.textContent = `${dtSec.toFixed(2)} s`;
+      if (aiEstDist) aiEstDist.textContent = `${distMi} miles`;
+    } else {
+      if (aiPickP) aiPickP.textContent = 'Listening...';
+      if (aiPickS) aiPickS.textContent = 'Listening...';
+      if (aiLagSP) aiLagSP.textContent = '--';
+      if (aiEstDist) aiEstDist.textContent = '--';
+    }
+
+    const drawTrace = (canvasId, dataArr, color, isProb) => {
+      const c = document.getElementById(canvasId);
+      if (!c) return;
+      const rect = c.getBoundingClientRect();
+      if (c.width !== rect.width || c.height !== rect.height) {
+        c.width = rect.width;
+        c.height = rect.height;
+      }
+      const ctx = c.getContext('2d');
+      const w = c.width;
+      const h = c.height;
+      ctx.fillStyle = '#0a0e17';
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = '#182234';
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const step = w / dataArr.length;
+
+      dataArr.forEach((val, i) => {
+        const x = i * step;
+        let y = h / 2;
+        if (isProb) {
+          y = h - (val * (h - 10)) - 5;
+        } else {
+          y = h / 2 - (val / 500.0) * (h / 2 - 8);
+        }
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    };
+
+    drawTrace('phaseWaveformCanvas', slice, '#00ff88', false);
+    drawTrace('phasePCanvas', pProb, '#38bdf8', true);
+    drawTrace('phaseSCanvas', sProb, '#ffaa00', true);
+  }
+
+  // -------------------------------------------------------------------------
+  // 11. Peterson Global Noise Model PSD Curve
+  // -------------------------------------------------------------------------
+  function renderPetersonCurve() {
+    if (state.activeTab !== 'psd') return;
+    const canvas = document.getElementById('petersonCanvas');
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (canvas.width !== rect.width || canvas.height !== rect.height) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.fillStyle = '#0a0e17';
+    ctx.fillRect(0, 0, w, h);
+
+    const minFreq = 0.01, maxFreq = 50.0;
+    const minDb = -200, maxDb = -60;
+
+    const getX = (f) => 50 + ((Math.log10(f) - Math.log10(minFreq)) / (Math.log10(maxFreq) - Math.log10(minFreq))) * (w - 70);
+    const getY = (db) => 20 + ((maxDb - db) / (maxDb - minDb)) * (h - 60);
+
+    ctx.strokeStyle = '#182234';
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px JetBrains Mono';
+
+    [0.01, 0.1, 1.0, 10.0, 50.0].forEach((f) => {
+      const x = getX(f);
+      ctx.beginPath();
+      ctx.moveTo(x, 20);
+      ctx.lineTo(x, h - 40);
+      ctx.stroke();
+      ctx.fillText(`${f} Hz`, x - 12, h - 25);
+    });
+
+    [-180, -150, -120, -90, -60].forEach((db) => {
+      const y = getY(db);
+      ctx.beginPath();
+      ctx.moveTo(50, y);
+      ctx.lineTo(w - 20, y);
+      ctx.stroke();
+      ctx.fillText(`${db} dB`, 8, y + 3);
+    });
+
+    // 1. NHNM (Red)
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const nhnmPts = [[0.01, -120], [0.05, -100], [0.15, -95], [0.3, -98], [1.0, -108], [5.0, -95], [10.0, -90], [50.0, -85]];
+    nhnmPts.forEach((pt, i) => {
+      const x = getX(pt[0]), y = getY(pt[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // 2. NLNM (Green)
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const nlnmPts = [[0.01, -185], [0.05, -165], [0.15, -135], [0.3, -145], [1.0, -168], [5.0, -170], [10.0, -168], [50.0, -160]];
+    nlnmPts.forEach((pt, i) => {
+      const x = getX(pt[0]), y = getY(pt[1]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // 3. Station AM.R1A3D Live PSD (Cyan)
+    ctx.strokeStyle = '#00d2ff';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    const ehzBuf = state.buffers.EHZ;
+    if (ehzBuf.length >= 256) {
+      const fft = computeFFT(ehzBuf.slice(-256));
+      for (let k = 1; k < 128; k++) {
+        const freq = k * 0.39;
+        if (freq < minFreq || freq > maxFreq) continue;
+        const mag = Math.sqrt(fft.real[k]**2 + fft.imag[k]**2) + 1e-6;
+        const db = Math.max(Math.min(20 * Math.log10(mag / 100000.0) - 60, maxDb), minDb);
+        const x = getX(freq), y = getY(db);
+        if (k === 1) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText('● USGS Peterson NLNM (Quiet Vault)', 70, 35);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('● USGS Peterson NHNM (High Noise)', 70, 50);
+    ctx.fillStyle = '#00d2ff';
+    ctx.fillText('● Station AM.R1A3D (Live Ambient)', 70, 65);
+
+    const xOcean = getX(0.2);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillText('Pacific Ocean Microseisms (0.2 Hz)', xOcean - 40, getY(-130) - 10);
+    ctx.beginPath();
+    ctx.arc(xOcean, getY(-135), 4, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  // -------------------------------------------------------------------------
+  // 12. Seismic Sonification Synthesizer
+  // -------------------------------------------------------------------------
+  let sonContext = null;
+  let sonGain = null;
+  let isSonPlaying = false;
+
+  function toggleSonification() {
+    if (isSonPlaying) {
+      stopSonification();
+    } else {
+      startSonification();
+    }
+  }
+
+  function startSonification() {
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtxClass) return;
+    if (!sonContext) sonContext = new AudioCtxClass();
+
+    if (sonContext.state === 'suspended') {
+      sonContext.resume();
+    }
+
+    isSonPlaying = true;
+    const btn = document.getElementById('sonPlayBtn');
+    if (btn) {
+      btn.textContent = '⏹ Stop Earth Audio';
+      btn.classList.replace('btn-primary', 'btn-danger');
+    }
+
+    const speedSelect = document.getElementById('sonSpeedSelect');
+    const speedMult = speedSelect ? parseFloat(speedSelect.value) : 25.0;
+    const volSlider = document.getElementById('sonVolSlider');
+    const vol = volSlider ? parseFloat(volSlider.value) / 100.0 : 0.7;
+
+    sonGain = sonContext.createGain();
+    sonGain.gain.setValueAtTime(vol, sonContext.currentTime);
+    sonGain.connect(sonContext.destination);
+
+    function playNextChunk() {
+      if (!isSonPlaying) return;
+      const ehzBuf = state.buffers.EHZ;
+      if (ehzBuf.length < 200) {
+        setTimeout(playNextChunk, 200);
+        return;
+      }
+
+      const rawChunk = ehzBuf.slice(-200);
+      const audioBuf = sonContext.createBuffer(1, rawChunk.length, 100 * speedMult);
+      const channelData = audioBuf.getChannelData(0);
+
+      let mean = 0;
+      rawChunk.forEach(v => mean += v);
+      mean /= rawChunk.length;
+
+      for (let i = 0; i < rawChunk.length; i++) {
+        channelData[i] = Math.max(Math.min((rawChunk[i] - mean) / 800.0, 1.0), -1.0);
+      }
+
+      const src = sonContext.createBufferSource();
+      src.buffer = audioBuf;
+      src.connect(sonGain);
+      src.start();
+      src.onended = () => {
+        if (isSonPlaying) playNextChunk();
+      };
+    }
+
+    playNextChunk();
+  }
+
+  function stopSonification() {
+    isSonPlaying = false;
+    const btn = document.getElementById('sonPlayBtn');
+    if (btn) {
+      btn.textContent = '▶ Listen to Live Earth Audio';
+      btn.classList.replace('btn-danger', 'btn-primary');
+    }
+  }
+
+  function renderSonificationVisualizer() {
+    if (state.activeTab !== 'sonification') return;
+    const canvas = document.getElementById('sonVisualizer');
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (canvas.width !== rect.width || canvas.height !== rect.height) {
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.fillStyle = '#050814';
+    ctx.fillRect(0, 0, w, h);
+
+    const ehzBuf = state.buffers.EHZ;
+    if (ehzBuf.length > 10) {
+      const slice = ehzBuf.slice(-200);
+      let mean = 0;
+      slice.forEach(v => mean += v);
+      mean /= slice.length;
+
+      ctx.strokeStyle = isSonPlaying ? '#00ff88' : '#334155';
+      ctx.lineWidth = isSonPlaying ? 2.5 : 1.5;
+      ctx.shadowColor = isSonPlaying ? '#00ff88' : 'transparent';
+      ctx.shadowBlur = isSonPlaying ? 10 : 0;
+
+      ctx.beginPath();
+      const step = w / slice.length;
+      slice.forEach((val, idx) => {
+        const x = idx * step;
+        const y = h / 2 - ((val - mean) / 600.0) * (h / 2 - 10);
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Main Animation Loop
   // -------------------------------------------------------------------------
   function mainLoop() {
@@ -1439,6 +1996,10 @@
     renderHelicorder();
     renderTelemetry();
     renderHodogram();
+    renderUrbanProfiler();
+    renderPhaseNet();
+    renderPetersonCurve();
+    renderSonificationVisualizer();
     requestAnimationFrame(mainLoop);
   }
 
@@ -1468,6 +2029,9 @@
       renderEventsTable();
     } else if (tabName === 'ml') {
       fetchMlDataset();
+    } else if (tabName === 'radar') {
+      initRadarMap();
+      setTimeout(updateRadarMap, 100);
     }
   });
 
@@ -1736,6 +2300,14 @@
       }
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Sonification Button Listener
+  // -------------------------------------------------------------------------
+  const sonBtn = document.getElementById('sonPlayBtn');
+  if (sonBtn) {
+    sonBtn.addEventListener('click', toggleSonification);
+  }
 
   // -------------------------------------------------------------------------
   // Startup
