@@ -41,8 +41,8 @@ export const elements = {
     spectrogram: document.getElementById('spectrogramCanvas'),
     specWaveform: document.getElementById('specWaveformCanvas'),
     helicorder: document.getElementById('helicorderCanvas'),
-    hodoH: document.getElementById('hodoHCanvas'),
-    hodoV: document.getElementById('hodoVCanvas'),
+    hodoH: document.getElementById('hodoHorizontal') || document.getElementById('hodoHCanvas'),
+    hodoV: document.getElementById('hodoVertical') || document.getElementById('hodoVCanvas'),
   },
   overlays: {
     EHZ: document.getElementById('overlay-EHZ'),
