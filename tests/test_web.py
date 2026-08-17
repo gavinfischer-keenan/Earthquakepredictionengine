@@ -86,3 +86,37 @@ class TestWebServer:
         b2 = get_broadcaster()
         assert b1 is b2
         assert isinstance(b1, WaveformBroadcaster)
+
+    def test_static_index_html_serving(self, client: TestClient):
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Earthquake Prediction Engine" in response.text
+        assert "spectrogramCanvas" in response.text
+        assert "radarMap" in response.text
+        assert "staltaCanvas" in response.text
+
+    def test_static_js_views_exist(self, client: TestClient):
+        # Verify that all 11 view modules are available and served
+        view_files = [
+            "style.css",
+            "js/main.js",
+            "js/state.js",
+            "js/dom.js",
+            "js/dsp.js",
+            "js/websocket.js",
+            "js/views/oscilloscope.js",
+            "js/views/spectrogram.js",
+            "js/views/helicorder.js",
+            "js/views/stalta.js",
+            "js/views/hodogram.js",
+            "js/views/radar.js",
+            "js/views/urban.js",
+            "js/views/phasenet.js",
+            "js/views/peterson.js",
+            "js/views/tables.js",
+            "js/views/review_studio.js",
+        ]
+        for v in view_files:
+            resp = client.get(f"/static/{v}")
+            assert resp.status_code == 200, f"Failed to serve /static/{v}"
+

@@ -99,9 +99,21 @@ The runtime pipeline consists of five primary sequential processing stages with 
 - **`HealthReporter`**: Emits periodic health status snapshots containing station uptime, buffer fill ratios, trigger counts, and noise floor metrics.
 
 ### 8. Standalone Geophysical Observatory Web App (`eqengine.web`)
-- **Embedded Web Server**: FastAPI server (`eqengine.web.server`) providing REST endpoints (`/api/status`, `/api/alerts`, `/api/history`, `/api/waveform`, `/api/config`) on configurable port (default `8088`).
+- **Embedded Web Server**: FastAPI server (`eqengine.web.server`) providing REST endpoints (`/api/status`, `/api/alerts`, `/api/history`, `/api/waveform`, `/api/usgs-events`, `/api/config`) on configurable port (default `8088`).
 - **High-Speed WebSocket (`/ws/live`)**: Broadcasts real-time 100 Hz 4-channel raw and preprocessed waveform chunks, STA/LTA characteristic ratios, and immediate early warning overlays.
-- **Observatory UI (`eqengine.web.static`)**: Single-page high-resolution Canvas waveform visualizer with UTC time-axis ticks, dynamic helicorder-style displays, and interactive telemetry dials.
+- **12 Interactive Visualizer Modules (`eqengine.web.static`)**:
+  1. **Seismograms (Oscilloscope)**: 4-channel synchronized waveform streams (EHZ velocity, ENZ/ENN/ENE accelerations) with auto-gain and UTC time axis.
+  2. **HD Spectrogram (DataView)**: Dual-view 0–50 Hz STFT frequency waterfall with smooth bilinear interpolation, 256-level Inferno/Magma power scaling, and synchronized ground velocity seismogram.
+  3. **24h Helicorder**: Traditional 24-hour rotating drum record (1 hour per row) with active stylus indicator.
+  4. **STA/LTA & RSAM**: Instantaneous P-wave trigger ratio monitor (6.5x trigger threshold) alongside 60-minute demeaned RMS baseline energy trend.
+  5. **3D Orbit (Hodogram)**: Triaxial ground motion trajectory in horizontal (N-S vs E-W) and vertical planes with real-time back-azimuth and polarization angles.
+  6. **Epicenter Radar**: 500-mile West Coast fault system (San Andreas, Hayward, Calaveras, Garlock, Cascadia), The Geysers hydrothermal microseismicity zone, and magnitude-sized event markers.
+  7. **Urban Profiler**: 5-band environmental vibration decomposition (wind, Cal Stadium, traffic, footsteps, Greek Theatre concerts).
+  8. **AI PhaseNet**: Deep-learning phase arrival probability curves ($P(P)$, $P(S)$).
+  9. **Peterson Noise Model**: Live PSD comparison against USGS Global High/Low Noise Models (NLNM/NHNM).
+  10. **Earth Audio**: Real-time seismic frequency modulation and pitch-scaled acoustic sonification.
+  11. **Event Log**: Comprehensive table of all detected triggers, PhaseNet picks, and USGS regional earthquakes with multi-column sorting.
+  12. **ML Dataset & Annotations**: Interactive waveform slicing studio with custom phase boundary tagging and training export.
 
 ---
 
@@ -121,15 +133,15 @@ Configuration is managed through `eqengine.config.Settings` (backed by Pydantic 
 ## Automated Test Coverage
 
 The test suite covers 100% of pipeline modules under `tests/`:
-- `tests/test_detector.py`: Recursive STA/LTA detection, thresholding, noise rejection.
+- `tests/test_detector.py`: Recursive STA/LTA detection, thresholding, noise rejection, and TriggerEvent timestamp models.
 - `tests/test_magnitude.py`: $\tau_c$, $P_d$, empirical magnitude, and S-P travel times.
 - `tests/test_false_positive.py`: False positive filters, out-of-band rejection, SNR gating.
 - `tests/test_ring_buffer.py`: Multi-channel ring buffer concurrency, wrap-around, trace extraction.
-- `tests/test_usgs_poller.py`: USGS GeoJSON polling, Haversine distance, severity matrix, TTS.
+- `tests/test_usgs_poller.py`: USGS GeoJSON polling, Haversine distance, severity matrix (20 cells), TTS speech.
 - `tests/test_config.py`: Settings validation, channel parsing, cross-field constraints.
 - `tests/test_preprocessor.py`: Demeaning, filtering, displacement integration, Hilbert envelopes.
 - `tests/test_alerts.py`: Alert lifecycle, cooldowns, updates, cancellations.
-- `tests/test_telemetry.py`: RSAM calculations, rolling history, health reporter status.
+- `tests/test_telemetry.py`: RSAM calculations, rolling history, health reporter status snapshots.
 - `tests/test_validation.py`: NoiseModel serialization, MLPicker fallbacks, validation results.
 - `tests/test_ingest.py`: UDP Datacast packet parsing and storage.
-- `tests/test_web.py`: FastAPI server status, config, history, waveform endpoints, and WebSocket broadcaster.
+- `tests/test_web.py`: FastAPI server status, config, history, waveform, USGS endpoints, static asset delivery, and WebSocket broadcaster.
