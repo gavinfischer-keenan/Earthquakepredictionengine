@@ -85,14 +85,8 @@ export function handleMessage(msg) {
   if (msg.type === 'waveform') {
     if (!state.paused) {
       const ts = msg.timestamp || Date.now() / 1000;
-      const localNow = Date.now() / 1000;
-      const diff = ts - localNow;
-
-      if (state.smoothClockOffset === 0.0 || Math.abs(state.smoothClockOffset - diff) > 5.0) {
-        state.smoothClockOffset = diff;
-      } else {
-        state.smoothClockOffset = state.smoothClockOffset * 0.95 + diff * 0.05;
-      }
+      state.latestStreamTimestamp = ts;
+      state.lastPacketArrivalLocalMs = Date.now();
 
       const channels = msg.channels || {};
 

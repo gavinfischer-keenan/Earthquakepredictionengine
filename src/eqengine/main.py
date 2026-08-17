@@ -247,13 +247,17 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
             # b) Stream latest waveform slice to web clients
             if broadcaster.client_count > 0:
                 channel_slices: dict[str, Any] = {}
+                latest_ts = 0.0
                 for ch in channels:
                     t_slice = ring_buffer.get_latest(ch, duration_sec=0.25)
                     if t_slice is not None and len(t_slice.data) > 0:
                         channel_slices[ch] = t_slice.data
+                        slice_end = float(t_slice.stats.endtime.timestamp)
+                        if slice_end > latest_ts:
+                            latest_ts = slice_end
                 if channel_slices:
                     await broadcaster.broadcast_waveform(
-                        timestamp=time.time(),
+                        timestamp=latest_ts if latest_ts > 0.0 else time.time(),
                         channel_data=channel_slices,
                         sta_lta_ratios={"EHZ": detector.get_current_ratio()},
                     )

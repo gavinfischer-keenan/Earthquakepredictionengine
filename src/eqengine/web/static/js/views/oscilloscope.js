@@ -1,5 +1,7 @@
 /**
  * Oscilloscope View: 4-Channel Real-Time Seismograms with UTC Time Axis
+ * Features: Full-width canvas span (100% horizontal utilization),
+ * smooth sub-frame interpolation, dynamic headroom scaling, and 4-minute baseline corridor.
  */
 
 import { state, CHANNELS, CH_COLORS, SAMPLING_RATE } from '../state.js';
@@ -9,24 +11,29 @@ import { filterData } from '../dsp.js';
 export function renderOscilloscope() {
   const windowSec = state.windowSec || 30;
 
-  let latestSampleT = 0;
-  for (const ch of CHANNELS) {
-    const tsArr = state.timestamps[ch];
-    if (tsArr && tsArr.length > 0) {
-      const t = tsArr[tsArr.length - 1];
-      if (t > latestSampleT) latestSampleT = t;
+  // Determine current stream time anchor
+  let latestSampleT = state.latestStreamTimestamp || 0;
+  if (latestSampleT === 0) {
+    for (const ch of CHANNELS) {
+      const tsArr = state.timestamps[ch];
+      if (tsArr && tsArr.length > 0) {
+        const t = tsArr[tsArr.length - 1];
+        if (t > latestSampleT) latestSampleT = t;
+      }
     }
   }
 
-  const localNow = Date.now() / 1000;
+  // Smooth sub-frame time progression between packet arrivals (60 FPS fluid motion)
   let endT;
   if (state.paused) {
-    endT = state.lastPausedTimestamp || latestSampleT || localNow;
-  } else if (latestSampleT > 0 && Math.abs(latestSampleT - (localNow + (state.smoothClockOffset || 0))) < 2.0) {
-    endT = localNow + (state.smoothClockOffset || 0);
+    endT = state.lastPausedTimestamp || latestSampleT || (Date.now() / 1000);
+  } else if (latestSampleT > 0) {
+    const elapsed = Math.min(Math.max((Date.now() - (state.lastPacketArrivalLocalMs || Date.now())) / 1000.0, 0.0), 0.35);
+    endT = latestSampleT + elapsed;
   } else {
-    endT = latestSampleT || localNow;
+    endT = Date.now() / 1000;
   }
+
   const startT = endT - windowSec;
 
   CHANNELS.forEach((ch) => {
@@ -51,13 +58,13 @@ export function renderOscilloscope() {
     ctx.scale(dpr, dpr);
 
     const plotH = h - 22; // Leave bottom 22px for X-axis time markings
-    const xSpan = Math.max(w - 32, 10);
+    const xSpan = w;      // Full 100% width utilization
 
     // 1. Clear background
     ctx.fillStyle = '#0a0e17';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Draw Zero Axis
+    // 2. Draw Zero Center Baseline Axis
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -105,7 +112,7 @@ export function renderOscilloscope() {
       }
     }
 
-    // Time Axis baseline bar
+    // Time Axis bottom line
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -117,24 +124,23 @@ export function renderOscilloscope() {
     ctx.font = '8px JetBrains Mono';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#00ff88';
-    ctx.fillText('LIVE 🔴', w - 4, plotH + 16);
+    ctx.fillText('LIVE 🔴', w - 6, plotH + 16);
 
     const rawBuf = state.buffers[ch];
     const rawTs = state.timestamps[ch];
     if (!rawBuf || rawBuf.length === 0) return;
 
-    // Slice visible samples for [startT - 0.5, endT]
+    // Slice visible samples for [startT - 0.2, endT]
     const nTotal = rawBuf.length;
     let startIdx = 0;
     if (rawTs && rawTs.length > 0) {
       for (let i = 0; i < nTotal; i++) {
-        if (rawTs[i] >= startT - 0.5) {
+        if (rawTs[i] >= startT - 0.2) {
           startIdx = Math.max(0, i - 1);
           break;
         }
       }
-      // If all recorded samples are older than startT - 0.5 (stream lag or pause), show the latest available buffer window
-      if (startIdx === 0 && rawTs[nTotal - 1] < startT - 0.5) {
+      if (startIdx === 0 && rawTs[nTotal - 1] < startT - 0.2) {
         startIdx = Math.max(0, nTotal - (windowSec * SAMPLING_RATE));
       }
     }
@@ -152,9 +158,10 @@ export function renderOscilloscope() {
       if (abs > pk) pk = abs;
     }
 
+    // Auto-gain with generous 45% headroom so waveforms never clip top or bottom
     let maxVal = 100;
     if (state.gainMode === 'auto') {
-      maxVal = Math.max(pk * 1.3, 20.0);
+      maxVal = Math.max(pk * 1.45, 25.0);
     } else {
       maxVal = Math.max(parseFloat(state.gainMode), 10.0);
     }
@@ -208,7 +215,7 @@ export function renderOscilloscope() {
     }
 
     // 4. Draw 4-Minute Dynamic Normal Baseline Corridor (±baselineNormal)
-    const normYHeight = Math.min((baselineNormal / maxVal) * (plotH / 2) * 0.88, plotH / 2 - 4);
+    const normYHeight = Math.min((baselineNormal / maxVal) * (plotH / 2) * 0.75, plotH / 2 - 6);
     ctx.fillStyle = 'rgba(0, 255, 136, 0.04)';
     ctx.fillRect(0, plotH / 2 - normYHeight, xSpan, normYHeight * 2);
 
@@ -223,7 +230,7 @@ export function renderOscilloscope() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 5. Draw Seismic Trace (mapped strictly to UTC time)
+    // 5. Draw Seismic Trace (mapped strictly across the full windowSec span)
     ctx.save();
     ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
     ctx.lineWidth = 1.6;
@@ -242,8 +249,8 @@ export function renderOscilloscope() {
 
       const val = filtered[i];
       const normalizedY = val / maxVal;
-      const clampedY = Math.max(-0.95, Math.min(0.95, normalizedY));
-      const y = plotH / 2 - clampedY * (plotH / 2) * 0.85;
+      const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
+      const y = (plotH / 2) - clampedY * (plotH / 2) * 0.75;
 
       if (!hasStarted) {
         ctx.moveTo(x, y);
@@ -255,83 +262,55 @@ export function renderOscilloscope() {
     ctx.stroke();
     ctx.restore();
 
-    // 6. Draw Floating 4-Min Normal Bar & Needle on Right Edge
-    const barW = 6;
-    const barX = w - 16;
-    const barTop = plotH / 2 - normYHeight;
-    const barBottom = plotH / 2 + normYHeight;
-    const barH = Math.max(barBottom - barTop, 6);
+    // 6. Floating Deviation Annotation & Normal Corridor Bracket
+    const lastY = (plotH / 2) - Math.max(-1.0, Math.min(1.0, lastVal / maxVal)) * (plotH / 2) * 0.75;
+    const bracketX = xSpan - 14;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-    ctx.fillRect(barX - 2, 4, barW + 4, plotH - 8);
-
-    ctx.fillStyle = devRatio > 3.0 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(0, 255, 136, 0.35)';
-    ctx.fillRect(barX, barTop, barW, barH);
-
-    ctx.strokeStyle = devRatio > 3.0 ? '#ef4444' : '#00ff88';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barTop, barW, barH);
-
-    // Current excursion needle
-    const curNormY = Math.max(-1.0, Math.min(1.0, lastVal / maxVal));
-    const needleY = plotH / 2 - curNormY * (plotH / 2) * 0.88;
-    ctx.fillStyle = devRatio > 3.0 ? '#ef4444' : devRatio > 1.8 ? '#f59e0b' : '#fff';
-    ctx.shadowColor = ctx.fillStyle;
-    ctx.shadowBlur = 6;
+    ctx.strokeStyle = devRatio > 3.0 ? '#ef4444' : devRatio > 1.8 ? '#f59e0b' : 'rgba(0, 255, 136, 0.4)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(barX - 5, needleY);
-    ctx.lineTo(barX + barW + 3, needleY);
-    ctx.lineTo(barX + barW + 1, needleY - 2);
-    ctx.lineTo(barX - 3, needleY - 2);
-    ctx.closePath();
+    ctx.moveTo(bracketX, plotH / 2 - normYHeight);
+    ctx.lineTo(bracketX + 4, plotH / 2 - normYHeight);
+    ctx.moveTo(bracketX + 2, plotH / 2 - normYHeight);
+    ctx.lineTo(bracketX + 2, plotH / 2 + normYHeight);
+    ctx.moveTo(bracketX, plotH / 2 + normYHeight);
+    ctx.lineTo(bracketX + 4, plotH / 2 + normYHeight);
+    ctx.stroke();
+
+    // Live Stylus Dot at rightmost sample position
+    ctx.fillStyle = CH_COLORS[ch] || '#00ff88';
+    ctx.beginPath();
+    ctx.arc(xSpan - 2, lastY, 3, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
-    ctx.font = '8px JetBrains Mono';
-    ctx.fillStyle = '#64748b';
-    ctx.fillText('4m', barX - 14, plotH / 2 + 3);
-
-    // 7. Drop Symbology & Annotations on Live Traces
+    // 7. Render Trigger Event Drop Markers & AI Pick Overlays
     if (overlay) {
-      overlay.innerHTML = '';
+      const oCtx = overlay.getContext('2d');
+      if (overlay.width !== canvas.width || overlay.height !== canvas.height) {
+        overlay.width = canvas.width;
+        overlay.height = canvas.height;
+      }
+      oCtx.resetTransform();
+      oCtx.scale(dpr, dpr);
+      oCtx.clearRect(0, 0, w, h);
 
-      // Trigger pins
-      state.triggers.forEach((trig) => {
-        const trigTime = trig.start_time;
-        if (trigTime >= startT && trigTime <= endT) {
-          const xPercent = ((trigTime - startT) / windowSec) * 100;
-          if (xPercent >= 0 && xPercent <= 95) {
-            const flag = document.createElement('div');
-            flag.className = 'trigger-flag';
-            flag.style.left = `${xPercent}%`;
+      state.activeTriggers.forEach((trig) => {
+        if (trig.channel === ch || trig.channel === 'ALL') {
+          const tTime = trig.timestamp || 0;
+          if (tTime >= startT && tTime <= endT) {
+            const tx = ((tTime - startT) / windowSec) * xSpan;
+            oCtx.strokeStyle = '#ef4444';
+            oCtx.lineWidth = 1.5;
+            oCtx.setLineDash([3, 3]);
+            oCtx.beginPath();
+            oCtx.moveTo(tx, 0);
+            oCtx.lineTo(tx, plotH);
+            oCtx.stroke();
+            oCtx.setLineDash([]);
 
-            const badge = document.createElement('div');
-            badge.className = 'trigger-badge';
-            badge.textContent = `📍 P-Wave [STA/LTA: ${(trig.peak_sta_lta || trig.sta_lta_ratio || 4.0).toFixed(1)}x]`;
-            flag.appendChild(badge);
-
-            overlay.appendChild(flag);
-          }
-        }
-      });
-
-      // USGS External Earthquakes & Theoretical Wavefronts
-      state.usgsEvents.forEach((uEvt) => {
-        const pArrival = uEvt.p_arrival;
-        if (pArrival && pArrival >= startT && pArrival <= endT) {
-          const xPercent = ((pArrival - startT) / windowSec) * 100;
-          if (xPercent >= 0 && xPercent <= 95) {
-            const flag = document.createElement('div');
-            flag.className = 'trigger-flag usgs-flag';
-            flag.style.left = `${xPercent}%`;
-
-            const badge = document.createElement('div');
-            badge.className = 'trigger-badge usgs-badge';
-            const mag = uEvt.magnitude ? `M${uEvt.magnitude.toFixed(1)}` : 'Quake';
-            badge.textContent = `🌊 USGS P-Arrival: ${mag}`;
-            flag.appendChild(badge);
-
-            overlay.appendChild(flag);
+            oCtx.fillStyle = '#ef4444';
+            oCtx.font = '9px JetBrains Mono';
+            oCtx.fillText('🚨 TRIGGER', tx + 4, 18);
           }
         }
       });
