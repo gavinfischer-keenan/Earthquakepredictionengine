@@ -9,6 +9,7 @@ import { connectWebSocket } from './websocket.js';
 import { renderOscilloscope } from './views/oscilloscope.js';
 import { renderSpectrogram } from './views/spectrogram.js';
 import { renderHelicorder } from './views/helicorder.js';
+import { renderStaLta } from './views/stalta.js';
 import { renderHodogram } from './views/hodogram.js';
 import { renderUrbanProfiler } from './views/urban.js';
 import { renderPhaseNet } from './views/phasenet.js';
@@ -23,7 +24,7 @@ import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/t
 function renderTelemetry() {
   const ehz = state.buffers.EHZ;
   if (ehz && ehz.length > 0 && elements.pkEHZ) {
-    const lastPk = state.fourMinStats.EHZ.baselineAmp || 35;
+    const lastPk = state.fourMinStats.EHZ ? state.fourMinStats.EHZ.baselineAmp : 35;
     elements.pkEHZ.textContent = Math.round(lastPk).toLocaleString();
   }
 }
@@ -36,9 +37,9 @@ let lastHelicorderRender = 0;
 function mainLoop() {
   renderTelemetry();
 
-  const tab = state.activeTab || 'traces';
+  const tab = state.activeTab || 'oscilloscope';
 
-  if (tab === 'traces') {
+  if (tab === 'traces' || tab === 'oscilloscope') {
     renderOscilloscope();
   } else if (tab === 'spectrogram') {
     renderSpectrogram();
@@ -48,6 +49,8 @@ function mainLoop() {
       renderHelicorder();
       lastHelicorderRender = now;
     }
+  } else if (tab === 'stalta') {
+    renderStaLta();
   } else if (tab === 'hodogram') {
     renderHodogram();
   } else if (tab === 'environment') {

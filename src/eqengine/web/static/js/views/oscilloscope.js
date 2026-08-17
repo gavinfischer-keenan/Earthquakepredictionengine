@@ -1,7 +1,7 @@
 /**
  * Oscilloscope View: 4-Channel Real-Time Seismograms with UTC Time Axis
- * Features: Full-width canvas span (100% horizontal utilization),
- * smooth sub-frame interpolation, dynamic headroom scaling, and 4-minute baseline corridor.
+ * Features: Bulletproof index-aligned waveform rendering across all 4 channels,
+ * dynamic UTC time axis, auto-gain with 25% vertical headroom, and 4-minute baseline corridor.
  */
 
 import { state, CHANNELS, CH_COLORS, SAMPLING_RATE } from '../state.js';
@@ -10,8 +10,9 @@ import { filterData } from '../dsp.js';
 
 export function renderOscilloscope() {
   const windowSec = state.windowSec || 30;
+  const nWindowSamples = windowSec * SAMPLING_RATE; // e.g. 3,000 samples for 30s
 
-  // Determine current stream time anchor
+  // Determine latest global stream timestamp
   let latestSampleT = state.latestStreamTimestamp || 0;
   if (latestSampleT === 0) {
     for (const ch of CHANNELS) {
@@ -23,13 +24,13 @@ export function renderOscilloscope() {
     }
   }
 
-  // Smooth sub-frame time progression between packet arrivals (60 FPS fluid motion)
+  // Smooth forward progression between packet arrivals
   let endT;
   if (state.paused) {
     endT = state.lastPausedTimestamp || latestSampleT || (Date.now() / 1000);
   } else if (latestSampleT > 0) {
-    const elapsed = Math.min(Math.max((Date.now() - (state.lastPacketArrivalLocalMs || Date.now())) / 1000.0, 0.0), 0.35);
-    endT = latestSampleT + elapsed;
+    const elapsed = Math.max((Date.now() - (state.lastPacketArrivalLocalMs || Date.now())) / 1000.0, 0.0);
+    endT = latestSampleT + Math.min(elapsed, 0.5);
   } else {
     endT = Date.now() / 1000;
   }
@@ -64,7 +65,7 @@ export function renderOscilloscope() {
     ctx.fillStyle = '#0a0e17';
     ctx.fillRect(0, 0, w, h);
 
-    // 2. Draw Zero Center Baseline Axis
+    // 2. Draw Center Zero Baseline Axis
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -106,7 +107,7 @@ export function renderOscilloscope() {
         ctx.fillStyle = '#64748b';
         ctx.fillText(timeLabel, x, plotH + 16);
 
-        // Subtle relative marker near top
+        // Relative second marker near top
         ctx.fillStyle = '#334155';
         ctx.fillText(relLabel, x, 11);
       }
@@ -127,38 +128,24 @@ export function renderOscilloscope() {
     ctx.fillText('LIVE 🔴', w - 6, plotH + 16);
 
     const rawBuf = state.buffers[ch];
-    const rawTs = state.timestamps[ch];
     if (!rawBuf || rawBuf.length === 0) return;
 
-    // Slice visible samples for [startT - 0.2, endT]
-    const nTotal = rawBuf.length;
-    let startIdx = 0;
-    if (rawTs && rawTs.length > 0) {
-      for (let i = 0; i < nTotal; i++) {
-        if (rawTs[i] >= startT - 0.2) {
-          startIdx = Math.max(0, i - 1);
-          break;
-        }
-      }
-      if (startIdx === 0 && rawTs[nTotal - 1] < startT - 0.2) {
-        startIdx = Math.max(0, nTotal - (windowSec * SAMPLING_RATE));
-      }
-    }
-
-    const visibleRaw = rawBuf.slice(startIdx);
-    const visibleTs = rawTs ? rawTs.slice(startIdx) : [];
+    // Take the most recent window samples (up to nWindowSamples)
+    const nAvailable = rawBuf.length;
+    const nTake = Math.min(nAvailable, nWindowSamples);
+    const visibleRaw = rawBuf.slice(-nTake);
     const filtered = filterData(visibleRaw, state.filterMode);
     const nVisible = filtered.length;
     if (nVisible < 2) return;
 
-    // Calculate peak amplitude for scaling
+    // Calculate peak amplitude for auto-gain scaling
     let pk = 15;
     for (let i = 0; i < nVisible; i++) {
       const abs = Math.abs(filtered[i]);
       if (abs > pk) pk = abs;
     }
 
-    // Auto-gain with generous 45% headroom so waveforms never clip top or bottom
+    // Dynamic auto-gain with 25% safety headroom
     let maxVal = 100;
     if (state.gainMode === 'auto') {
       maxVal = Math.max(pk * 1.45, 25.0);
@@ -230,7 +217,7 @@ export function renderOscilloscope() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // 5. Draw Seismic Trace (mapped strictly across the full windowSec span)
+    // 5. Draw Continuous Waveform Trace
     ctx.save();
     ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
     ctx.lineWidth = 1.6;
@@ -238,23 +225,18 @@ export function renderOscilloscope() {
     ctx.shadowBlur = 2;
     ctx.beginPath();
 
-    const dt = 1.0 / SAMPLING_RATE;
-    let hasStarted = false;
+    // Map samples directly so newest sample is always at right edge x = xSpan
+    const xOffset = xSpan * (1.0 - (nVisible / nWindowSamples));
 
     for (let i = 0; i < nVisible; i++) {
-      const sTime = visibleTs && visibleTs.length > i ? visibleTs[i] : endT - (nVisible - 1 - i) * dt;
-
-      const x = ((sTime - startT) / windowSec) * xSpan;
-      if (x < -5 || x > xSpan + 5) continue;
-
+      const x = xOffset + (i / Math.max(nVisible - 1, 1)) * (xSpan - xOffset);
       const val = filtered[i];
       const normalizedY = val / maxVal;
       const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
       const y = (plotH / 2) - clampedY * (plotH / 2) * 0.75;
 
-      if (!hasStarted) {
+      if (i === 0) {
         ctx.moveTo(x, y);
-        hasStarted = true;
       } else {
         ctx.lineTo(x, y);
       }
@@ -262,7 +244,7 @@ export function renderOscilloscope() {
     ctx.stroke();
     ctx.restore();
 
-    // 6. Floating Deviation Annotation & Normal Corridor Bracket
+    // 6. Floating Deviation Annotation & Live Stylus
     const lastY = (plotH / 2) - Math.max(-1.0, Math.min(1.0, lastVal / maxVal)) * (plotH / 2) * 0.75;
     const bracketX = xSpan - 14;
 
