@@ -81,7 +81,7 @@ class RingBuffer:
     def __init__(
         self,
         channels: Sequence[str],
-        buffer_duration_sec: int = 600,
+        buffer_duration_sec: int = 3600,
         sampling_rate: int = 100,
         *,
         network: str = "AM",
@@ -252,6 +252,46 @@ class RingBuffer:
                 start_ts = 0.0
 
         return window, start_ts
+
+    def get_time_range(
+        self, channel: str, start_time: float, end_time: float
+    ) -> tuple[np.ndarray, float]:
+        """Extract a specific historical time window [start_time, end_time].
+
+        Returns (data_array, actual_start_timestamp).
+        """
+        ring = self._ring(channel)
+        with ring.lock:
+            if ring.last_timestamp is None or ring.total_written == 0:
+                return np.empty(0, dtype=np.float64), 0.0
+
+            available = min(ring.total_written, ring.capacity)
+            buf_start_ts = ring.last_timestamp - (available - 1) / ring.sampling_rate
+
+            req_start = max(start_time, buf_start_ts)
+            req_end = min(end_time, ring.last_timestamp)
+
+            if req_start >= req_end:
+                return np.empty(0, dtype=np.float64), 0.0
+
+            start_offset = int((req_start - buf_start_ts) * ring.sampling_rate)
+            end_offset = int((req_end - buf_start_ts) * ring.sampling_rate)
+
+            start_offset = max(0, min(start_offset, available - 1))
+            end_offset = max(start_offset + 1, min(end_offset + 1, available))
+            n = end_offset - start_offset
+
+            oldest_pos = (ring.write_pos - available) % ring.capacity
+            read_start = (oldest_pos + start_offset) % ring.capacity
+            read_end = (read_start + n) % ring.capacity
+
+            if read_start < read_end:
+                data = ring.buf[read_start:read_end].copy()
+            else:
+                data = np.concatenate((ring.buf[read_start:], ring.buf[:read_end])).copy()
+
+            actual_start_ts = buf_start_ts + (start_offset / ring.sampling_rate)
+            return data, actual_start_ts
 
     def get_trace(self, channel: str, seconds: float) -> Trace:
         """Return an ObsPy :class:`~obspy.core.trace.Trace`.

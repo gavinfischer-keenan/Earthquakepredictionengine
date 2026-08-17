@@ -298,6 +298,72 @@ class DatasetLogger:
 
         return list(reversed(events))
 
+    async def delete_event(self, event_id: str) -> bool:
+        """Delete an annotated event from events.jsonl, annotations.jsonl, and snippet storage."""
+        async with self._lock:
+            # 1. Prune events.jsonl
+            if self.events_file.exists():
+                with open(self.events_file, "r", encoding="utf-8") as f:
+                    lines = [line for line in f if event_id not in line]
+                with open(self.events_file, "w", encoding="utf-8") as f:
+                    f.writelines(lines)
+
+            # 2. Prune annotations.jsonl
+            if self.annotations_file.exists():
+                with open(self.annotations_file, "r", encoding="utf-8") as f:
+                    lines = [line for line in f if event_id not in line]
+                with open(self.annotations_file, "w", encoding="utf-8") as f:
+                    f.writelines(lines)
+
+            # 3. Delete NPZ snippet file
+            npz_path = self.snippets_dir / f"{event_id}.npz"
+            if npz_path.exists():
+                npz_path.unlink()
+
+        log.info("dataset_logger.event_deleted", event_id=event_id)
+        return True
+
+    def get_event_snippet(self, event_id: str) -> dict[str, Any] | None:
+        """Load the NPZ waveform tensor and metadata for visual review and audio playback."""
+        npz_path = self.snippets_dir / f"{event_id}.npz"
+        if not npz_path.exists():
+            return None
+
+        # Find metadata from events.jsonl
+        meta: dict[str, Any] = {}
+        if self.events_file.exists():
+            with open(self.events_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if event_id in line:
+                        try:
+                            meta = json.loads(line.strip())
+                            break
+                        except Exception:
+                            pass
+
+        try:
+            with np.load(npz_path) as data:
+                channels: dict[str, list[float]] = {}
+                for ch in ("EHZ", "ENZ", "ENN", "ENE"):
+                    if ch in data:
+                        channels[ch] = data[ch].tolist()
+
+                return {
+                    "event_id": event_id,
+                    "metadata": meta,
+                    "channels": channels,
+                    "sampling_rate": float(meta.get("sampling_rate", 100.0)),
+                    "duration_sec": meta.get("duration_sec", 0.0),
+                    "features": meta.get("features", {}),
+                    "label": meta.get("label", "unlabeled"),
+                    "category": meta.get("category", "custom"),
+                    "notes": meta.get("notes", ""),
+                    "timestamp_utc": meta.get("timestamp_utc", ""),
+                }
+        except Exception:
+            log.exception("dataset_logger.load_snippet_failed", event_id=event_id)
+            return None
+
     def get_dataset_summary(self) -> dict[str, Any]:
         """Return dataset statistics, class distributions, and disk usage."""
         event_count = 0

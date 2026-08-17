@@ -512,10 +512,91 @@
             <p class="panel-desc">Tag live vibrations to train machine learning models to classify human activity, traffic, stadium events, and real earthquakes.</p>
           </div>
 
+          <!-- Historical Seismograph Review & Precision Crop Studio -->
+          <div class="ml-review-studio">
+            <div class="studio-header">
+              <div class="studio-title-group">
+                <h4 class="section-title" style="margin-bottom: 2px;">⏪ Historical Seismograph Review & Precision Crop Studio</h4>
+                <span class="studio-subtitle">Scrub backwards through the 1-hour rolling buffer, zoom into foot stamps or stairs, drag to select the exact window, and tag training snippets.</span>
+              </div>
+              <div class="studio-time-controls">
+                <button class="btn btn-sm btn-ghost" id="scrubBack60m">⏪ 1h</button>
+                <button class="btn btn-sm btn-ghost" id="scrubBack30m">⏪ 30m</button>
+                <button class="btn btn-sm btn-ghost" id="scrubBack15m">⏪ 15m</button>
+                <button class="btn btn-sm btn-ghost" id="scrubBack5m">⏪ 5m</button>
+                <button class="btn btn-sm btn-ghost" id="scrubBack1m">⏪ 1m</button>
+                <button class="btn btn-sm btn-outline-success" id="scrubLiveHead">🔴 Live Head</button>
+              </div>
+            </div>
+
+            <!-- Waveform Range Scrubber Toolbar -->
+            <div class="studio-toolbar">
+              <div class="toolbar-left">
+                <span class="range-info" id="reviewTimeWindowLabel">Viewing Window: <b>Live Current Buffer</b></span>
+                <span class="range-info" id="reviewCropBadge" style="display: none; color: var(--ch-enz);">Selected Crop: <b id="reviewCropText">--</b></span>
+              </div>
+              <div class="toolbar-right">
+                <label>Window Span:</label>
+                <select id="reviewSpanSelect" class="form-select form-select-sm">
+                  <option value="15">15 Seconds</option>
+                  <option value="30" selected>30 Seconds</option>
+                  <option value="60">60 Seconds</option>
+                  <option value="120">2 Minutes</option>
+                  <option value="300">5 Minutes</option>
+                </select>
+                <button class="btn btn-sm btn-ghost" id="reviewRefreshBtn">🔄 Refresh Traces</button>
+              </div>
+            </div>
+
+            <!-- 4-Channel Historical Waveform Canvas with Range Selector -->
+            <div class="review-canvas-container" id="reviewCanvasContainer">
+              <canvas id="reviewCanvas" class="review-canvas"></canvas>
+              <div class="review-selection-overlay" id="reviewCropOverlay" style="display: none;">
+                <div class="selection-box" id="selectionBox">
+                  <span class="selection-label" id="selectionLabel">Crop Window</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Precision Tagging Form for Selected Crop -->
+            <div class="review-tag-section">
+              <div class="precision-tag-presets">
+                <span class="preset-title">⚡ Tag Selected Crop:</span>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Foot Stamp" data-crop-cat="human_indoor" data-crop-notes="Foot stamping impact on floor">🦶 Foot Stamp</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Gavin: Stairs" data-crop-cat="human_indoor" data-crop-notes="Footsteps walking on staircase">🏃 Gavin: Stairs</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Gavin: 3rd Floor Jump" data-crop-cat="human_indoor" data-crop-notes="Jumping / high impact on 3rd floor">🦘 3rd Floor Jump</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Heavy Truck" data-crop-cat="traffic" data-crop-notes="Heavy truck passing nearby">🚛 Heavy Truck</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Garbage Truck" data-crop-cat="traffic" data-crop-notes="Hydraulic garbage truck stop-and-go">🗑️ Garbage Truck</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Cal Stadium Event" data-crop-cat="stadium" data-crop-notes="Cal Memorial Stadium crowd roar">🏈 Cal Stadium</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Greek Theatre Concert" data-crop-cat="concert" data-crop-notes="Concert acoustic sub-bass">🎸 Greek Concert</button>
+                <button class="btn btn-sm btn-tag-mini" data-crop-label="Local Earthquake" data-crop-cat="geophysical" data-crop-notes="Local fault shake">⚡ Earthquake</button>
+              </div>
+
+              <!-- Custom Label for Crop -->
+              <div class="custom-crop-form">
+                <input type="text" id="cropCustomLabel" placeholder="Custom label (e.g. dropped weight in garage)" class="form-input form-input-sm">
+                <select id="cropCustomCategory" class="form-select form-select-sm">
+                  <option value="human_indoor">Human / Indoor</option>
+                  <option value="traffic">Traffic / Vehicles</option>
+                  <option value="stadium">Stadium Event</option>
+                  <option value="concert">Concert</option>
+                  <option value="geophysical">Earthquake</option>
+                  <option value="environmental">Environmental</option>
+                  <option value="custom">Other Custom</option>
+                </select>
+                <input type="text" id="cropCustomNotes" placeholder="Context notes" class="form-input form-input-sm form-item-wide">
+                <button class="btn btn-sm btn-primary" id="saveCropBtn">💾 Save Precision Snippet</button>
+              </div>
+            </div>
+          </div>
+
           <!-- Quick Tag Presets -->
           <div class="ml-quick-section">
             <h4 class="section-title">⚡ Quick Annotate Recent Window (Last 30 Seconds)</h4>
             <div class="quick-tag-grid">
+              <button class="btn btn-tag" data-label="Foot Stamp" data-category="human_indoor" data-notes="Foot stamping impact on floor">
+                🦶 Foot Stamp
+              </button>
               <button class="btn btn-tag" data-label="Gavin: Stairs" data-category="human_indoor" data-notes="Footsteps walking on internal staircase">
                 🏃 Gavin: Stairs
               </button>
@@ -617,10 +698,11 @@
                     <th class="sortable" data-ml-col="dom_freq">Dominant Freq <span class="sort-arrow">⇅</span></th>
                     <th class="sortable" data-ml-col="centroid">Spectral Centroid <span class="sort-arrow">⇅</span></th>
                     <th class="sortable" data-ml-col="file">NPZ Snippet File <span class="sort-arrow">⇅</span></th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="mlEventsTableBody">
-                  <tr><td colspan="9" class="text-muted text-center">No ground-truth events tagged yet. Click a quick tag above to record your first ML training snippet!</td></tr>
+                  <tr><td colspan="10" class="text-muted text-center">No ground-truth events tagged yet. Click a quick tag above to record your first ML training snippet!</td></tr>
                 </tbody>
               </table>
             </div>
@@ -956,6 +1038,86 @@
         </div>
       </section>
     </main>
+
+    <!-- Waveform Snippet Inspector Modal -->
+    <div class="modal-backdrop" id="snippetModalBackdrop" style="display: none;">
+      <div class="snippet-modal">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h3 id="modalEventTitle">Event Waveform & Spectral Inspector</h3>
+            <span class="modal-subtitle" id="modalEventSub">ID: -- | Category: -- | UTC: --</span>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-sm btn-outline-success" id="modalPlayAudioBtn">🔊 Play Audio</button>
+            <button class="modal-close-btn" id="modalCloseBtn">✕</button>
+          </div>
+        </div>
+
+        <div class="modal-body">
+          <!-- 4-Channel Snippet Waveform Canvases -->
+          <div class="modal-traces-grid">
+            <div class="modal-trace-card">
+              <div class="modal-trace-header">
+                <span class="ch-tag ch-tag-ehz">EHZ</span>
+                <span class="ch-desc">Geophone Vertical (Velocity)</span>
+                <span class="modal-trace-metric">Pk-Pk: <b id="modalPkEHZ">--</b> counts</span>
+              </div>
+              <div class="modal-canvas-wrap">
+                <canvas id="modalCanvasEHZ" class="modal-canvas"></canvas>
+              </div>
+            </div>
+
+            <div class="modal-trace-card">
+              <div class="modal-trace-header">
+                <span class="ch-tag ch-tag-enz">ENZ</span>
+                <span class="ch-desc">Accelerometer Vertical</span>
+                <span class="modal-trace-metric">PGA: <b id="modalPgaENZ">--</b> m/s²</span>
+              </div>
+              <div class="modal-canvas-wrap">
+                <canvas id="modalCanvasENZ" class="modal-canvas"></canvas>
+              </div>
+            </div>
+
+            <div class="modal-trace-card">
+              <div class="modal-trace-header">
+                <span class="ch-tag ch-tag-enn">ENN</span>
+                <span class="ch-desc">Accelerometer North-South</span>
+                <span class="modal-trace-metric">PGA: <b id="modalPgaENN">--</b> m/s²</span>
+              </div>
+              <div class="modal-canvas-wrap">
+                <canvas id="modalCanvasENN" class="modal-canvas"></canvas>
+              </div>
+            </div>
+
+            <div class="modal-trace-card">
+              <div class="modal-trace-header">
+                <span class="ch-tag ch-tag-ene">ENE</span>
+                <span class="ch-desc">Accelerometer East-West</span>
+                <span class="modal-trace-metric">PGA: <b id="modalPgaENE">--</b> m/s²</span>
+              </div>
+              <div class="modal-canvas-wrap">
+                <canvas id="modalCanvasENE" class="modal-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature Breakdown Table -->
+          <div class="modal-features-card">
+            <h4>🔬 Physical & Spectral Feature Breakdown</h4>
+            <div class="modal-features-grid">
+              <div class="feat-item"><span class="feat-label">Resultant PGA:</span><span class="feat-val" id="featPGA">--</span></div>
+              <div class="feat-item"><span class="feat-label">Dominant Freq:</span><span class="feat-val" id="featDomFreq">--</span></div>
+              <div class="feat-item"><span class="feat-label">Spectral Centroid:</span><span class="feat-val" id="featCentroid">--</span></div>
+              <div class="feat-item"><span class="feat-label">RSAM Power:</span><span class="feat-val" id="featRSAM">--</span></div>
+              <div class="feat-item"><span class="feat-label">Apparent Azimuth:</span><span class="feat-val" id="featAzimuth">--</span></div>
+              <div class="feat-item"><span class="feat-label">Rectilinearity:</span><span class="feat-val" id="featRect">--</span></div>
+              <div class="feat-item"><span class="feat-label">Duration:</span><span class="feat-val" id="featDuration">--</span></div>
+              <div class="feat-item"><span class="feat-label">Total Samples:</span><span class="feat-val" id="featSamples">--</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Footer / Status Bar -->
     <footer class="observatory-footer">

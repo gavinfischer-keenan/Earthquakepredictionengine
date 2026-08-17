@@ -241,6 +241,98 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         logger = get_dataset_logger()
         return {"events": logger.get_recent_events(limit=limit)}
 
+    @app.get("/api/ml/snippet/{event_id}")
+    async def get_ml_snippet(event_id: str) -> dict[str, Any]:
+        """Return the 4-channel NPZ waveform tensor and metadata for visual review and audio playback."""
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+        snippet = logger.get_event_snippet(event_id)
+        if snippet is None:
+            raise HTTPException(status_code=404, detail=f"Snippet for event '{event_id}' not found")
+        return snippet
+
+    @app.delete("/api/ml/events/{event_id}")
+    async def delete_ml_event(event_id: str) -> dict[str, Any]:
+        """Delete an annotated event from the ML dataset and remove its snippet file."""
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+        success = await logger.delete_event(event_id)
+        return {"status": "ok", "message": f"Deleted event '{event_id}'", "success": success}
+
+    @app.post("/api/ml/annotate_range")
+    async def annotate_custom_range(payload: dict[str, Any]) -> dict[str, Any]:
+        """Extract a user-selected time range from the 1-hour ring buffer and save as an ML event."""
+        label = payload.get("label", "unlabeled").strip()
+        category = payload.get("category", "custom").strip()
+        notes = payload.get("notes", "").strip()
+        confidence = float(payload.get("confidence", 1.0))
+        start_time = float(payload.get("start_time", 0.0))
+        end_time = float(payload.get("end_time", 0.0))
+
+        if start_time <= 0 or end_time <= start_time:
+            raise HTTPException(status_code=400, detail="Invalid time range (start_time and end_time required)")
+
+        if ring_buffer is None:
+            raise HTTPException(status_code=503, detail="RingBuffer not active")
+
+        # Extract waveform samples from ring buffer for all channels
+        channel_data: dict[str, Any] = {}
+        for ch in ("EHZ", "ENZ", "ENN", "ENE"):
+            data_arr, actual_start = ring_buffer.get_time_range(ch, start_time, end_time)
+            if len(data_arr) > 0:
+                channel_data[ch] = data_arr
+
+        if not channel_data or len(channel_data.get("EHZ", [])) == 0:
+            raise HTTPException(status_code=404, detail="No waveform data available in buffer for requested time range")
+
+        from eqengine.ml.dataset_logger import get_dataset_logger
+        logger = get_dataset_logger()
+
+        record = await logger.log_annotated_event(
+            label=label,
+            start_time=start_time,
+            end_time=end_time,
+            channel_data=channel_data,
+            category=category,
+            annotator="user_gavin",
+            notes=notes,
+            confidence=confidence,
+            sampling_rate=float(config.sampling_rate),
+        )
+
+        return {"status": "ok", "message": f"Successfully annotated '{label}'", "event": record}
+
+    @app.get("/api/seismograph/historical")
+    async def get_historical_seismograph(
+        start_time: float | None = None,
+        duration_sec: float = 60.0,
+    ) -> dict[str, Any]:
+        """Fetch high-resolution 4-channel seismograph samples for historical review and visual range labeller."""
+        if ring_buffer is None:
+            raise HTTPException(status_code=503, detail="RingBuffer not active")
+
+        now = time.time()
+        dur = min(max(float(duration_sec), 5.0), 600.0)
+        end_t = float(start_time + dur) if start_time is not None else now
+        start_t = end_t - dur
+
+        channels: dict[str, list[float]] = {}
+        actual_starts: dict[str, float] = {}
+
+        for ch in ("EHZ", "ENZ", "ENN", "ENE"):
+            data_arr, act_start = ring_buffer.get_time_range(ch, start_t, end_t)
+            channels[ch] = data_arr.tolist()
+            actual_starts[ch] = act_start
+
+        return {
+            "requested_start": start_t,
+            "requested_end": end_t,
+            "duration_sec": dur,
+            "sampling_rate": float(config.sampling_rate),
+            "channels": channels,
+            "actual_start_times": actual_starts,
+        }
+
     @app.get("/api/ml/summary")
     async def get_ml_summary() -> dict[str, Any]:
         """Return dataset size, class distributions, and file paths."""
