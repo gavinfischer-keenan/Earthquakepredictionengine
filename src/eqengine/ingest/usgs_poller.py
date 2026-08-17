@@ -116,27 +116,26 @@ def calculate_seismic_travel_times(
 
 
 def is_observable_on_shake(magnitude: float | None, distance_km: float) -> bool:
-    """Determine if an earthquake is theoretically observable on a Raspberry Shake RS4D.
+    """Determine if an earthquake is theoretically observable on a Raspberry Shake RS4D within 500 miles.
 
-    Based on empirical detection thresholds of 4.5 Hz geophones and strong-motion accelerometers:
-      - Local (<80 km): M >= 1.0
-      - Regional (80–300 km): M >= 2.0
-      - State / Multi-state (300–1,000 km): M >= 3.5
-      - Continental (1,000–3,000 km): M >= 4.8
-      - Global Teleseismic (>3,000 km): M >= 5.8
+    Uses a sliding scale where a M5.0 at 500 miles is observable, down to M0.8 nearby.
+    Earthquakes beyond 500 miles (804.7 km) are ignored / filtered out.
     """
     if magnitude is None:
         return False
-    if distance_km <= 80.0:
-        return magnitude >= 1.0
-    elif distance_km <= 300.0:
-        return magnitude >= 2.0
-    elif distance_km <= 1000.0:
-        return magnitude >= 3.5
-    elif distance_km <= 3000.0:
-        return magnitude >= 4.8
-    else:
-        return magnitude >= 5.8
+    distance_miles = distance_km * KM_TO_MILES
+    if distance_miles > 500.0:
+        return False  # Strict 500-mile limit
+
+    # Sliding scale: M_min(R) = 0.8 + 2.05 * log10(max(R, 5.0) / 5.0)
+    # R=5mi -> M0.8
+    # R=25mi -> M1.8
+    # R=100mi -> M2.8
+    # R=250mi -> M3.8
+    # R=500mi -> M4.9 (~5.0 at 500 miles)
+    r_effective = max(distance_miles, 5.0)
+    m_min = 0.8 + 2.05 * math.log10(r_effective / 5.0)
+    return magnitude >= m_min
 
 
 # ---------------------------------------------------------------------------

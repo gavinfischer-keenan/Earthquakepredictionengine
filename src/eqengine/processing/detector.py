@@ -95,10 +95,10 @@ class Detector:
         self,
         sta_seconds: float = 0.5,
         lta_seconds: float = 10.0,
-        trigger_on: float = 3.5,
-        trigger_off: float = 1.5,
+        trigger_on: float = 6.5,
+        trigger_off: float = 2.0,
         sampling_rate: float = 100.0,
-        min_trigger_duration_sec: float = 0.5,
+        min_trigger_duration_sec: float = 1.2,
     ) -> None:
         if sta_seconds <= 0 or lta_seconds <= 0:
             raise ValueError("STA and LTA window lengths must be positive.")

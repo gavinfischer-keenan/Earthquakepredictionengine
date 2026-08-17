@@ -462,24 +462,28 @@
   // -------------------------------------------------------------------------
   // Digital Signal Processing Filters
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Digital Signal Processing Filters
+  // -------------------------------------------------------------------------
   function filterData(data, mode) {
-    if (mode === 'raw' || data.length < 4) return data;
+    if (!data || data.length === 0) return new Float64Array(0);
 
     const n = data.length;
     const out = new Float64Array(n);
 
-    // 1. Demean
+    // Calculate baseline DC offset (mean)
     let sum = 0;
     for (let i = 0; i < n; i++) sum += data[i];
     const mean = sum / n;
+
+    // Always demean for visualization so signal is centered around zero
     for (let i = 0; i < n; i++) out[i] = data[i] - mean;
 
-    if (mode === 'demean') return out;
+    if (mode === 'raw' || mode === 'demean' || n < 8) return out;
 
-    // 2. 1–10 Hz Bandpass / Highpass Filter (2nd-order IIR approximations)
+    // 1–10 Hz Bandpass Filter (2nd-order Butterworth IIR approximation)
     if (mode === 'bandpass') {
       const filtered = new Float64Array(n);
-      // Simple 2-pole recursive bandpass
       let y1 = 0, y2 = 0, x1 = 0, x2 = 0;
       const b0 = 0.067455, b1 = 0.0, b2 = -0.067455;
       const a1 = -1.14298, a2 = 0.41280;
@@ -487,9 +491,9 @@
       for (let i = 0; i < n; i++) {
         const x = out[i];
         const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-        filtered[i] = y;
+        filtered[i] = isNaN(y) ? 0 : y;
         x2 = x1; x1 = x;
-        y2 = y1; y1 = y;
+        y2 = y1; y1 = filtered[i];
       }
       return filtered;
     }
@@ -502,98 +506,139 @@
   // -------------------------------------------------------------------------
   function renderOscilloscope() {
     const channels = ['EHZ', 'ENZ', 'ENN', 'ENE'];
-    const now = Date.now() / 1000;
-    const windowSec = state.windowSec;
+    const windowSec = state.windowSec || 30;
+
+    // Synchronize time with the latest incoming seismic sample timestamp
+    let latestT = 0;
+    for (const ch of channels) {
+      const tsArr = state.timestamps[ch];
+      if (tsArr && tsArr.length > 0) {
+        const lastTs = tsArr[tsArr.length - 1];
+        if (lastTs > latestT) latestT = lastTs;
+      }
+    }
+    const now = state.paused
+      ? (state.lastPausedTimestamp || latestT || (Date.now() / 1000))
+      : (latestT || (Date.now() / 1000));
     const startT = now - windowSec;
+
+    // Update UTC clock display
+    if (elements.utcClock) {
+      elements.utcClock.textContent = new Date(now * 1000).toISOString().substring(11, 23);
+    }
 
     channels.forEach((ch) => {
       const canvas = elements.canvases[ch];
       const overlay = elements.overlays[ch];
       if (!canvas || !state.visibleChannels[ch]) return;
 
-      // Handle retina canvas sizing
       const rect = canvas.getBoundingClientRect();
-      if (canvas.width !== rect.width * window.devicePixelRatio || canvas.height !== rect.height * window.devicePixelRatio) {
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
+      const w = rect.width;
+      const h = rect.height;
+      if (w <= 0 || h <= 0) return;
+
+      // Handle Retina pixel ratio
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
       }
 
       const ctx = canvas.getContext('2d');
       ctx.resetTransform();
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      ctx.scale(dpr, dpr);
 
-      const w = rect.width;
-      const h = rect.height;
-
-      // Clear canvas
-      ctx.fillStyle = '#111722';
+      // 1. High-contrast oscilloscope background
+      ctx.fillStyle = '#0a0e17';
       ctx.fillRect(0, 0, w, h);
 
-      // Draw grid
-      ctx.strokeStyle = '#202a3d';
+      // 2. Subtle grid lines
+      ctx.strokeStyle = '#182234';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      // Horizontal center
+      // Center horizontal zero line
       ctx.moveTo(0, h / 2);
       ctx.lineTo(w, h / 2);
-      // Vertical time grid (every 5 seconds)
+      // Vertical time lines
       const secStep = windowSec <= 30 ? 5 : (windowSec <= 120 ? 15 : 60);
       const firstSec = Math.ceil(startT / secStep) * secStep;
       for (let t = firstSec; t <= now; t += secStep) {
         const x = ((t - startT) / windowSec) * w;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
+        if (x >= 0 && x <= w) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+        }
       }
+      ctx.stroke();
+
+      // Zero-crossing accent line
+      ctx.strokeStyle = '#25354d';
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
       ctx.stroke();
 
       const rawBuf = state.buffers[ch];
       const rawTs = state.timestamps[ch];
       if (!rawBuf || rawBuf.length === 0) return;
 
-      // Filter data for visible window
+      // Filter and center data
       const filtered = filterData(rawBuf, state.filterMode);
 
-      // Determine Amplitude Scaling
-      let maxVal = 100;
-      if (state.gainMode === 'auto') {
-        let pk = 10;
-        for (let i = 0; i < filtered.length; i++) {
-          const abs = Math.abs(filtered[i]);
-          if (abs > pk) pk = abs;
-        }
-        maxVal = pk * 1.25;
-      } else {
-        maxVal = parseFloat(state.gainMode);
+      // Calculate peak amplitude for scaling
+      let pk = 15;
+      for (let i = 0; i < filtered.length; i++) {
+        const abs = Math.abs(filtered[i]);
+        if (abs > pk) pk = abs;
       }
 
-      // Update metrics
-      const lastVal = filtered[filtered.length - 1] || 0;
-      elements.values[ch].textContent = Math.round(lastVal).toLocaleString();
+      let maxVal = 100;
+      if (state.gainMode === 'auto') {
+        maxVal = Math.max(pk * 1.3, 20.0);
+      } else {
+        maxVal = Math.max(parseFloat(state.gainMode), 10.0);
+      }
 
-      if (ch === 'EHZ') {
+      // Update telemetry badges
+      const lastVal = filtered[filtered.length - 1] || 0;
+      if (elements.values[ch]) {
+        elements.values[ch].textContent = Math.round(lastVal).toLocaleString();
+      }
+
+      if (ch === 'EHZ' && elements.pkEHZ) {
         elements.pkEHZ.textContent = Math.round(maxVal).toLocaleString();
-        elements.staEHZ.textContent = (state.staLtaRatios.EHZ || 1.0).toFixed(2);
-      } else if (ch === 'ENZ') {
-        // RS4D sensitivity: ~1 count ≈ 1.9e-6 m/s²
+        if (elements.staEHZ) {
+          elements.staEHZ.textContent = (state.staLtaRatios.EHZ || 1.0).toFixed(2);
+        }
+      } else if (ch === 'ENZ' && elements.pgaENZ) {
         elements.pgaENZ.textContent = (maxVal * 1.9e-6).toFixed(4);
-      } else if (ch === 'ENN') {
+      } else if (ch === 'ENN' && elements.pgaENN) {
         elements.pgaENN.textContent = (maxVal * 1.9e-6).toFixed(4);
-      } else if (ch === 'ENE') {
+      } else if (ch === 'ENE' && elements.pgaENE) {
         elements.pgaENE.textContent = (maxVal * 1.9e-6).toFixed(4);
       }
 
-      // Draw Seismic Trace
-      ctx.strokeStyle = CH_COLORS[ch];
-      ctx.lineWidth = 1.5;
+      // 3. Draw Seismic Trace with phosphor glow
+      ctx.save();
+      ctx.strokeStyle = CH_COLORS[ch] || '#00ff88';
+      ctx.lineWidth = 1.8;
+      ctx.shadowColor = CH_COLORS[ch] || '#00ff88';
+      ctx.shadowBlur = 3;
       ctx.beginPath();
 
       let started = false;
-      for (let i = 0; i < filtered.length; i++) {
+      const count = filtered.length;
+      for (let i = 0; i < count; i++) {
         const t = rawTs[i];
         if (t < startT) continue;
+        if (t > now + 1.0) continue;
 
         const x = ((t - startT) / windowSec) * w;
-        const y = h / 2 - (filtered[i] / maxVal) * (h / 2) * 0.9;
+        const val = filtered[i];
+        // Clamp Y to canvas bounds
+        const normalizedY = (val / maxVal);
+        const clampedY = Math.max(-1.0, Math.min(1.0, normalizedY));
+        const y = h / 2 - clampedY * (h / 2) * 0.88;
 
         if (!started) {
           ctx.moveTo(x, y);
@@ -603,50 +648,54 @@
         }
       }
       ctx.stroke();
+      ctx.restore();
 
       // -------------------------------------------------------------------
-      // Drop Symbology on Live Traces
+      // Drop Symbology & Annotations on Live Traces
       // -------------------------------------------------------------------
-      overlay.innerHTML = '';
+      if (overlay) {
+        overlay.innerHTML = '';
 
-      state.triggers.forEach((trig) => {
-        const trigTime = trig.start_time;
-        if (trigTime >= startT && trigTime <= now) {
-          const xPercent = ((trigTime - startT) / windowSec) * 100;
+        // Trigger pins
+        state.triggers.forEach((trig) => {
+          const trigTime = trig.start_time;
+          if (trigTime >= startT && trigTime <= now) {
+            const xPercent = ((trigTime - startT) / windowSec) * 100;
+            if (xPercent >= 0 && xPercent <= 100) {
+              const flag = document.createElement('div');
+              flag.className = 'trigger-flag';
+              flag.style.left = `${xPercent}%`;
 
-          // Drop flag pin
-          const flag = document.createElement('div');
-          flag.className = 'trigger-flag';
-          flag.style.left = `${xPercent}%`;
+              const badge = document.createElement('div');
+              badge.className = 'trigger-badge';
+              badge.textContent = `📍 P-Wave [STA/LTA: ${(trig.peak_sta_lta || trig.sta_lta_ratio || 4.0).toFixed(1)}x]`;
+              flag.appendChild(badge);
 
-          const badge = document.createElement('div');
-          badge.className = 'trigger-badge';
-          badge.textContent = `📍 P-Wave [STA/LTA: ${(trig.peak_sta_lta || trig.sta_lta_ratio || 4.0).toFixed(1)}x]`;
-          flag.appendChild(badge);
-
-          overlay.appendChild(flag);
-        }
-      });
-
-      // Overlay USGS External Earthquakes & Theoretical Wavefronts
-      state.usgsEvents.forEach((uEvt) => {
-        const pArr = uEvt.p_arrival;
-        if (pArr && pArr >= startT && pArr <= now + 15) {
-          const xPercent = ((pArr - startT) / windowSec) * 100;
-          if (xPercent >= 0 && xPercent <= 100) {
-            const flag = document.createElement('div');
-            flag.className = 'usgs-flag';
-            flag.style.left = `${xPercent}%`;
-
-            const badge = document.createElement('div');
-            badge.className = 'usgs-badge';
-            badge.textContent = `🌐 USGS M${uEvt.magnitude} [Theor. P | ${uEvt.distance_miles}mi]`;
-            flag.appendChild(badge);
-
-            overlay.appendChild(flag);
+              overlay.appendChild(flag);
+            }
           }
-        }
-      });
+        });
+
+        // USGS External Earthquakes & Theoretical Wavefronts
+        state.usgsEvents.forEach((uEvt) => {
+          const pArr = uEvt.p_arrival;
+          if (pArr && pArr >= startT && pArr <= now + 15) {
+            const xPercent = ((pArr - startT) / windowSec) * 100;
+            if (xPercent >= 0 && xPercent <= 100) {
+              const flag = document.createElement('div');
+              flag.className = 'usgs-flag';
+              flag.style.left = `${xPercent}%`;
+
+              const badge = document.createElement('div');
+              badge.className = 'usgs-badge';
+              badge.textContent = `🌐 USGS M${uEvt.magnitude} [Theor. P | ${uEvt.distance_miles}mi]`;
+              flag.appendChild(badge);
+
+              overlay.appendChild(flag);
+            }
+          }
+        });
+      }
     });
   }
 

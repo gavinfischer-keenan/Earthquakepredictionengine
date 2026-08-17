@@ -116,10 +116,10 @@ class Settings(BaseSettings):
     lta_seconds: Annotated[float, Field(gt=0)] = 20.0
     """Long-Term Average window in seconds."""
 
-    trigger_on: Annotated[float, Field(gt=0)] = 4.0
+    trigger_on: Annotated[float, Field(gt=0)] = 6.5
     """STA/LTA ratio threshold to declare a trigger."""
 
-    trigger_off: Annotated[float, Field(gt=0)] = 1.5
+    trigger_off: Annotated[float, Field(gt=0)] = 2.0
     """STA/LTA ratio threshold to end a trigger."""
 
     # -- Bandpass filter ------------------------------------------------------
@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     """Upper corner frequency (Hz) for Butterworth bandpass."""
 
     # -- Event validation ----------------------------------------------------
-    min_trigger_duration_sec: Annotated[float, Field(ge=0)] = 0.5
+    min_trigger_duration_sec: Annotated[float, Field(ge=0)] = 1.2
     """Minimum trigger duration (seconds) to accept an event."""
 
     pd_window_sec: Annotated[float, Field(gt=0)] = 3.0

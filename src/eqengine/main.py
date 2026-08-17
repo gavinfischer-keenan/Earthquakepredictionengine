@@ -281,9 +281,19 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
 
             # f) Process each trigger
             for trigger in triggers:
+                # False-positive filter validation (spectral ratio, noise floor, duration)
+                result = fp_filter.validate(trigger, trace, noise_model)
+                if not result.passed:
+                    log.debug(
+                        "engine.trigger_rejected",
+                        reason=result.rejection_reason,
+                        checks=result.checks,
+                    )
+                    continue
+
                 health.record_trigger()
 
-                # Broadcast instant trigger symbology to connected browsers
+                # Broadcast confirmed trigger symbology to connected browsers
                 await broadcaster.broadcast_trigger({
                     "channel": trigger.channel,
                     "start_time": float(trigger.start_time.timestamp),
@@ -293,16 +303,6 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                     "start_sample": trigger.start_sample,
                     "end_sample": trigger.end_sample,
                 })
-
-                # False-positive filter
-                result = fp_filter.validate(trigger, trace, noise_model)
-                if not result.passed:
-                    log.info(
-                        "engine.trigger_rejected",
-                        reason=result.rejection_reason,
-                        checks=result.checks,
-                    )
-                    continue
 
                 # Magnitude estimation
                 mag_est: float | None = None
