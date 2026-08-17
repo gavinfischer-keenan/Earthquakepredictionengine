@@ -179,7 +179,7 @@ class Detector:
         # --- Find trigger on/off pairs ---
         raw_triggers = trigger_onset(cft, self.trigger_on, self.trigger_off)
 
-        if raw_triggers.size == 0:
+        if len(raw_triggers) == 0:
             self._log.debug("detector.process.no_triggers", channel=channel)
             self.is_triggered = False
             return []

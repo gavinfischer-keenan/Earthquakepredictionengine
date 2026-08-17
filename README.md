@@ -8,6 +8,8 @@ EarthquakePredictionEngine continuously ingests seismic waveform data from a sin
 
 ## Architecture
 
+Detailed architecture specifications and pipeline flow diagrams are available in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 The processing pipeline is structured as five discrete stages:
 
 ```

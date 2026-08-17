@@ -191,10 +191,12 @@ class TestFalsePositiveFilter:
         # Very loud background noise (std = 5000)
         data = rng.normal(0, 5000, size=npts)
 
-        # The "signal" is only marginally louder — poor SNR
         trigger_on = 1000
         trigger_off = 1500
-        data[trigger_on:trigger_off] += rng.normal(0, 5500, size=500)
+
+        # Low amplitude 5 Hz in-band signal with high background noise -> fails SNR check
+        t = np.arange(trigger_off - trigger_on) / 100.0
+        data[trigger_on:trigger_off] += 1000.0 * np.sin(2.0 * np.pi * 5.0 * t)
 
         tr = _build_trace(data)
 

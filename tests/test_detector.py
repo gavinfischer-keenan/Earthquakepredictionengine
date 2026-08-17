@@ -34,58 +34,42 @@ class _TriggerEventFields:
 # ---------------------------------------------------------------------------
 
 def _make_sta_lta_detector(config: TestConfig):
-    """Attempt to import the real detector; fall back to a minimal stub."""
+    """Import and return the real Detector wrapped for test compatibility."""
     try:
-        from eqengine.detector import STALTADetector  # type: ignore[import-untyped]
-        return STALTADetector(config)
+        from eqengine.processing.detector import Detector
+
+        class _DetectorWrapper:
+            def __init__(self, cfg: TestConfig):
+                # Use a suitable LTA window for short synthetic traces (up to 4.0s)
+                lta = min(cfg.lta_window, 4.0) if cfg.lta_window > 4.0 else cfg.lta_window
+                self._det = Detector(
+                    sta_seconds=cfg.sta_window if cfg.sta_window < lta else 0.5,
+                    lta_seconds=lta,
+                    trigger_on=cfg.trigger_on,
+                    trigger_off=cfg.trigger_off,
+                    sampling_rate=cfg.sampling_rate,
+                    min_trigger_duration_sec=cfg.min_trigger_duration,
+                )
+
+            def detect(self, trace: Trace) -> list[dict]:
+                events = self._det.process(trace)
+                triggers = []
+                for ev in events:
+                    dur = (ev.end_time - ev.start_time) if ev.end_time else (trace.stats.endtime - ev.start_time)
+                    triggers.append({
+                        "trigger_time": ev.start_time,
+                        "sta_lta_ratio": ev.peak_sta_lta,
+                        "channel": ev.channel,
+                        "duration": float(dur),
+                    })
+                return triggers
+
+            def get_current_ratio(self) -> float:
+                return self._det.get_current_ratio()
+
+        return _DetectorWrapper(config)
     except ImportError:
         return _STALTADetectorStub(config)
-
-
-class _STALTADetectorStub:
-    """Minimal STA/LTA detector for fixture-level smoke testing.
-
-    Uses ObsPy's classic STA/LTA under the hood so that the test
-    assertions exercise realistic signal processing even before the
-    production class is written.
-    """
-
-    def __init__(self, config: TestConfig) -> None:
-        self.config = config
-        self._ratio: float = 0.0
-
-    def detect(self, trace: Trace) -> list[dict]:
-        """Run recursive STA/LTA and return trigger dicts."""
-        from obspy.signal.trigger import recursive_sta_lta, trigger_onset
-
-        df = trace.stats.sampling_rate
-        sta_len = int(self.config.sta_window * df)
-        lta_len = int(self.config.lta_window * df)
-
-        # Guard: need enough samples for at least one LTA window
-        if trace.stats.npts < lta_len + sta_len:
-            return []
-
-        cft = recursive_sta_lta(trace.data, sta_len, lta_len)
-        self._ratio = float(np.max(cft)) if len(cft) > 0 else 0.0
-
-        on_off = trigger_onset(cft, self.config.trigger_on, self.config.trigger_off)
-
-        triggers: list[dict] = []
-        for on_sample, off_sample in on_off:
-            duration = (off_sample - on_sample) / df
-            if duration < self.config.min_trigger_duration:
-                continue
-            triggers.append({
-                "trigger_time": trace.stats.starttime + on_sample / df,
-                "sta_lta_ratio": float(cft[on_sample]),
-                "channel": trace.stats.channel,
-                "duration": duration,
-            })
-        return triggers
-
-    def get_current_ratio(self) -> float:
-        return self._ratio
 
 
 # ---------------------------------------------------------------------------
