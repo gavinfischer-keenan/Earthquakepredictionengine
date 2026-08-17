@@ -329,6 +329,43 @@ class RingBuffer:
         with ring.lock:
             return ring.total_written >= min_samples
 
+    def get_samples_since(
+        self, channel: str, last_total_read: int
+    ) -> tuple[np.ndarray, float, int]:
+        """Return all new samples written to *channel* since *last_total_read*.
+
+        Returns
+        -------
+        data : np.ndarray
+            Contiguous array of new samples written since *last_total_read*.
+        start_timestamp : float
+            POSIX timestamp of the first sample in *data*.
+        new_total_read : int
+            Updated monotonic total_written count to pass into next call.
+        """
+        ring = self._ring(channel)
+        with ring.lock:
+            available = min(ring.total_written, ring.capacity)
+            unread = ring.total_written - last_total_read
+            if unread <= 0:
+                return np.empty(0, dtype=np.float64), 0.0, ring.total_written
+
+            n = min(unread, available)
+            end = ring.write_pos
+            start = (end - n) % ring.capacity
+
+            if start < end:
+                data = ring.buf[start:end].copy()
+            else:
+                data = np.concatenate((ring.buf[start:], ring.buf[:end])).copy()
+
+            if ring.last_timestamp is not None:
+                start_ts = ring.last_timestamp - (n - 1) / ring.sampling_rate
+            else:
+                start_ts = 0.0
+
+            return data, start_ts, ring.total_written
+
     # ------------------------------------------------------------------
     # Convenience / diagnostics
     # ------------------------------------------------------------------

@@ -237,6 +237,7 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     log.info("engine.loop_starting", cadence_hz=4, primary_channel=primary_channel)
 
     last_emitted_trigger_onsets: dict[str, float] = {}
+    last_streamed_counts: dict[str, int] = {}
 
     try:
         while not _shutdown_event.is_set():
@@ -247,23 +248,30 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
                 await asyncio.sleep(0.25)
                 continue
 
-            # b) Stream latest waveform slice to web clients
+            # b) Stream contiguous newly-arrived waveform samples to web clients
             if broadcaster.client_count > 0:
                 channel_slices: dict[str, Any] = {}
                 latest_ts = 0.0
                 for ch in channels:
-                    t_slice = ring_buffer.get_latest(ch, duration_sec=0.25)
-                    if t_slice is not None and len(t_slice.data) > 0:
-                        channel_slices[ch] = t_slice.data
-                        slice_end = float(t_slice.stats.endtime.timestamp)
-                        if slice_end > latest_ts:
-                            latest_ts = slice_end
+                    last_c = last_streamed_counts.get(ch, ring_buffer._ring(ch).total_written)
+                    samples, start_ts, new_c = ring_buffer.get_samples_since(ch, last_c)
+                    last_streamed_counts[ch] = new_c
+                    if len(samples) > 0:
+                        channel_slices[ch] = samples
+                        sample_end = start_ts + (len(samples) - 1) / ring_buffer.sampling_rate
+                        if sample_end > latest_ts:
+                            latest_ts = sample_end
+
                 if channel_slices:
                     await broadcaster.broadcast_waveform(
                         timestamp=latest_ts if latest_ts > 0.0 else time.time(),
                         channel_data=channel_slices,
                         sta_lta_ratios={"EHZ": detector.get_current_ratio()},
                     )
+            else:
+                # Keep read pointers synchronized when idle
+                for ch in channels:
+                    last_streamed_counts[ch] = ring_buffer._ring(ch).total_written
 
             # c) Get latest analysis window
             import obspy
