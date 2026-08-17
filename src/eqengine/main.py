@@ -80,16 +80,12 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     )
 
     # ---------------------------------------------------------------
-    # 1–2.  Ring buffer & ingest  (import lazily to avoid hard deps
-    #        during testing if those modules aren't created yet)
+    # 1–2.  Ring buffer & ingest
     # ---------------------------------------------------------------
-    try:
-        from eqengine.buffer import RingBuffer  # type: ignore[import-untyped]
-    except ImportError:
-        log.error("engine.missing_module", module="eqengine.buffer")
-        raise SystemExit(1)
+    from eqengine.ingest.ring_buffer import RingBuffer
+    from eqengine.ingest import create_ingest
 
-    channels: list[str] = list(getattr(config, "channels", ["EHZ"]))
+    channels: list[str] = list(getattr(config, "shake_channels", getattr(config, "channels", ["EHZ", "ENZ", "ENN", "ENE"])))
     buf_duration = float(getattr(config, "buffer_duration_sec", 300))
     sampling_rate = float(getattr(config, "sampling_rate", 100.0))
     ring_buffer = RingBuffer(
@@ -98,44 +94,33 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
         sampling_rate=sampling_rate,
     )
 
-    try:
-        from eqengine.ingest import create_ingest  # type: ignore[import-untyped]
-    except ImportError:
-        log.error("engine.missing_module", module="eqengine.ingest")
-        raise SystemExit(1)
-
     ingest = create_ingest(config, ring_buffer)
 
     # ---------------------------------------------------------------
     # 3.  Detector, preprocessor, magnitude estimator
     # ---------------------------------------------------------------
-    try:
-        from eqengine.detection import Detector  # type: ignore[import-untyped]
-    except ImportError:
-        log.error("engine.missing_module", module="eqengine.detection")
-        raise SystemExit(1)
+    from eqengine.processing.detector import Detector
+    from eqengine.processing.preprocessor import Preprocessor
+    from eqengine.processing.magnitude import MagnitudeEstimator
 
     detector = Detector(
-        sta_window=float(getattr(config, "sta_window", 1.0)),
-        lta_window=float(getattr(config, "lta_window", 30.0)),
-        trigger_on=float(getattr(config, "trigger_on", 3.5)),
+        sta_window=float(getattr(config, "sta_seconds", getattr(config, "sta_window", 0.5))),
+        lta_window=float(getattr(config, "lta_seconds", getattr(config, "lta_window", 20.0))),
+        trigger_on=float(getattr(config, "trigger_on", 4.0)),
         trigger_off=float(getattr(config, "trigger_off", 1.5)),
-        method=str(getattr(config, "detection_method", "classic_sta_lta")),
+        sampling_rate=sampling_rate,
     )
 
-    preprocessor: Any = None
-    try:
-        from eqengine.processing import Preprocessor  # type: ignore[import-untyped]
-        preprocessor = Preprocessor()
-    except ImportError:
-        log.warning("engine.preprocessor_unavailable")
+    preprocessor = Preprocessor(
+        bandpass_low=float(getattr(config, "bandpass_low", 1.0)),
+        bandpass_high=float(getattr(config, "bandpass_high", 10.0)),
+        sampling_rate=sampling_rate,
+    )
 
-    magnitude_estimator: Any = None
-    try:
-        from eqengine.magnitude import MagnitudeEstimator  # type: ignore[import-untyped]
-        magnitude_estimator = MagnitudeEstimator()
-    except ImportError:
-        log.warning("engine.magnitude_estimator_unavailable")
+    magnitude_estimator = MagnitudeEstimator(
+        station_lat=float(getattr(config, "station_lat", 37.8696)),
+        station_lon=float(getattr(config, "station_lon", -122.2491)),
+    )
 
     # ---------------------------------------------------------------
     # 4.  Validation layer
@@ -457,8 +442,8 @@ def cli() -> None:
     # Attempt to load config — fall back to a simple namespace stub
     config: Any
     try:
-        from eqengine.config import load_config  # type: ignore[import-untyped]
-        config = load_config()
+        from eqengine.config import get_config
+        config = get_config()
     except ImportError:
         log.warning("engine.config_module_missing, using defaults")
         config = _default_config()

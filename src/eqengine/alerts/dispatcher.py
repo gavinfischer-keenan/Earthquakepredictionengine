@@ -190,10 +190,13 @@ async def console_status_hook(status: EngineStatus) -> None:
 
 MQTT_BROKER: str = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
+MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "")
 MQTT_TOPIC_ALERTS: str = os.getenv("MQTT_TOPIC_ALERTS", "home/alerts/earthquake")
 MQTT_TOPIC_STATUS: str = os.getenv("MQTT_TOPIC_STATUS", "home/status/earthquake-engine")
 MQTT_TOPIC_EVENTS: str = os.getenv("MQTT_TOPIC_EVENTS", "home/events/earthquake")
 MQTT_TOPIC_COMMANDS: str = os.getenv("MQTT_TOPIC_COMMANDS", "home/commands/display")
+MQTT_TOPIC_RSAM: str = os.getenv("MQTT_TOPIC_RSAM", "home/sensors/earthquake/rsam")
 MQTT_ENABLED: bool = os.getenv("MQTT_ENABLED", "false").lower() in ("true", "1", "yes")
 
 _mqtt_client = None
@@ -210,12 +213,15 @@ def _get_mqtt_client():
             client_id="eqengine",
             protocol=mqtt.MQTTv311,
         )
+        if MQTT_USERNAME and MQTT_PASSWORD:
+            _mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
         _mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
         _mqtt_client.loop_start()
         log.info(
             "dispatcher.mqtt_connected",
             broker=MQTT_BROKER,
             port=MQTT_PORT,
+            user=MQTT_USERNAME or "anonymous",
         )
         return _mqtt_client
     except ImportError:
@@ -274,12 +280,21 @@ async def mqtt_event_hook(alert: EarthquakeAlert) -> None:
 
 
 async def mqtt_status_hook(status: EngineStatus) -> None:
-    """Publish engine status to MQTT topic ``home/status/earthquake-engine``."""
+    """Publish engine status and RSAM telemetry to MQTT."""
     client = _get_mqtt_client()
     if client is None:
         return
     payload = json.dumps(status.model_dump(), default=str)
     client.publish(MQTT_TOPIC_STATUS, payload, qos=0, retain=True)
+
+    # Continuous RSAM telemetry for Home Assistant / sensors
+    rsam_payload = json.dumps({
+        "rsam_1min": round(status.rsam_1min, 2),
+        "noise_floor": round(status.noise_floor_counts, 2),
+        "status": status.status,
+        "timestamp": status.timestamp.isoformat() if hasattr(status.timestamp, "isoformat") else str(status.timestamp),
+    })
+    client.publish(MQTT_TOPIC_RSAM, rsam_payload, qos=0, retain=True)
 
 
 # ---------------------------------------------------------------------------
