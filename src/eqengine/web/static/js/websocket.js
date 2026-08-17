@@ -1,0 +1,183 @@
+/**
+ * WebSocket Live Waveform & Telemetry Ingestion Hub
+ */
+
+import { state, SAMPLING_RATE, MAX_SAMPLES } from './state.js';
+import { elements, showWarningHud, showIncomingHud } from './dom.js';
+import { playAlertSound } from './audio.js';
+import { addEventToTable } from './views/tables.js';
+
+let ws = null;
+let reconnectTimer = null;
+
+export function connectWebSocket() {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws/live`;
+
+  if (elements.footerConnection) {
+    elements.footerConnection.textContent = `Connecting to ${wsUrl}...`;
+  }
+
+  ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    state.connected = true;
+    if (elements.statusPulse) elements.statusPulse.classList.add('online');
+    if (elements.footerConnection) elements.footerConnection.textContent = `Connected to ${wsUrl}`;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      handleMessage(msg);
+    } catch (err) {
+      console.error('Error parsing WebSocket message:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    state.connected = false;
+    if (elements.statusPulse) elements.statusPulse.classList.remove('online');
+    if (elements.footerConnection) elements.footerConnection.textContent = 'Disconnected. Reconnecting...';
+    reconnectTimer = setTimeout(connectWebSocket, 2000);
+  };
+
+  ws.onerror = () => {
+    ws.close();
+  };
+}
+
+export function handleMessage(msg) {
+  if (msg.type === 'waveform') {
+    if (!state.paused) {
+      const ts = msg.timestamp || Date.now() / 1000;
+      const channels = msg.channels || {};
+
+      for (const [ch, samples] of Object.entries(channels)) {
+        if (state.buffers[ch]) {
+          const dt = 1.0 / SAMPLING_RATE;
+          const startT = ts - (samples.length - 1) * dt;
+
+          for (let i = 0; i < samples.length; i++) {
+            const sTime = startT + i * dt;
+            state.buffers[ch].push(samples[i]);
+            state.timestamps[ch].push(sTime);
+
+            // Maintain 24-hour minute envelopes for EHZ
+            if (ch === 'EHZ') {
+              const minKey = Math.floor(sTime / 60) * 60;
+              const v = samples[i];
+              if (!state.helicorderMinutePeaks[minKey]) {
+                state.helicorderMinutePeaks[minKey] = { min: v, max: v, sum: v, count: 1 };
+              } else {
+                const entry = state.helicorderMinutePeaks[minKey];
+                if (v < entry.min) entry.min = v;
+                if (v > entry.max) entry.max = v;
+                entry.sum += v;
+                entry.count++;
+              }
+            }
+          }
+
+          // Prune buffer to max length
+          if (state.buffers[ch].length > MAX_SAMPLES) {
+            const overflow = state.buffers[ch].length - MAX_SAMPLES;
+            state.buffers[ch].splice(0, overflow);
+            state.timestamps[ch].splice(0, overflow);
+          }
+        }
+      }
+
+      if (msg.sta_lta) {
+        state.staLtaRatios = { ...state.staLtaRatios, ...msg.sta_lta };
+        state.staLtaHistory.push({
+          time: ts,
+          ratio: state.staLtaRatios.EHZ || 1.0,
+        });
+        if (state.staLtaHistory.length > 300) state.staLtaHistory.shift();
+      }
+    }
+  } else if (msg.type === 'trigger') {
+    handleTriggerEvent(msg.trigger);
+  } else if (msg.type === 'alert') {
+    handleAlertEvent(msg.alert);
+  } else if (msg.type === 'usgs_event') {
+    handleUsgsEvent(msg.event);
+  } else if (msg.type === 'status') {
+    handleStatusEvent(msg.status);
+  } else if (msg.type === 'init') {
+    if (msg.recent_events) msg.recent_events.forEach(handleTriggerEvent);
+    if (msg.recent_alerts) msg.recent_alerts.forEach(handleAlertEvent);
+    if (msg.recent_usgs) msg.recent_usgs.forEach(handleUsgsEvent);
+  }
+}
+
+function handleTriggerEvent(trig) {
+  state.triggers.push(trig);
+  if (state.triggers.length > 100) state.triggers.shift();
+
+  addEventToTable({
+    timestamp: trig.start_time,
+    severity: (trig.sta_lta_ratio || trig.peak_sta_lta) > 8 ? 'warning' : 'advisory',
+    mag: '--',
+    distance: 'LOCAL (Hayward)',
+    staLta: `${(trig.sta_lta_ratio || trig.peak_sta_lta || 0).toFixed(1)}x`,
+    channel: trig.channel || 'EHZ',
+    type: 'Local P-Wave Onset',
+    status: 'Confirmed Pick',
+  });
+}
+
+function handleAlertEvent(alert) {
+  state.alerts.push(alert);
+  if (state.alerts.length > 50) state.alerts.shift();
+
+  showWarningHud(alert);
+  playAlertSound(alert.severity || 'warning');
+
+  addEventToTable({
+    timestamp: alert.timestamp || (Date.now() / 1000),
+    severity: alert.severity || 'warning',
+    mag: alert.estimated_magnitude ? `M ${alert.estimated_magnitude.toFixed(1)}` : '--',
+    distance: alert.estimated_distance_km ? `${Math.round(alert.estimated_distance_km)} km` : '--',
+    staLta: 'TRIGGERED',
+    channel: 'ALL',
+    type: 'EARTHQUAKE EARLY WARNING',
+    status: 'Active Alert',
+  });
+}
+
+function handleUsgsEvent(evt) {
+  state.usgsEvents.push(evt);
+  if (state.usgsEvents.length > 100) state.usgsEvents.shift();
+
+  const now = Date.now() / 1000;
+  // Strictly filter: ONLY alert for observable quakes within 500 miles on sliding scale or M6.0+
+  const isLocalObservable = evt.is_observable === true || (evt.magnitude && evt.magnitude >= 6.0);
+  const isNearby = evt.distance_miles ? evt.distance_miles <= 500 : (evt.distance_km ? evt.distance_km <= 804.7 : false);
+
+  if (isLocalObservable && isNearby && evt.p_arrival && evt.p_arrival > now - 30) {
+    showIncomingHud(evt);
+    playAlertSound('advisory');
+  }
+
+  addEventToTable({
+    timestamp: evt.time || evt.p_arrival,
+    severity: isLocalObservable ? 'warning' : 'info',
+    mag: evt.magnitude ? `M ${evt.magnitude.toFixed(1)}` : '--',
+    distance: evt.distance_miles ? `${evt.distance_miles} mi` : (evt.distance_km ? `${evt.distance_km} km` : 'REGIONAL'),
+    staLta: `P+${Math.round(evt.p_travel_sec || 0)}s`,
+    channel: 'USGS',
+    type: evt.place || 'External Regional Quake',
+    status: evt.is_observable ? 'Observable (<500mi)' : 'Distant Filtered',
+  });
+}
+
+function handleStatusEvent(status) {
+  if (status && status.buffer_fill !== undefined) {
+    if (elements.footerBuffer) {
+      elements.footerBuffer.textContent = `${Math.round(status.buffer_fill * 100)}%`;
+    }
+  }
+}

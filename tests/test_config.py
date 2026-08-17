@@ -24,8 +24,8 @@ class TestSettings:
         assert cfg.sampling_rate == 100
         assert cfg.sta_seconds == 0.5
         assert cfg.lta_seconds == 20.0
-        assert cfg.trigger_on == 4.0
-        assert cfg.trigger_off == 1.5
+        assert cfg.trigger_on == 6.5
+        assert cfg.trigger_off == 2.0
         assert cfg.ingest_mode == IngestMode.SEEDLINK
         assert cfg.log_level == LogLevel.INFO
 
