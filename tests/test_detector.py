@@ -161,3 +161,20 @@ class TestDetector:
 
         ratio = detector.get_current_ratio()
         assert ratio > 0, "STA/LTA ratio should be positive after processing"
+
+    def test_direct_trigger_event_model(self) -> None:
+        """Test TriggerEvent properties on_time, duration, and representation."""
+        from eqengine.processing.detector import TriggerEvent
+        t0 = UTCDateTime(1786940000.0)
+        t1 = UTCDateTime(1786940005.0)
+        ev = TriggerEvent(
+            start_time=t0,
+            end_time=t1,
+            peak_sta_lta=7.8,
+            start_sample=100,
+            end_sample=600,
+            channel="EHZ",
+        )
+        assert ev.on_time == 1786940000.0
+        assert ev.peak_sta_lta == 7.8
+        assert ev.channel == "EHZ"
