@@ -39,8 +39,19 @@ export function renderHodogram() {
     if (absV > maxV) maxV = absV;
   }
 
-  const scaleH = Math.max(maxH * 1.3, 10.0);
-  const scaleV = Math.max(maxV * 1.3, 10.0);
+  // Smooth dynamic scale (prevent instantaneous scaling jitter)
+  if (!renderHodogram.smoothScaleH) {
+    renderHodogram.smoothScaleH = Math.max(maxH * 1.3, 10.0);
+    renderHodogram.smoothScaleV = Math.max(maxV * 1.3, 10.0);
+  } else {
+    const targetH = Math.max(maxH * 1.3, 10.0);
+    const targetV = Math.max(maxV * 1.3, 10.0);
+    renderHodogram.smoothScaleH = renderHodogram.smoothScaleH * 0.9 + targetH * 0.1;
+    renderHodogram.smoothScaleV = renderHodogram.smoothScaleV * 0.9 + targetV * 0.1;
+  }
+
+  const scaleH = renderHodogram.smoothScaleH;
+  const scaleV = renderHodogram.smoothScaleV;
 
   // 1. Horizontal Plane (N vs E)
   const hCanvas = elements.canvases.hodoH;

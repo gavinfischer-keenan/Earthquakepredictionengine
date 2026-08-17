@@ -22,6 +22,7 @@ export const state = {
   lastPausedTimestamp: null,
   activeTab: 'traces',
   audioEnabled: false,
+  smoothClockOffset: 0.0,
 
   // User controls
   windowSec: 30,

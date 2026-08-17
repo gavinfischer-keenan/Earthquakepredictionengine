@@ -8,19 +8,10 @@ import { filterData } from '../dsp.js';
 
 export function renderOscilloscope() {
   const windowSec = state.windowSec || 30;
-
-  // Determine current display time from latest channel sample
-  let latestT = 0;
-  for (const ch of CHANNELS) {
-    const tsArr = state.timestamps[ch];
-    if (tsArr && tsArr.length > 0) {
-      const lastTs = tsArr[tsArr.length - 1];
-      if (lastTs > latestT) latestT = lastTs;
-    }
-  }
+  const now = Date.now() / 1000;
   const endT = state.paused
-    ? state.lastPausedTimestamp || latestT || Date.now() / 1000
-    : latestT || Date.now() / 1000;
+    ? state.lastPausedTimestamp || now + (state.smoothClockOffset || 0)
+    : now + (state.smoothClockOffset || 0);
   const startT = endT - windowSec;
 
   CHANNELS.forEach((ch) => {

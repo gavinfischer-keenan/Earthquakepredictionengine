@@ -388,12 +388,13 @@ class USGSPoller:
             self._seen_ids.add(event_id)
             new_count += 1
 
-            # Broadcast new observable/regional earthquake to live UI
-            try:
-                from eqengine.web.broadcaster import get_broadcaster
-                await get_broadcaster().broadcast_usgs_event(event_record)
-            except Exception:
-                pass
+            # Only broadcast individual live events after initial history is seeded
+            if getattr(self, "_initial_poll_done", False):
+                try:
+                    from eqengine.web.broadcaster import get_broadcaster
+                    await get_broadcaster().broadcast_usgs_event(event_record)
+                except Exception:
+                    pass
 
             log.info(
                 "usgs_poller.new_event",
@@ -405,6 +406,8 @@ class USGSPoller:
                 is_observable=observable,
                 theor_p=theor_p,
             )
+
+        self._initial_poll_done = True
 
         # Prune old events (strictly retain full 48 hours = 172,800 seconds)
         cutoff_48h = time.time() - 172800.0

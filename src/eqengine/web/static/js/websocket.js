@@ -52,6 +52,15 @@ export function handleMessage(msg) {
   if (msg.type === 'waveform') {
     if (!state.paused) {
       const ts = msg.timestamp || Date.now() / 1000;
+      const localNow = Date.now() / 1000;
+      const diff = ts - localNow;
+
+      if (state.smoothClockOffset === 0.0 || Math.abs(state.smoothClockOffset - diff) > 5.0) {
+        state.smoothClockOffset = diff;
+      } else {
+        state.smoothClockOffset = state.smoothClockOffset * 0.95 + diff * 0.05;
+      }
+
       const channels = msg.channels || {};
 
       for (const [ch, samples] of Object.entries(channels)) {
@@ -80,11 +89,10 @@ export function handleMessage(msg) {
             }
           }
 
-          // Prune buffer to max length
-          if (state.buffers[ch].length > MAX_SAMPLES) {
-            const overflow = state.buffers[ch].length - MAX_SAMPLES;
-            state.buffers[ch].splice(0, overflow);
-            state.timestamps[ch].splice(0, overflow);
+          // Fast amortized pruning (avoiding continuous array shifting)
+          if (state.buffers[ch].length > MAX_SAMPLES + 500) {
+            state.buffers[ch] = state.buffers[ch].slice(-MAX_SAMPLES);
+            state.timestamps[ch] = state.timestamps[ch].slice(-MAX_SAMPLES);
           }
         }
       }

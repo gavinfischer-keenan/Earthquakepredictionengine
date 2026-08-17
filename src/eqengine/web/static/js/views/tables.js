@@ -12,7 +12,9 @@ const SEVERITY_RANKS = { info: 1, advisory: 2, warning: 3, critical: 4 };
 export function addEventToTable(evt) {
   state.allEvents.push(evt);
   if (state.allEvents.length > 200) state.allEvents.shift();
-  renderEventsTable();
+  if (state.activeTab === 'events') {
+    renderEventsTable();
+  }
 }
 
 export function renderEventsTable() {

@@ -46,10 +46,13 @@ export function renderUrbanProfiler() {
   setMeter('meterFootsteps', pSteps, 40);
   setMeter('meterConcert', pConcert, 30);
 
-  // Maintain 5-minute rolling history
+  // Maintain 5-minute rolling history (sampled at 1 Hz)
   const now = Date.now() / 1000;
-  urbanHistory.push({ time: now, wind: pWind, stadium: pStadium, traffic: pTraffic, steps: pSteps, concert: pConcert });
-  if (urbanHistory.length > 300) urbanHistory.shift();
+  if (!renderUrbanProfiler._lastHistory || now - renderUrbanProfiler._lastHistory >= 1.0) {
+    urbanHistory.push({ time: now, wind: pWind, stadium: pStadium, traffic: pTraffic, steps: pSteps, concert: pConcert });
+    if (urbanHistory.length > 300) urbanHistory.shift();
+    renderUrbanProfiler._lastHistory = now;
+  }
 
   // Render History Canvas
   const canvas = document.getElementById('urbanHistoryCanvas');
