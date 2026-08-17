@@ -19,14 +19,14 @@ export function renderHodogram() {
   const enzBuf = state.buffers.ENZ || [];
   const ehzBuf = state.buffers.EHZ || [];
 
-  // Determine available samples (last 2 seconds @ 100 Hz = 200 pts)
-  const pts = Math.min(Math.max(ehzBuf.length, ennBuf.length, 20), 200);
+  // 150 points = 1.5s window @ 100 Hz
+  const pts = Math.min(Math.max(ehzBuf.length, ennBuf.length, 20), 150);
 
   let nDemeaned = [];
   let eDemeaned = [];
   let zDemeaned = [];
 
-  // Prefer triaxial accelerometers if available, otherwise combine vertical geophone with horizontal
+  // Triaxial mode (accelerometer or hybrid)
   if (ennBuf.length >= 10 && eneBuf.length >= 10) {
     const nSlice = ennBuf.slice(-pts);
     const eSlice = eneBuf.slice(-pts);
@@ -46,7 +46,7 @@ export function renderHodogram() {
     eDemeaned = eSlice.map((v) => v - meanE);
     zDemeaned = zSlice.length > 0 ? zSlice.map((v) => v - meanZ) : nSlice.map(() => 0);
   } else if (ehzBuf.length >= 10) {
-    // Single geophone mode: phase-space derivative trajectory
+    // Geophone derivative mode
     const zSlice = ehzBuf.slice(-pts);
     let sumZ = 0;
     for (let i = 0; i < zSlice.length; i++) sumZ += zSlice[i];
@@ -57,16 +57,16 @@ export function renderHodogram() {
     eDemeaned = new Array(zSlice.length);
     for (let i = 0; i < zSlice.length; i++) {
       const prev = i > 0 ? zDemeaned[i - 1] : zDemeaned[i];
-      const deriv = (zDemeaned[i] - prev) * 4.0;
+      const deriv = (zDemeaned[i] - prev) * 3.0;
       nDemeaned[i] = deriv;
-      eDemeaned[i] = zDemeaned[i] * 0.75;
+      eDemeaned[i] = zDemeaned[i] * 0.6;
     }
   }
 
   if (nDemeaned.length < 2) return;
 
-  // Peak calculation for responsive auto-scaling
-  let maxH = 0.1, maxV = 0.1;
+  // Peak calculation for stable auto-scaling
+  let maxH = 0.5, maxV = 0.5;
   for (let i = 0; i < nDemeaned.length; i++) {
     const absH = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2);
     const absV = Math.abs(zDemeaned[i]);
@@ -74,15 +74,17 @@ export function renderHodogram() {
     if (absV > maxV) maxV = absV;
   }
 
-  const targetH = Math.max(maxH * 1.35, 0.4);
-  const targetV = Math.max(maxV * 1.35, 0.4);
+  // Stable scale target with sensible floor so it never over-magnifies off-screen
+  const targetH = Math.max(maxH * 1.4, 4.0);
+  const targetV = Math.max(maxV * 1.4, 4.0);
 
   if (!renderHodogram.smoothScaleH) {
     renderHodogram.smoothScaleH = targetH;
     renderHodogram.smoothScaleV = targetV;
   } else {
-    renderHodogram.smoothScaleH = renderHodogram.smoothScaleH * 0.90 + targetH * 0.10;
-    renderHodogram.smoothScaleV = renderHodogram.smoothScaleV * 0.90 + targetV * 0.10;
+    // Smooth, dampened scale transitions (alpha = 0.05) to eliminate sudden zoom jumps
+    renderHodogram.smoothScaleH = renderHodogram.smoothScaleH * 0.95 + targetH * 0.05;
+    renderHodogram.smoothScaleV = renderHodogram.smoothScaleV * 0.95 + targetV * 0.05;
   }
 
   const scaleH = renderHodogram.smoothScaleH;
@@ -107,13 +109,13 @@ export function renderHodogram() {
       ctx.resetTransform();
       ctx.scale(dpr, dpr);
 
-      // Deep background
+      // Deep obsidian background
       ctx.fillStyle = '#060913';
       ctx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
       const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.78;
+      const radius = Math.min(cx, cy) * 0.70;
 
       // Distance rings
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -141,16 +143,21 @@ export function renderHodogram() {
       ctx.textAlign = 'right';
       ctx.fillText('W', cx - radius - 8, cy + 3);
 
-      // Draw Orbit Trail with gradient opacity
+      // Draw Orbit Trail clamped strictly inside bounding radius
       ctx.lineWidth = 1.8;
       for (let i = 1; i < nDemeaned.length; i++) {
         const alpha = 0.10 + (i / nDemeaned.length) * 0.90;
         ctx.strokeStyle = `rgba(255, 170, 0, ${alpha.toFixed(2)})`;
 
-        const x0 = cx + (eDemeaned[i - 1] / scaleH) * radius;
-        const y0 = cy - (nDemeaned[i - 1] / scaleH) * radius;
-        const x1 = cx + (eDemeaned[i] / scaleH) * radius;
-        const y1 = cy - (nDemeaned[i] / scaleH) * radius;
+        const normE0 = Math.max(-1.0, Math.min(1.0, eDemeaned[i - 1] / scaleH));
+        const normN0 = Math.max(-1.0, Math.min(1.0, nDemeaned[i - 1] / scaleH));
+        const normE1 = Math.max(-1.0, Math.min(1.0, eDemeaned[i] / scaleH));
+        const normN1 = Math.max(-1.0, Math.min(1.0, nDemeaned[i] / scaleH));
+
+        const x0 = cx + normE0 * radius;
+        const y0 = cy - normN0 * radius;
+        const x1 = cx + normE1 * radius;
+        const y1 = cy - normN1 * radius;
 
         ctx.beginPath();
         ctx.moveTo(x0, y0);
@@ -160,14 +167,16 @@ export function renderHodogram() {
 
       // Live leading particle head
       const lastIdx = nDemeaned.length - 1;
-      const headX = cx + (eDemeaned[lastIdx] / scaleH) * radius;
-      const headY = cy - (nDemeaned[lastIdx] / scaleH) * radius;
+      const lastNormE = Math.max(-1.0, Math.min(1.0, eDemeaned[lastIdx] / scaleH));
+      const lastNormN = Math.max(-1.0, Math.min(1.0, nDemeaned[lastIdx] / scaleH));
+      const headX = cx + lastNormE * radius;
+      const headY = cy - lastNormN * radius;
 
       ctx.fillStyle = '#ffaa00';
       ctx.shadowColor = '#ffaa00';
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(headX, headY, 5.0, 0, 2 * Math.PI);
+      ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
       ctx.fill();
       ctx.shadowBlur = 0;
 
@@ -215,7 +224,7 @@ export function renderHodogram() {
 
       const cx = w / 2;
       const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.78;
+      const radius = Math.min(cx, cy) * 0.70;
 
       // Distance rings
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -236,14 +245,14 @@ export function renderHodogram() {
       ctx.font = '700 9.5px JetBrains Mono, monospace';
       ctx.fillStyle = '#94a3b8';
       ctx.textAlign = 'center';
-      ctx.fillText('+Z (Up / ENZ/EHZ)', cx, cy - radius - 6);
+      ctx.fillText('+Z (Up / ENZ)', cx, cy - radius - 6);
       ctx.fillText('-Z (Down)', cx, cy + radius + 14);
       ctx.textAlign = 'left';
       ctx.fillText('+H (Horiz)', cx + radius + 8, cy + 3);
       ctx.textAlign = 'right';
       ctx.fillText('-H', cx - radius - 8, cy + 3);
 
-      // Draw Vertical Orbit Trail
+      // Draw Vertical Orbit Trail clamped strictly inside bounding radius
       ctx.lineWidth = 1.8;
       for (let i = 1; i < zDemeaned.length; i++) {
         const alpha = 0.10 + (i / zDemeaned.length) * 0.90;
@@ -252,10 +261,15 @@ export function renderHodogram() {
         const hMag0 = Math.sqrt(nDemeaned[i - 1] ** 2 + eDemeaned[i - 1] ** 2);
         const hMag1 = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2);
 
-        const x0 = cx + (hMag0 / scaleH) * radius * 0.85;
-        const y0 = cy - (zDemeaned[i - 1] / scaleV) * radius;
-        const x1 = cx + (hMag1 / scaleH) * radius * 0.85;
-        const y1 = cy - (zDemeaned[i] / scaleV) * radius;
+        const normH0 = Math.max(-1.0, Math.min(1.0, hMag0 / scaleH));
+        const normZ0 = Math.max(-1.0, Math.min(1.0, zDemeaned[i - 1] / scaleV));
+        const normH1 = Math.max(-1.0, Math.min(1.0, hMag1 / scaleH));
+        const normZ1 = Math.max(-1.0, Math.min(1.0, zDemeaned[i] / scaleV));
+
+        const x0 = cx + normH0 * radius * 0.85;
+        const y0 = cy - normZ0 * radius;
+        const x1 = cx + normH1 * radius * 0.85;
+        const y1 = cy - normZ1 * radius;
 
         ctx.beginPath();
         ctx.moveTo(x0, y0);
@@ -266,14 +280,16 @@ export function renderHodogram() {
       // Live leading particle head
       const lastIdx = zDemeaned.length - 1;
       const lastHMag = Math.sqrt(nDemeaned[lastIdx] ** 2 + eDemeaned[lastIdx] ** 2);
-      const headX = cx + (lastHMag / scaleH) * radius * 0.85;
-      const headY = cy - (zDemeaned[lastIdx] / scaleV) * radius;
+      const lastNormH = Math.max(-1.0, Math.min(1.0, lastHMag / scaleH));
+      const lastNormZ = Math.max(-1.0, Math.min(1.0, zDemeaned[lastIdx] / scaleV));
+      const headX = cx + lastNormH * radius * 0.85;
+      const headY = cy - lastNormZ * radius;
 
       ctx.fillStyle = '#00d2ff';
       ctx.shadowColor = '#00d2ff';
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(headX, headY, 5.0, 0, 2 * Math.PI);
+      ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
       ctx.fill();
       ctx.shadowBlur = 0;
 
