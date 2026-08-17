@@ -57,6 +57,8 @@
     sortDirection: 'desc',
     mlSortColumn: 'timestamp',
     mlSortDirection: 'desc',
+    sessionStartTime: (Date.now() / 1000),
+    helicorderMinutePeaks: {},
     activeAlert: null,
     sWaveTimerInterval: null,
     incomingTimerInterval: null,
@@ -248,8 +250,24 @@
             const startT = ts - (samples.length - 1) * dt;
 
             for (let i = 0; i < samples.length; i++) {
+              const sTime = startT + i * dt;
               state.buffers[ch].push(samples[i]);
-              state.timestamps[ch].push(startT + i * dt);
+              state.timestamps[ch].push(sTime);
+
+              // Maintain 24-hour minute envelopes for EHZ
+              if (ch === 'EHZ') {
+                const minKey = Math.floor(sTime / 60) * 60;
+                const v = samples[i];
+                if (!state.helicorderMinutePeaks[minKey]) {
+                  state.helicorderMinutePeaks[minKey] = { min: v, max: v, sum: v, count: 1 };
+                } else {
+                  const entry = state.helicorderMinutePeaks[minKey];
+                  if (v < entry.min) entry.min = v;
+                  if (v > entry.max) entry.max = v;
+                  entry.sum += v;
+                  entry.count++;
+                }
+              }
             }
 
             // Prune buffer to max length
@@ -773,113 +791,144 @@
   }
 
   // -------------------------------------------------------------------------
-  // Waterfall Spectrogram Renderer (0–50 Hz Real-Time FFT)
+  // High-Definition (HD) Waterfall Spectrogram Renderer (0–50 Hz Real-Time FFT)
   // -------------------------------------------------------------------------
   const specCanvas = elements.canvases.spectrogram;
   const specCtx = specCanvas ? specCanvas.getContext('2d') : null;
   let specNoiseFloor = 2.0;
   let specMaxPower = 6.0;
 
-  function computePowerSpectrum(rawSlice) {
-    const N = 64;
-    if (!rawSlice || rawSlice.length < N) return new Float32Array(32);
+  // Precompute Twiddle factors & Blackman-Harris window for N=256 (128 discrete frequency bins)
+  const FFT_SIZE = 256;
+  const NUM_FREQ_BINS = FFT_SIZE / 2; // 128 bins (0 to 50 Hz, 0.39 Hz/bin)
+  const fftSin = new Float32Array(FFT_SIZE);
+  const fftCos = new Float32Array(FFT_SIZE);
+  const fftWindow = new Float32Array(FFT_SIZE);
+  for (let i = 0; i < FFT_SIZE; i++) {
+    fftSin[i] = Math.sin((-2 * Math.PI * i) / FFT_SIZE);
+    fftCos[i] = Math.cos((-2 * Math.PI * i) / FFT_SIZE);
+    const a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
+    fftWindow[i] = a0 - a1 * Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)) +
+                        a2 * Math.cos((4 * Math.PI * i) / (FFT_SIZE - 1)) -
+                        a3 * Math.cos((6 * Math.PI * i) / (FFT_SIZE - 1));
+  }
 
-    // 1. Demean
+  function computeHighResPowerSpectrum(rawSlice) {
+    if (!rawSlice || rawSlice.length < FFT_SIZE) return null;
+
+    // 1. Demean & apply Blackman-Harris window
     let sum = 0;
-    for (let i = 0; i < N; i++) sum += rawSlice[i];
-    const mean = sum / N;
+    for (let i = 0; i < FFT_SIZE; i++) sum += rawSlice[i];
+    const mean = sum / FFT_SIZE;
 
-    // 2. Apply Hanning window
-    const windowed = new Float32Array(N);
-    for (let i = 0; i < N; i++) {
-      const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (N - 1)));
-      windowed[i] = (rawSlice[i] - mean) * w;
+    const real = new Float32Array(FFT_SIZE);
+    const imag = new Float32Array(FFT_SIZE);
+    for (let i = 0; i < FFT_SIZE; i++) {
+      real[i] = (rawSlice[i] - mean) * fftWindow[i];
     }
 
-    // 3. 32-bin Real DFT (0 Hz to 50 Hz Nyquist)
-    const numBins = 32;
-    const psd = new Float32Array(numBins);
-
-    for (let k = 0; k < numBins; k++) {
-      let real = 0;
-      let imag = 0;
-      const angleStep = (2 * Math.PI * k) / N;
-      for (let n = 0; n < N; n++) {
-        const angle = angleStep * n;
-        real += windowed[n] * Math.cos(angle);
-        imag -= windowed[n] * Math.sin(angle);
+    // 2. Cooley-Tukey Radix-2 FFT
+    let j = 0;
+    for (let i = 0; i < FFT_SIZE - 1; i++) {
+      if (i < j) {
+        const tr = real[i]; real[i] = real[j]; real[j] = tr;
+        const ti = imag[i]; imag[i] = imag[j]; imag[j] = ti;
       }
-      const power = real * real + imag * imag;
-      // Convert to dB scale: log10(1 + power)
-      psd[k] = Math.log10(1.0 + power);
+      let k = FFT_SIZE >> 1;
+      while (k <= j) {
+        j -= k;
+        k >>= 1;
+      }
+      j += k;
+    }
+
+    for (let len = 2; len <= FFT_SIZE; len <<= 1) {
+      const halfLen = len >> 1;
+      const step = FFT_SIZE / len;
+      for (let i = 0; i < FFT_SIZE; i += len) {
+        let k = 0;
+        for (let m = 0; m < halfLen; m++) {
+          const c = fftCos[k];
+          const s = fftSin[k];
+          const tr = real[i + m + halfLen] * c - imag[i + m + halfLen] * s;
+          const ti = real[i + m + halfLen] * s + imag[i + m + halfLen] * c;
+          real[i + m + halfLen] = real[i + m] - tr;
+          imag[i + m + halfLen] = imag[i + m] - ti;
+          real[i + m] += tr;
+          imag[i + m] += ti;
+          k += step;
+        }
+      }
+    }
+
+    // 3. Compute Power in dB for the 128 positive frequency bins
+    const psd = new Float32Array(NUM_FREQ_BINS);
+    for (let i = 0; i < NUM_FREQ_BINS; i++) {
+      const p = real[i] * real[i] + imag[i] * imag[i];
+      psd[i] = Math.log10(1.0 + p);
     }
     return psd;
   }
 
-  function getSeismicHeatmapColor(val) {
-    // Clamped 0.0 to 1.0
+  function getSeismicHeatmapRGB(val) {
     const v = Math.max(0, Math.min(1, val));
     let r = 0, g = 0, b = 0;
 
     if (v < 0.2) {
-      // Midnight Navy to Deep Blue
       const t = v / 0.2;
       r = Math.floor(5 + 10 * t);
       g = Math.floor(10 + 35 * t);
       b = Math.floor(25 + 120 * t);
     } else if (v < 0.4) {
-      // Deep Blue to Cyan / Teal
       const t = (v - 0.2) / 0.2;
       r = Math.floor(15 + 10 * t);
       g = Math.floor(45 + 150 * t);
       b = Math.floor(145 + 90 * t);
     } else if (v < 0.6) {
-      // Cyan to Emerald / Yellow
       const t = (v - 0.4) / 0.2;
       r = Math.floor(25 + 210 * t);
       g = Math.floor(195 + 40 * t);
       b = Math.floor(235 * (1 - t));
     } else if (v < 0.8) {
-      // Yellow to Vivid Orange / Red
       const t = (v - 0.6) / 0.2;
       r = Math.floor(235 + 20 * t);
       g = Math.floor(235 * (1 - t * 0.7));
       b = 0;
     } else {
-      // Red to Hot White
       const t = (v - 0.8) / 0.2;
       r = 255;
       g = Math.floor(70 + 185 * t);
       b = Math.floor(255 * t);
     }
-    return `rgb(${r},${g},${b})`;
+    return [r, g, b];
   }
 
   function renderSpectrogram() {
     if (!specCanvas || state.activeTab !== 'spectrogram') return;
 
     const rect = specCanvas.getBoundingClientRect();
-    if (specCanvas.width !== rect.width || specCanvas.height !== rect.height) {
-      specCanvas.width = rect.width;
-      specCanvas.height = rect.height;
-      // Clear with dark background on resize
+    const w = rect.width;
+    const h = rect.height;
+    if (w <= 0 || h <= 0) return;
+
+    if (specCanvas.width !== Math.round(w) || specCanvas.height !== Math.round(h)) {
+      specCanvas.width = Math.round(w);
+      specCanvas.height = Math.round(h);
       specCtx.fillStyle = '#050814';
       specCtx.fillRect(0, 0, specCanvas.width, specCanvas.height);
     }
 
-    const w = specCanvas.width;
-    const h = specCanvas.height;
     const buf = state.buffers.EHZ;
-    if (!buf || buf.length < 64) return;
+    if (!buf || buf.length < FFT_SIZE) return;
 
-    // Shift previous spectrogram image 2px to the left
-    specCtx.drawImage(specCanvas, 2, 0, w - 2, h, 0, 0, w - 2, h);
+    // Shift previous spectrogram image 1px to the left (ultra smooth scroll)
+    specCtx.drawImage(specCanvas, 1, 0, w - 1, h, 0, 0, w - 1, h);
 
-    // Compute FFT power spectrum on latest 64 samples
-    const slice = buf.slice(-64);
-    const psd = computePowerSpectrum(slice);
+    // Compute HD FFT power spectrum on latest 256 samples (128 bins)
+    const slice = buf.slice(-FFT_SIZE);
+    const psd = computeHighResPowerSpectrum(slice);
+    if (!psd) return;
 
-    // Adaptively update noise floor and peak power
     let currentPeak = 0;
     let currentMin = 999;
     for (let k = 0; k < psd.length; k++) {
@@ -887,32 +936,53 @@
       if (psd[k] < currentMin) currentMin = psd[k];
     }
     if (currentMin < 999) {
-      specNoiseFloor = specNoiseFloor * 0.95 + currentMin * 0.05;
+      specNoiseFloor = specNoiseFloor * 0.98 + currentMin * 0.02;
     }
     if (currentPeak > 0) {
-      specMaxPower = Math.max(specMaxPower * 0.98 + currentPeak * 0.02, specNoiseFloor + 2.0);
+      specMaxPower = Math.max(specMaxPower * 0.99 + currentPeak * 0.01, specNoiseFloor + 2.0);
     }
 
     const dynamicRange = Math.max(specMaxPower - specNoiseFloor, 1.5);
 
-    // Render frequency column from 0 Hz (bottom) to 50 Hz (top)
-    const numBins = psd.length;
-    const binHeight = h / numBins;
+    // High-resolution vertical scanline interpolation (1 pixel wide column at right edge)
+    const imgData = specCtx.createImageData(1, h);
+    const data = imgData.data;
 
-    for (let b = 0; b < numBins; b++) {
-      const power = psd[b];
+    for (let y = 0; y < h; y++) {
+      // Invert Y: y = 0 is 50 Hz, y = h - 1 is 0 Hz
+      const binFloat = ((h - 1 - y) / (h - 1)) * (NUM_FREQ_BINS - 1);
+      const bin0 = Math.floor(binFloat);
+      const bin1 = Math.min(bin0 + 1, NUM_FREQ_BINS - 1);
+      const frac = binFloat - bin0;
+
+      // Linear interpolation between frequency bins
+      const power = psd[bin0] * (1.0 - frac) + psd[bin1] * frac;
       const normalized = (power - specNoiseFloor) / dynamicRange;
-      const color = getSeismicHeatmapColor(normalized);
+      const [r, g, b] = getSeismicHeatmapRGB(normalized);
 
-      // Invert Y so 0 Hz is at the bottom and 50 Hz is at the top
-      const y = h - (b + 1) * binHeight;
-      specCtx.fillStyle = color;
-      specCtx.fillRect(w - 2, Math.floor(y), 2, Math.ceil(binHeight) + 1);
+      const offset = y * 4;
+      data[offset] = r;
+      data[offset + 1] = g;
+      data[offset + 2] = b;
+      data[offset + 3] = 255;
     }
+
+    specCtx.putImageData(imgData, w - 1, 0);
+
+    // Overlay subtle frequency reference lines
+    specCtx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    specCtx.lineWidth = 1;
+    [10, 20, 30, 40].forEach((freqHz) => {
+      const y = h - (freqHz / 50.0) * h;
+      specCtx.beginPath();
+      specCtx.moveTo(w - 6, y);
+      specCtx.lineTo(w, y);
+      specCtx.stroke();
+    });
   }
 
   // -------------------------------------------------------------------------
-  // 24-Hour Helicorder Renderer
+  // 24-Hour Real Helicorder Drum Renderer
   // -------------------------------------------------------------------------
   const heliCanvas = elements.canvases.helicorder;
   const heliCtx = heliCanvas ? heliCanvas.getContext('2d') : null;
@@ -921,31 +991,40 @@
     if (!heliCanvas || state.activeTab !== 'helicorder') return;
 
     const rect = heliCanvas.getBoundingClientRect();
-    if (heliCanvas.width !== rect.width || heliCanvas.height !== rect.height) {
-      heliCanvas.width = rect.width;
-      heliCanvas.height = rect.height;
+    const w = rect.width;
+    const h = rect.height;
+    if (w <= 0 || h <= 0) return;
+
+    if (heliCanvas.width !== Math.round(w) || heliCanvas.height !== Math.round(h)) {
+      heliCanvas.width = Math.round(w);
+      heliCanvas.height = Math.round(h);
     }
 
-    const w = heliCanvas.width;
-    const h = heliCanvas.height;
     const rows = 24;
     const rowHeight = h / rows;
 
-    heliCtx.fillStyle = '#0a0e14';
+    heliCtx.fillStyle = '#0a0e17';
     heliCtx.fillRect(0, 0, w, h);
 
     const now = new Date();
-    const curHour = now.getUTCHours();
-    const curMin = now.getUTCMinutes();
+    const curUtcSec = now.getTime() / 1000;
+    const curMinuteUtc = Math.floor(curUtcSec / 60) * 60;
+    const curHourUtc = Math.floor(curUtcSec / 3600) * 3600;
     const curSec = now.getUTCSeconds();
+    const curMin = now.getUTCMinutes();
     const curFraction = (curMin * 60 + curSec) / 3600;
+
+    const sessionStartMinute = Math.floor(state.sessionStartTime / 60) * 60;
 
     for (let r = 0; r < rows; r++) {
       const y = r * rowHeight;
-      const hour = (curHour - (rows - 1 - r) + 24) % 24;
+      const rowStartUtc = curHourUtc - (rows - 1 - r) * 3600;
+      const rowEndUtc = rowStartUtc + 3600;
+      const rowDate = new Date(rowStartUtc * 1000);
+      const hourStr = String(rowDate.getUTCHours()).padStart(2, '0');
 
-      // Row background & separator
-      heliCtx.strokeStyle = '#1e293b';
+      // Row separator
+      heliCtx.strokeStyle = '#182234';
       heliCtx.lineWidth = 1;
       heliCtx.beginPath();
       heliCtx.moveTo(0, y + rowHeight);
@@ -954,45 +1033,88 @@
 
       // Timestamp margin
       heliCtx.fillStyle = '#64748b';
-      heliCtx.font = '10px JetBrains Mono';
-      heliCtx.fillText(`${String(hour).padStart(2, '0')}:00 UTC`, 8, y + rowHeight - 4);
+      heliCtx.font = '10px monospace';
+      heliCtx.fillText(`${hourStr}:00`, 8, y + rowHeight / 2 + 4);
 
-      // Trace line
+      // Baseline guide
+      const traceStartX = 56;
+      const traceEndX = w - 10;
+      const traceWidth = traceEndX - traceStartX;
+      const centerY = y + rowHeight / 2;
+
+      heliCtx.strokeStyle = '#1e293b';
+      heliCtx.beginPath();
+      heliCtx.moveTo(traceStartX, centerY);
+      heliCtx.lineTo(traceEndX, centerY);
+      heliCtx.stroke();
+
+      const isCurrentRow = r === rows - 1;
+      const activeEndX = isCurrentRow ? traceStartX + curFraction * traceWidth : traceEndX;
+
+      // Draw real recorded minute envelopes
       heliCtx.strokeStyle = r % 2 === 0 ? '#38bdf8' : '#818cf8';
       heliCtx.lineWidth = 1.2;
       heliCtx.beginPath();
-      heliCtx.moveTo(60, y + rowHeight / 2);
 
-      const isCurrentRow = r === rows - 1;
-      const endX = isCurrentRow ? 60 + curFraction * (w - 70) : w - 10;
+      let started = false;
+      for (let m = 0; m < 60; m++) {
+        const minKey = rowStartUtc + m * 60;
+        if (minKey < sessionStartMinute) continue; // Unrecorded past: Leave blank paper!
+        if (minKey > curMinuteUtc) break;          // Future minutes: Leave blank paper!
 
-      for (let x = 60; x < endX; x += 3) {
-        // Draw baseline with slight ambient noise
-        const noise = (Math.sin(x * 0.1 + r) * 2);
-        heliCtx.lineTo(x, y + rowHeight / 2 + noise);
+        const x0 = traceStartX + (m / 60) * traceWidth;
+        const x1 = traceStartX + ((m + 1) / 60) * traceWidth;
+        const xMid = (x0 + x1) / 2;
+
+        const peak = state.helicorderMinutePeaks[minKey];
+        if (peak && peak.count > 0) {
+          const mean = peak.sum / peak.count;
+          const maxDefl = Math.min((peak.max - mean) * 0.0015, rowHeight * 0.42);
+          const minDefl = Math.max((peak.min - mean) * 0.0015, -rowHeight * 0.42);
+
+          if (!started) {
+            heliCtx.moveTo(x0, centerY);
+            started = true;
+          }
+          heliCtx.lineTo(xMid - 1, centerY - maxDefl);
+          heliCtx.lineTo(xMid + 1, centerY - minDefl);
+          heliCtx.lineTo(x1, centerY);
+        } else {
+          if (!started) {
+            heliCtx.moveTo(x0, centerY);
+            started = true;
+          }
+          heliCtx.lineTo(x1, centerY);
+        }
       }
-      heliCtx.stroke();
+      if (started) heliCtx.stroke();
 
-      // Current moving record needle
+      // Current moving record needle (Red Stylus)
       if (isCurrentRow) {
         heliCtx.fillStyle = '#ef4444';
-        heliCtx.fillRect(endX - 2, y + 2, 4, rowHeight - 4);
+        heliCtx.shadowColor = '#ef4444';
+        heliCtx.shadowBlur = 6;
+        heliCtx.fillRect(activeEndX - 1.5, y + 2, 3, rowHeight - 4);
+        heliCtx.shadowBlur = 0;
       }
     }
 
     // Paint USGS Earthquake Markers on Helicorder
     state.usgsEvents.forEach((uEvt) => {
       const eTime = new Date((uEvt.time || 0) * 1000);
-      const eMin = eTime.getUTCMinutes();
-      const eSec = eTime.getUTCSeconds();
-      const ageHours = (now.getTime() - eTime.getTime()) / (1000 * 3600);
+      const eUtcSec = eTime.getTime() / 1000;
+      const ageHours = (curUtcSec - eUtcSec) / 3600;
 
       if (ageHours >= 0 && ageHours < 24) {
         const row = (rows - 1) - Math.floor(ageHours);
         if (row >= 0 && row < rows) {
           const y = row * rowHeight;
+          const eMin = eTime.getUTCMinutes();
+          const eSec = eTime.getUTCSeconds();
           const fraction = (eMin * 60 + eSec) / 3600;
-          const x = 60 + fraction * (w - 70);
+          const traceStartX = 56;
+          const traceWidth = (w - 10) - traceStartX;
+          const x = traceStartX + fraction * traceWidth;
 
           heliCtx.fillStyle = '#f59e0b';
           heliCtx.beginPath();
@@ -1000,7 +1122,7 @@
           heliCtx.fill();
 
           heliCtx.fillStyle = '#fff';
-          heliCtx.font = '8px JetBrains Mono';
+          heliCtx.font = '8px monospace';
           heliCtx.fillText(`M${uEvt.magnitude}`, x + 5, y + rowHeight / 2 + 3);
         }
       }
@@ -1094,7 +1216,7 @@
   }
 
   // -------------------------------------------------------------------------
-  // 3D / 2D Hodogram Renderer
+  // 3D / 2D Hodogram & Particle Motion Orbit Renderer
   // -------------------------------------------------------------------------
   function renderHodogram() {
     if (state.activeTab !== 'hodogram') return;
@@ -1102,45 +1224,209 @@
     const nBuf = state.buffers.ENN;
     const eBuf = state.buffers.ENE;
     const zBuf = state.buffers.ENZ;
-    if (nBuf.length < 50) return;
+    if (!nBuf || !eBuf || !zBuf || nBuf.length < 30) return;
 
-    // Horizontal Plane: N vs E
+    const pts = Math.min(nBuf.length, 300); // 3 seconds @ 100 Hz
+    const nSlice = nBuf.slice(-pts);
+    const eSlice = eBuf.slice(-pts);
+    const zSlice = zBuf.slice(-pts);
+
+    // 1. Demean each axis to center motion precisely at (0,0)
+    let meanN = 0, meanE = 0, meanZ = 0;
+    for (let i = 0; i < pts; i++) {
+      meanN += nSlice[i];
+      meanE += eSlice[i];
+      meanZ += zSlice[i];
+    }
+    meanN /= pts; meanE /= pts; meanZ /= pts;
+
+    const nDemeaned = new Float64Array(pts);
+    const eDemeaned = new Float64Array(pts);
+    const zDemeaned = new Float64Array(pts);
+    let maxH = 5, maxV = 5;
+
+    for (let i = 0; i < pts; i++) {
+      const n = nSlice[i] - meanN;
+      const e = eSlice[i] - meanE;
+      const z = zSlice[i] - meanZ;
+      nDemeaned[i] = n;
+      eDemeaned[i] = e;
+      zDemeaned[i] = z;
+
+      const radH = Math.sqrt(n * n + e * e);
+      const radV = Math.sqrt(z * z + radH * radH);
+      if (radH > maxH) maxH = radH;
+      if (radV > maxV) maxV = radV;
+    }
+
+    const scaleH = Math.max(maxH * 1.3, 10.0);
+    const scaleV = Math.max(maxV * 1.3, 10.0);
+
+    // -----------------------------------------------------------------------
+    // Canvas 1: Horizontal Plane (N-S vs E-W)
+    // -----------------------------------------------------------------------
     const hCanvas = elements.canvases.hodoH;
     if (hCanvas) {
       const rect = hCanvas.getBoundingClientRect();
-      if (hCanvas.width !== rect.width || hCanvas.height !== rect.height) {
-        hCanvas.width = rect.width;
-        hCanvas.height = rect.height;
+      const w = rect.width;
+      const h = rect.height;
+      if (w > 0 && h > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        if (hCanvas.width !== Math.round(w * dpr) || hCanvas.height !== Math.round(h * dpr)) {
+          hCanvas.width = Math.round(w * dpr);
+          hCanvas.height = Math.round(h * dpr);
+        }
+
+        const ctx = hCanvas.getContext('2d');
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
+
+        // Background & Polar Grid Rings
+        ctx.fillStyle = '#0a0e17';
+        ctx.fillRect(0, 0, w, h);
+
+        const cx = w / 2;
+        const cy = h / 2;
+        const radius = Math.min(cx, cy) * 0.82;
+
+        // Concentric distance rings
+        ctx.strokeStyle = '#182234';
+        ctx.lineWidth = 1;
+        [0.33, 0.66, 1.0].forEach((rPct) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius * rPct, 0, 2 * Math.PI);
+          ctx.stroke();
+        });
+
+        // Crosshairs
+        ctx.strokeStyle = '#25354d';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
+        ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
+        ctx.stroke();
+
+        // Compass labels
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('N (ENN)', cx, cy - radius - 6);
+        ctx.fillText('S', cx, cy + radius + 14);
+        ctx.fillText('E (ENE)', cx + radius + 22, cy + 3);
+        ctx.fillText('W', cx - radius - 14, cy + 3);
+
+        // Draw particle orbit with fading amber trail
+        for (let i = 1; i < pts; i++) {
+          const alpha = 0.12 + 0.88 * (i / pts);
+          const x0 = cx + (eDemeaned[i - 1] / scaleH) * radius;
+          const y0 = cy - (nDemeaned[i - 1] / scaleH) * radius;
+          const x1 = cx + (eDemeaned[i] / scaleH) * radius;
+          const y1 = cy - (nDemeaned[i] / scaleH) * radius;
+
+          ctx.strokeStyle = `rgba(255, 170, 0, ${alpha})`;
+          ctx.lineWidth = 1.0 + 1.5 * (i / pts);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+        }
+
+        // Instantaneous particle dot (Head)
+        const headX = cx + (eDemeaned[pts - 1] / scaleH) * radius;
+        const headY = cy - (nDemeaned[pts - 1] / scaleH) * radius;
+
+        ctx.fillStyle = '#ffaa00';
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
       }
-      const ctx = hCanvas.getContext('2d');
-      const w = hCanvas.width;
-      const h = hCanvas.height;
+    }
 
-      ctx.fillStyle = '#0a0e14';
-      ctx.fillRect(0, 0, w, h);
+    // -----------------------------------------------------------------------
+    // Canvas 2: Vertical Motion Plane (Z vs Horizontal)
+    // -----------------------------------------------------------------------
+    const vCanvas = elements.canvases.hodoV;
+    if (vCanvas) {
+      const rect = vCanvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (w > 0 && h > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        if (vCanvas.width !== Math.round(w * dpr) || vCanvas.height !== Math.round(h * dpr)) {
+          vCanvas.width = Math.round(w * dpr);
+          vCanvas.height = Math.round(h * dpr);
+        }
 
-      // Axes
-      ctx.strokeStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, h);
-      ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2);
-      ctx.stroke();
+        const ctx = vCanvas.getContext('2d');
+        ctx.resetTransform();
+        ctx.scale(dpr, dpr);
 
-      // Particle Trail
-      const pts = Math.min(nBuf.length, 300);
-      ctx.strokeStyle = '#ffaa00';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
+        ctx.fillStyle = '#0a0e17';
+        ctx.fillRect(0, 0, w, h);
 
-      const scale = 2000;
-      for (let i = 0; i < pts; i++) {
-        const idx = nBuf.length - pts + i;
-        const x = w / 2 + (eBuf[idx] / scale) * (w / 2);
-        const y = h / 2 - (nBuf[idx] / scale) * (h / 2);
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        const cx = w / 2;
+        const cy = h / 2;
+        const radius = Math.min(cx, cy) * 0.82;
+
+        // Concentric distance rings
+        ctx.strokeStyle = '#182234';
+        ctx.lineWidth = 1;
+        [0.33, 0.66, 1.0].forEach((rPct) => {
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius * rPct, 0, 2 * Math.PI);
+          ctx.stroke();
+        });
+
+        // Crosshairs
+        ctx.strokeStyle = '#25354d';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - radius); ctx.lineTo(cx, cy + radius);
+        ctx.moveTo(cx - radius, cy); ctx.lineTo(cx + radius, cy);
+        ctx.stroke();
+
+        // Axis labels
+        ctx.fillStyle = '#64748b';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('+Z (Up / ENZ)', cx, cy - radius - 6);
+        ctx.fillText('-Z (Down)', cx, cy + radius + 14);
+        ctx.fillText('+H (Horiz)', cx + radius + 24, cy + 3);
+        ctx.fillText('-H', cx - radius - 14, cy + 3);
+
+        // Draw vertical trajectory with fading cyan trail
+        for (let i = 1; i < pts; i++) {
+          const alpha = 0.12 + 0.88 * (i / pts);
+          const radH0 = Math.sqrt(nDemeaned[i - 1] ** 2 + eDemeaned[i - 1] ** 2) * (nDemeaned[i - 1] >= 0 ? 1 : -1);
+          const radH1 = Math.sqrt(nDemeaned[i] ** 2 + eDemeaned[i] ** 2) * (nDemeaned[i] >= 0 ? 1 : -1);
+
+          const x0 = cx + (radH0 / scaleV) * radius;
+          const y0 = cy - (zDemeaned[i - 1] / scaleV) * radius;
+          const x1 = cx + (radH1 / scaleV) * radius;
+          const y1 = cy - (zDemeaned[i] / scaleV) * radius;
+
+          ctx.strokeStyle = `rgba(0, 210, 255, ${alpha})`;
+          ctx.lineWidth = 1.0 + 1.5 * (i / pts);
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+        }
+
+        // Instantaneous particle dot (Head)
+        const lastH = Math.sqrt(nDemeaned[pts - 1] ** 2 + eDemeaned[pts - 1] ** 2) * (nDemeaned[pts - 1] >= 0 ? 1 : -1);
+        const headX = cx + (lastH / scaleV) * radius;
+        const headY = cy - (zDemeaned[pts - 1] / scaleV) * radius;
+
+        ctx.fillStyle = '#00d2ff';
+        ctx.shadowColor = '#00d2ff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(headX, headY, 4.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
       }
-      ctx.stroke();
     }
   }
 
@@ -1438,6 +1724,18 @@
       }
     });
   }
+
+  // -------------------------------------------------------------------------
+  // Science Interpretation Guide Collapsible Listeners
+  // -------------------------------------------------------------------------
+  document.querySelectorAll('.guide-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const guide = toggle.closest('.science-guide');
+      if (guide) {
+        guide.classList.toggle('collapsed');
+      }
+    });
+  });
 
   // -------------------------------------------------------------------------
   // Startup

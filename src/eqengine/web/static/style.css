@@ -774,6 +774,7 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
   padding: 8px;
+  min-height: 300px;
 }
 
 .hodo-card h4 {
@@ -787,6 +788,8 @@ body {
   flex: 1;
   width: 100%;
   height: 100%;
+  min-height: 260px;
+  display: block;
 }
 
 /* --------------------------------------------------------------------------
@@ -852,6 +855,79 @@ body {
 
 .text-center { text-align: center; }
 .text-muted { color: var(--text-muted); }
+
+/* --------------------------------------------------------------------------
+   Science & Interpretation Guides
+   -------------------------------------------------------------------------- */
+.science-guide {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.guide-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  user-select: none;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.guide-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.guide-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.science-guide.collapsed .guide-chevron {
+  transform: rotate(-90deg);
+}
+
+.science-guide.collapsed .guide-content {
+  display: none;
+}
+
+.guide-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(10, 14, 23, 0.85);
+}
+
+.guide-col h5 {
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.guide-col p {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.guide-col b {
+  color: var(--text-primary);
+}
 
 /* --------------------------------------------------------------------------
    ML Dataset & Annotation Panel

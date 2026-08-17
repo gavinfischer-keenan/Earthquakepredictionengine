@@ -152,6 +152,29 @@
     <main class="main-content">
       <!-- 1. Oscilloscope View -->
       <section class="tab-panel active" id="tab-oscilloscope">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — How to read live 4-channel seismograms (Normal vs Earthquake)</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p><b>EHZ:</b> High-sensitivity vertical geophone (ground velocity in counts).<br>
+                 <b>ENZ/ENN/ENE:</b> Triaxial strong-motion accelerometers (vertical, N-S, E-W in m/s²).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
+              <p>Quiet background is a thin line (±20–150 counts, &lt;0.0003 m/s²). Footsteps/stairs cause isolated sharp micro-spikes (&lt;0.4s). Passing trucks cause narrow 8–15 Hz wave trains lasting 5–10s.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
+              <p>Begins with a sharp, high-frequency <b>P-wave</b> arrival on EHZ/ENZ, followed seconds later by powerful rolling horizontal <b>S-waves</b> on ENN/ENE (3–5x larger amplitude) that slowly decay over tens of seconds.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="oscilloscope-container">
           <!-- Channel 1: EHZ (Vertical Velocity Geophone) -->
           <div class="channel-card" id="card-EHZ">
@@ -230,6 +253,28 @@
 
       <!-- 2. Spectrogram View -->
       <section class="tab-panel" id="tab-spectrogram">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Understanding the HD Frequency Waterfall (0–50 Hz)</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Real-time 128-bin FFT power spectrum from <b>0 Hz (bottom)</b> to <b>50 Hz (top)</b> scrolling over time. Deep Navy = quiet; Yellow/Red = intense seismic energy.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
+              <p>Quiet ambient background is solid deep navy. Heavy diesel trucks create narrow streaks around 8–14 Hz. Greek Theatre concerts appear as low-bass bands around 25–45 Hz. Cal Stadium crowds create 2–8 Hz acoustic hum.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
+              <p>A sudden, blazing <b>vertical wall of yellow/red fire</b> spanning all frequencies (0.5 to 25+ Hz), with intense low-frequency resonance (1–5 Hz) that persists across the waterfall for tens of seconds.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="spectrogram-container">
           <div class="panel-header">
             <h3>Real-Time Waterfall Spectrogram (EHZ 0–50 Hz)</h3>
@@ -250,6 +295,28 @@
 
       <!-- 3. Helicorder Drum Plot View -->
       <section class="tab-panel" id="tab-helicorder">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — How the 24-Hour Helicorder Drum Works</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Traditional seismological 24-hour rotating drum record. Each horizontal row is 1 full UTC hour (60 minutes left-to-right). The bottom row is the current hour with the red live stylus needle.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
+              <p>Nighttime quiet hours show clean, thin horizontal lines. Daytime human activity shows gentle thickening (1–2 mm). Hours before station startup remain clean blank paper.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
+              <p>A dramatic, spindle-shaped packet with large vertical deflections that may cross multiple rows. Local quakes show sharp onset; distant regional quakes show wide, smooth rolling spindles with gold USGS magnitude pins.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="helicorder-container">
           <div class="panel-header">
             <h3>24-Hour Helicorder Drum Record (EHZ)</h3>
@@ -263,11 +330,33 @@
 
       <!-- 4. STA/LTA & RSAM View -->
       <section class="tab-panel" id="tab-stalta">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Understanding STA/LTA & RSAM Energy</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p><b>STA/LTA:</b> Ratio of Short-Term Average (1s) to Long-Term Average (10s) background. <b>RSAM:</b> Real-time Seismic Amplitude Measurement (continuous 1-minute velocity power).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
+              <p>Normal STA/LTA ratio fluctuates between 0.8x and 1.5x (trigger threshold is calibrated to 6.5x to prevent false alarms). Normal background RSAM is &lt;50 counts. Heavy trucks briefly bump RSAM to 150–400 counts.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
+              <p>STA/LTA spikes vertically past 6.5x (often 15x–100x) within 0.1s. RSAM surges into thousands (2,000 to 50,000+ counts) and remains elevated across consecutive 1-minute bars.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="telemetry-grid">
           <div class="telemetry-card">
             <div class="card-header">
               <h4>STA/LTA Ratio Monitor & Trigger Threshold</h4>
-              <span class="threshold-badge">Trigger ON: 4.0x | OFF: 1.5x</span>
+              <span class="threshold-badge">Trigger ON: 6.5x | OFF: 2.0x</span>
             </div>
             <div class="canvas-wrapper-sm">
               <canvas id="staltaCanvas" class="stalta-canvas"></canvas>
@@ -288,6 +377,28 @@
 
       <!-- 5. 3D Particle Motion Hodogram -->
       <section class="tab-panel" id="tab-hodogram">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Reading 3D Particle Motion Orbits</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>3D ground particle motion vector trajectory combining North-South, East-West, and Vertical strong-motion accelerometer axes.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHAT IS NORMAL (AMBIENT)</h5>
+              <p>Small random isotropic cluster or jitter centered at (0,0). Local footsteps appear as tiny vertical loops.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ WHAT AN EARTHQUAKE LOOKS LIKE</h5>
+              <p><b>P-Wave:</b> Elongated linear needle pointing directly along the back-azimuth toward/away from the epicenter. <b>Rayleigh Waves:</b> Retrograde rolling elliptical loop in the vertical plane.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="hodogram-container">
           <div class="panel-header">
             <h3>Tri-Axial Ground Motion Orbit (Hodogram)</h3>
@@ -308,6 +419,28 @@
 
       <!-- 6. Event History Log -->
       <section class="tab-panel" id="tab-events">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — Early Warnings, Severity Badges & USGS Detections</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Real-time early warning trigger log and external USGS earthquake feeds within 500 miles of Berkeley.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WARNING SEVERITIES</h5>
+              <p><b>INFO:</b> Minor micro-trigger or distant event. <b>ADVISORY:</b> Local vibration exceeding STA/LTA 6.5x. <b>WARNING:</b> Potential felt shaking (&gt;M2.5 or PGA &gt;0.02 m/s²). <b>CRITICAL:</b> Severe shaking (&gt;M4.5).</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ USGS THEORETICAL ARRIVALS</h5>
+              <p>Calculates exact P-wave (~6.0 km/s) and S-wave (~3.5 km/s) travel times through California crust to provide countdown seconds before shaking arrives.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="events-container">
           <div class="panel-header">
             <h3>Detected Seismic Events & Warning Alerts</h3>
@@ -337,6 +470,27 @@
 
       <!-- 7. ML Annotation & Ground-Truth Dataset Builder -->
       <section class="tab-panel" id="tab-ml">
+        <!-- Science Interpretation Guide -->
+        <div class="science-guide">
+          <div class="guide-toggle">
+            <span>💡 <b>Observatory Guide</b> — How Machine Learning Learns the Environment</span>
+            <span class="guide-chevron">▼ Details</span>
+          </div>
+          <div class="guide-content">
+            <div class="guide-col">
+              <h5 style="color: var(--ch-enz);">ℹ️ WHAT IT MEASURES</h5>
+              <p>Extracts 4-channel 100 Hz raw waveform tensors (.npz) and computes 3D PGA (m/s²), spectral centroid, dominant frequency, and polarization metrics.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #22c55e;">🟢 WHY WE LABEL LOCAL NOISE</h5>
+              <p>By tagging stairs, jumping, garbage trucks, Cal Stadium games, and Greek Theatre concerts, neural networks on Node 02 learn the exact signature of your home to eliminate false alarms.</p>
+            </div>
+            <div class="guide-col">
+              <h5 style="color: #ef4444;">⚡ HOW TRAINING WORKS</h5>
+              <p>Standardized JSONL catalogs (events.jsonl, annotations.jsonl) and NPZ snippets feed directly into PyTorch CNN/Transformer classifiers on the Ryzen processing node.</p>
+            </div>
+          </div>
+        </div>
         <div class="ml-container">
           <div class="panel-header">
             <h3>🤖 ML Training Dataset & Real-Time Event Annotator</h3>
