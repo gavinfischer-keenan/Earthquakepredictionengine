@@ -115,7 +115,7 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         }
 
     @app.get("/api/helicorder/latest")
-    async def get_latest_helicorder(channel: str = "EHZ") -> Response:
+    async def get_latest_helicorder(channel: str = "EHZ", block: int = 0) -> Response:
         """Fetch the official high-resolution 24-hour Helicorder drum plot directly from Raspberry Shake."""
         shake_host = config.shake_ip
         station = config.shake_station
@@ -126,9 +126,10 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
                 res = await client.get(f"http://{shake_host}/heli/")
                 if res.status_code == 200:
                     pattern = rf'href=[\"\']({station}_{channel.upper()}[^\"\']+\.gif)[^\"\']*[\"\']'
-                    matches = re.findall(pattern, res.text)
+                    matches = sorted(list(set(re.findall(pattern, res.text))), reverse=True)
                     if matches:
-                        img_filename = matches[0]
+                        idx = min(max(block, 0), len(matches) - 1)
+                        img_filename = matches[idx]
                         img_res = await client.get(f"http://{shake_host}/heli/{img_filename}")
                         if img_res.status_code == 200:
                             return Response(content=img_res.content, media_type="image/gif")

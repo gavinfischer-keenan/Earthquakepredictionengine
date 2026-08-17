@@ -4,6 +4,7 @@
  * 1. 📸 Direct Station Drum Plot (Default):
  *    - Official ultra-high-resolution (1570x1732) 24h continuous seismograph drum image
  *      rendered directly by the Raspberry Shake on-board digitizer with 100% of recorded earthquakes.
+ *    - Allows selecting time blocks (Current active 12h, Morning 12h, Yesterday).
  *    - Auto-refreshes every 60 seconds.
  * 2. 🎛️ Live Dynamic Canvas:
  *    - Real-time continuous multi-sample seismic waveform drum with Scale Exaggeration multiplier,
@@ -15,11 +16,13 @@ import { elements } from '../dom.js';
 
 let lastHeliImgRefresh = 0;
 let lastSelectedChannel = 'EHZ';
+let lastSelectedBlock = '0';
 let isListenersAttached = false;
 
 export function initHelicorderListeners() {
   if (isListenersAttached) return;
   const modeSelect = document.getElementById('heliModeSelect');
+  const blockSelect = document.getElementById('heliBlockSelect');
   const channelSelect = document.getElementById('heliChannelSelect');
   const liveImg = document.getElementById('heliLiveImage');
 
@@ -29,10 +32,20 @@ export function initHelicorderListeners() {
     });
   }
 
+  if (blockSelect) {
+    blockSelect.addEventListener('change', () => {
+      if (liveImg && channelSelect) {
+        liveImg.src = `/api/helicorder/latest?channel=${channelSelect.value}&block=${blockSelect.value}&t=${Date.now()}`;
+      }
+      renderHelicorder();
+    });
+  }
+
   if (channelSelect) {
     channelSelect.addEventListener('change', () => {
+      const block = blockSelect ? blockSelect.value : '0';
       if (liveImg) {
-        liveImg.src = `/api/helicorder/latest?channel=${channelSelect.value}&t=${Date.now()}`;
+        liveImg.src = `/api/helicorder/latest?channel=${channelSelect.value}&block=${block}&t=${Date.now()}`;
       }
       renderHelicorder();
     });
@@ -47,9 +60,13 @@ export function renderHelicorder() {
   const modeSelect = document.getElementById('heliModeSelect');
   const mode = modeSelect ? modeSelect.value : 'drum';
 
+  const blockSelect = document.getElementById('heliBlockSelect');
+  const activeBlock = blockSelect ? blockSelect.value : '0';
+
   const channelSelect = document.getElementById('heliChannelSelect');
   const activeChannel = channelSelect ? channelSelect.value : 'EHZ';
 
+  const blockGroup = document.getElementById('heliBlockGroup');
   const imgContainer = document.getElementById('heliImageContainer');
   const canvas = elements.canvases.helicorder || document.getElementById('helicorderCanvas');
   const liveImg = document.getElementById('heliLiveImage');
@@ -58,15 +75,17 @@ export function renderHelicorder() {
   // Mode 1: 📸 Direct Station Drum Plot (100% Real Hardware Drum Image)
   // =========================================================================
   if (mode === 'drum') {
+    if (blockGroup) blockGroup.style.display = 'flex';
     if (imgContainer) imgContainer.style.display = 'flex';
     if (canvas) canvas.style.display = 'none';
 
     const nowMs = Date.now();
     if (liveImg) {
-      if (!liveImg.src || liveImg.src.indexOf('/api/helicorder/latest') === -1 || nowMs - lastHeliImgRefresh > 60000 || lastSelectedChannel !== activeChannel) {
-        liveImg.src = `/api/helicorder/latest?channel=${activeChannel}&t=${nowMs}`;
+      if (!liveImg.src || liveImg.src.indexOf('/api/helicorder/latest') === -1 || nowMs - lastHeliImgRefresh > 60000 || lastSelectedChannel !== activeChannel || lastSelectedBlock !== activeBlock) {
+        liveImg.src = `/api/helicorder/latest?channel=${activeChannel}&block=${activeBlock}&t=${nowMs}`;
         lastHeliImgRefresh = nowMs;
         lastSelectedChannel = activeChannel;
+        lastSelectedBlock = activeBlock;
       }
     }
     return;
@@ -75,6 +94,7 @@ export function renderHelicorder() {
   // =========================================================================
   // Mode 2: 🎛️ Live Dynamic Canvas (Pure Real Data — Zero Dummy Sine Waves)
   // =========================================================================
+  if (blockGroup) blockGroup.style.display = 'none';
   if (imgContainer) imgContainer.style.display = 'none';
   if (!canvas) return;
   canvas.style.display = 'block';
@@ -129,7 +149,7 @@ export function renderHelicorder() {
   const localOffsetHours = -7;
 
   // 1. Draw Minute Grid Columns & Bottom Minute Axis
-  ctx.font = '8.5px JetBrains Mono, monospace';
+  ctx.font = '8.5px "JetBrains Mono", monospace';
   ctx.textAlign = 'center';
 
   for (let m = 0; m <= 60; m += 5) {
@@ -175,7 +195,7 @@ export function renderHelicorder() {
       ctx.fillRect(leftGutter, rowY, traceW, rowH);
     }
 
-    ctx.font = isCurrentHour ? '700 9.5px JetBrains Mono, monospace' : '9px JetBrains Mono, monospace';
+    ctx.font = isCurrentHour ? '700 9.5px "JetBrains Mono", monospace' : '9px "JetBrains Mono", monospace';
     ctx.textAlign = 'right';
     ctx.fillStyle = isCurrentHour ? '#00ff88' : isPastHour ? '#cbd5e1' : '#475569';
     ctx.fillText(utcLabel, leftGutter - 6, centerY + 3);
@@ -270,7 +290,7 @@ export function renderHelicorder() {
   ctx.lineWidth = 1;
   ctx.strokeRect(leftGutter, 0, traceW, numRows * rowH);
 
-  ctx.font = '8.5px JetBrains Mono, monospace';
+  ctx.font = '8.5px "JetBrains Mono", monospace';
   ctx.fillStyle = '#64748b';
   ctx.textAlign = 'left';
   ctx.fillText('UTC', 12, 10);

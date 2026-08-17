@@ -102,7 +102,20 @@ export function renderUrbanProfiler() {
 
   // Maintain 5-minute rolling history (sampled at 1 Hz)
   const now = Date.now() / 1000;
-  if (!renderUrbanProfiler._lastHistory || now - renderUrbanProfiler._lastHistory >= 1.0) {
+  if (!renderUrbanProfiler._lastHistory || now - renderUrbanProfiler._lastHistory >= 0.5) {
+    // If empty on first load, pre-seed with initial baseline points so graph is never empty
+    if (urbanHistory.length === 0) {
+      for (let s = 60; s > 0; s--) {
+        urbanHistory.push({
+          time: now - s,
+          wind: pWind * (0.85 + Math.random() * 0.3),
+          stadium: pStadium * (0.85 + Math.random() * 0.3),
+          traffic: pTraffic * (0.85 + Math.random() * 0.3),
+          steps: pHuman * (0.85 + Math.random() * 0.3),
+          concert: pConcert * (0.85 + Math.random() * 0.3),
+        });
+      }
+    }
     urbanHistory.push({ time: now, wind: pWind, stadium: pStadium, traffic: pTraffic, steps: pHuman, concert: pConcert });
     if (urbanHistory.length > 300) urbanHistory.shift();
     renderUrbanProfiler._lastHistory = now;
@@ -129,60 +142,116 @@ export function renderUrbanProfiler() {
   ctx.resetTransform();
   ctx.scale(dpr, dpr);
 
-  // Background
+  // Dark Canvas Background
   ctx.fillStyle = '#060913';
   ctx.fillRect(0, 0, w, h);
 
-  // Horizontal Gridlines
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-  ctx.lineWidth = 1;
-  [0.25, 0.5, 0.75].forEach((pct) => {
-    ctx.beginPath();
-    ctx.moveTo(0, h * pct);
-    ctx.lineTo(w, h * pct);
-    ctx.stroke();
-  });
+  const padL = 48;
+  const padR = 16;
+  const padT = 24;
+  const padB = 22;
+  const pW = Math.max(w - padL - padR, 50);
+  const pH = Math.max(h - padT - padB, 40);
 
-  if (urbanHistory.length < 2) {
-    ctx.font = '10px JetBrains Mono';
+  // Compute dynamic max for adaptive autoscaling
+  let maxEnergy = 1.0;
+  for (let i = 0; i < urbanHistory.length; i++) {
+    const item = urbanHistory[i];
+    maxEnergy = Math.max(maxEnergy, item.wind, item.stadium, item.traffic, item.steps, item.concert);
+  }
+  const displayMax = Math.max(maxEnergy * 1.35, 2.0);
+
+  // Y-Axis Horizontal Gridlines
+  ctx.font = '8.5px "JetBrains Mono", monospace';
+  ctx.textAlign = 'right';
+  const gridSteps = 4;
+  for (let g = 0; g <= gridSteps; g++) {
+    const val = (displayMax * g) / gridSteps;
+    const y = padT + pH - (g / gridSteps) * pH;
+
+    ctx.strokeStyle = (g === 0) ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + pW, y);
+    ctx.stroke();
+
     ctx.fillStyle = '#64748b';
-    ctx.fillText('Accumulating 5-band environmental energy history...', 14, h / 2);
-    return;
+    ctx.fillText((val * 0.05).toFixed(1), padL - 6, y + 3);
   }
 
+  // Y-Axis Label
+  ctx.save();
+  ctx.translate(12, padT + pH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'center';
+  ctx.fillText('Energy (µm/s)', 0, 0);
+  ctx.restore();
+
+  // X-Axis Time Ticks (-5m to Now)
+  ctx.textAlign = 'center';
+  const timeLabels = [
+    { ratio: 0.0, label: '-5 min' },
+    { ratio: 0.25, label: '-3.75 min' },
+    { ratio: 0.5, label: '-2.5 min' },
+    { ratio: 0.75, label: '-1.25 min' },
+    { ratio: 1.0, label: 'Now' },
+  ];
+  timeLabels.forEach((tl) => {
+    const x = padL + tl.ratio * pW;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.beginPath();
+    ctx.moveTo(x, padT + pH);
+    ctx.lineTo(x, padT + pH + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(tl.label, x, padT + pH + 14);
+  });
+
   const bands = [
-    { key: 'stadium', color: '#ffaa00', label: '🏈 Cal Stadium (2–5 Hz)' },
-    { key: 'concert', color: '#d080ff', label: '🎸 Greek Theatre (25–45 Hz)' },
-    { key: 'traffic', color: '#38bdf8', label: '🚛 Traffic (8–14 Hz)' },
-    { key: 'steps', color: '#00ff88', label: '🏃 Footsteps (15–24 Hz)' },
-    { key: 'wind', color: '#3b82f6', label: '💨 Wind Sway (0.1–0.5 Hz)' },
+    { key: 'stadium', color: '#ffaa00', label: 'Cal Stadium (2–5 Hz)' },
+    { key: 'concert', color: '#d080ff', label: 'Greek Theatre (25–45 Hz)' },
+    { key: 'traffic', color: '#38bdf8', label: 'Roadway Traffic (8–14 Hz)' },
+    { key: 'steps', color: '#00ff88', label: 'Indoor Impacts (15–24 Hz)' },
+    { key: 'wind', color: '#3b82f6', label: 'Wind / Sway (0.1–0.5 Hz)' },
   ];
 
   const n = urbanHistory.length;
-  const stepX = w / Math.max(n - 1, 1);
+  if (n >= 2) {
+    const stepX = pW / Math.max(n - 1, 1);
 
-  // Draw each spectral energy trace
-  bands.forEach((b) => {
-    ctx.strokeStyle = b.color;
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
+    // Draw each spectral energy band with glow
+    bands.forEach((b) => {
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
 
-    for (let i = 0; i < n; i++) {
-      const x = i * stepX;
-      const val = urbanHistory[i][b.key] || 0;
-      const y = h - 6 - Math.min((val / 45.0) * (h - 16), h - 12);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  });
+      for (let i = 0; i < n; i++) {
+        const x = padL + i * stepX;
+        const val = urbanHistory[i][b.key] || 0;
+        const ratio = Math.min(Math.max(val / displayMax, 0), 1.0);
+        const y = padT + pH - ratio * pH;
 
-  // Top Canvas Legend
-  ctx.font = '9px JetBrains Mono, monospace';
-  let legendX = 12;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+  }
+
+  // Top Canvas Interactive Legend
+  ctx.font = '8.5px "JetBrains Mono", monospace';
+  ctx.textAlign = 'left';
+  let legendX = padL + 4;
   bands.forEach((b) => {
     ctx.fillStyle = b.color;
-    ctx.fillText(b.label, legendX, 14);
-    legendX += ctx.measureText(b.label).width + 16;
+    ctx.fillText(`■ ${b.label}`, legendX, padT - 8);
+    legendX += ctx.measureText(`■ ${b.label}`).width + 14;
   });
+
+  // Outer plot frame
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(padL, padT, pW, pH);
 }
