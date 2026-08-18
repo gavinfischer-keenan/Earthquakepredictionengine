@@ -703,19 +703,11 @@ export function initRadarMap() {
     maxZoom: 19,
   });
 
-  // Strict 700-mile bounding box around station (37.8696° N, 122.2491° W)
-  const bounds700Mi = L.latLngBounds([
-    [28.0, -134.5], // South-West corner (Pacific margin / Baja California Sur)
-    [49.0, -109.0], // North-East corner (Puget Sound / Yellowstone / Utah-Wyoming)
-  ]);
-
   leafletMap = L.map('radarMap', {
     center: [37.8696, -122.2491],
     zoom: 7,
-    minZoom: 5,
+    minZoom: 3,
     maxZoom: 18,
-    maxBounds: bounds700Mi,
-    maxBoundsViscosity: 1.0,
     layers: [darkMatterLayer],
     zoomControl: true,
   });
