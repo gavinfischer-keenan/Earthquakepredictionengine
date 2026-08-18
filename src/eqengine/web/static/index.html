@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Earthquake Prediction Engine — Seismic Observatory</title>
-  <link rel="stylesheet" href="/static/style.css?v=1787016500">
+  <link rel="stylesheet" href="/static/style.css?v=1787017500">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -793,6 +793,15 @@
           <div class="radar-map-wrapper">
             <div id="radarMap" class="radar-leaflet-map"></div>
 
+            <!-- Top Floating Basemap View Selector Bar -->
+            <div class="radar-floating-basemap-bar" id="radarBasemapSelector">
+              <span class="basemap-bar-label">🗺️ MAP VIEW:</span>
+              <button class="basemap-pill active" id="btnBasemapDark" data-layer="dark">🌌 Dark Observatory</button>
+              <button class="basemap-pill" id="btnBasemapSatellite" data-layer="satellite">🛰️ Satellite (ESRI)</button>
+              <button class="basemap-pill" id="btnBasemapTopo" data-layer="topo">⛰️ Topography</button>
+              <button class="basemap-pill" id="btnBasemapOsm" data-layer="osm">🗺️ Streets (OSM)</button>
+            </div>
+
             <!-- Left-Side Dynamic Recent Seismic Events Drawer -->
             <div class="radar-events-drawer" id="radarEventsDrawer">
               <!-- Collapsed Handle (Shown when drawer is minimized) -->
@@ -812,11 +821,17 @@
                     <button class="drawer-toggle-btn" id="radarDrawerCollapseBtn" title="Collapse Drawer">◀</button>
                   </div>
                 </div>
+                <div class="drawer-filter-tabs">
+                  <button class="drawer-tab active" data-filter="all" id="radarTabAll">All Events</button>
+                  <button class="drawer-tab" data-filter="recent" id="radarTabRecent">🕒 Recent 48h</button>
+                  <button class="drawer-tab" data-filter="historic" id="radarTabHistoric">⭐ Historic Giants</button>
+                </div>
                 <div class="drawer-controls">
                   <div class="drawer-sort-group">
                     <label for="radarSortSelect">Sort:</label>
                     <select id="radarSortSelect" class="hud-select-sm">
                       <option value="time" selected>🕒 Most Recent</option>
+                      <option value="historic">⭐ Historic Giants First</option>
                       <option value="mag">⚡ Largest Magnitude</option>
                       <option value="dist">📏 Closest to Berkeley</option>
                     </select>
@@ -826,7 +841,7 @@
                 <div class="drawer-historic-toggle">
                   <label class="hud-checkbox-label">
                     <input type="checkbox" id="radarHistoricCheckbox" class="hud-checkbox" checked />
-                    <span>⭐ Show Historic Epicenters (M ≥ 6.0)</span>
+                    <span>⭐ Show Historic Starbursts (M ≥ 5.5) on Map</span>
                   </label>
                 </div>
               </div>
@@ -1278,6 +1293,6 @@
     </footer>
   </div>
 
-  <script type="module" src="/static/js/main.js?v=1787016500"></script>
+  <script type="module" src="/static/js/main.js?v=1787017500"></script>
 </body>
 </html>

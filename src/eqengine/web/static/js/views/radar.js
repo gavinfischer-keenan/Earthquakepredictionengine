@@ -235,47 +235,99 @@ export const HISTORIC_EARTHQUAKES = [
     coords: [37.75, -122.55], // Off Daly City / Olema
     fault: 'San Andreas Fault (Northern Segment, 470 km rupture)',
     distanceMiles: 18.2,
-    summary: 'The catastrophic Great 1906 earthquake ruptured 296 miles of the San Andreas Fault from San Juan Bautista to Cape Mendocino. Ground displacement reached 28 feet (8.5m) near Point Reyes, leveling cities and igniting the Great Fire of San Francisco.',
+    summary: 'The catastrophic Great 1906 earthquake ruptured 296 miles of the San Andreas Fault from San Juan Bautista to Cape Mendocino with up to 28 feet (8.5m) of horizontal offset; triggered the Great Fire destroying 80% of San Francisco.',
     shakingIntensity: 'MMI XI (Extreme / Violent)',
   },
   {
-    id: 'loma_prieta_1989',
-    name: '1989 Loma Prieta ("World Series") Earthquake',
-    year: 1989,
-    date: 'October 17, 1989 (17:04 PDT)',
-    magnitude: 6.9,
-    depthKm: 19.0,
-    coords: [37.036, -121.883], // Santa Cruz Mountains near Loma Prieta peak
-    fault: 'San Andreas Fault (Santa Cruz Mountains segment)',
-    distanceMiles: 59.4,
-    summary: 'Struck during Game 3 warmups of the Bay Bridge World Series (Giants vs A\'s). Caused the collapse of the upper deck of the I-880 Cypress Street Viaduct in Oakland and a section of the San Francisco-Oakland Bay Bridge.',
-    shakingIntensity: 'MMI IX (Violent)',
+    id: 'fort_tejon_1857',
+    name: '1857 Great Fort Tejon Earthquake',
+    year: 1857,
+    date: 'January 9, 1857 (08:20 PST)',
+    magnitude: 7.9,
+    depthKm: 12.0,
+    coords: [35.720, -120.300], // Cholame / Carrizo Plain
+    fault: 'San Andreas Fault (Southern & Central segments, 350 km rupture)',
+    distanceMiles: 186.0,
+    summary: 'One of the largest recorded earthquakes in US history. Ruptured 225 miles of the San Andreas Fault from Parkfield to Wrightwood with up to 30 feet of lateral offset in the Carrizo Plain.',
+    shakingIntensity: 'MMI X (Extreme)',
   },
   {
-    id: 'hayward_1868',
-    name: '1868 Great Hayward Fault Earthquake',
-    year: 1868,
-    date: 'October 21, 1868 (07:53 PST)',
-    magnitude: 6.8,
+    id: 'lone_pine_1872',
+    name: '1872 Great Lone Pine / Owens Valley Earthquake',
+    year: 1872,
+    date: 'March 26, 1872 (02:30 PST)',
+    magnitude: 7.8,
     depthKm: 10.0,
-    coords: [37.70, -122.10], // Directly on Hayward Fault near San Leandro/Hayward
-    fault: 'Hayward Fault (Southern & Central segments, 32 km rupture)',
-    distanceMiles: 14.1,
-    summary: 'Known as the "Original Great San Francisco Earthquake" before 1906. Ruptured directly through the East Bay from San Leandro to Warm Springs, destroying the Alameda County Courthouse and severely shaking the Berkeley Hills.',
+    coords: [36.58, -118.06], // Lone Pine / Owens Valley
+    fault: 'Owens Valley Fault (Eastern California Shear Zone)',
+    distanceMiles: 248.0,
+    summary: 'One of the top 3 largest earthquakes in California history; produced a 100-km surface scarp with up to 23 feet of strike-slip and 17 feet of vertical displacement; felt in Mexico and Nevada.',
+    shakingIntensity: 'MMI X (Extreme)',
+  },
+  {
+    id: 'landers_1992',
+    name: '1992 Landers Earthquake',
+    year: 1992,
+    date: 'June 28, 1992 (04:57 PDT)',
+    magnitude: 7.3,
+    depthKm: 1.1,
+    coords: [34.200, -116.437], // High Desert / Landers
+    fault: 'Johnson Valley, Kickapoo, Homestead Valley, & Camp Rock Faults',
+    distanceMiles: 412.0,
+    summary: 'A complex multi-fault rupture jumping across 5 distinct faults over 70 km; triggered remote microseisms across Yellowstone and California, followed 3 hours later by the M6.5 Big Bear earthquake.',
     shakingIntensity: 'MMI IX (Violent)',
   },
   {
-    id: 'south_napa_2014',
-    name: '2014 South Napa Earthquake',
-    year: 2014,
-    date: 'August 24, 2014 (03:20 PDT)',
-    magnitude: 6.0,
-    depthKm: 11.1,
-    coords: [38.215, -122.312], // 6 km NW of American Canyon
-    fault: 'West Napa Fault System',
-    distanceMiles: 24.2,
-    summary: 'The largest earthquake in the San Francisco Bay Area since Loma Prieta. Surface faulting ruptured through Napa valley vineyards and historic brick architecture in downtown Napa.',
-    shakingIntensity: 'MMI VIII (Severe)',
+    id: 'hebgen_1959',
+    name: '1959 Hebgen Lake / Yellowstone Earthquake',
+    year: 1959,
+    date: 'August 17, 1959 (23:37 MST)',
+    magnitude: 7.3,
+    depthKm: 10.0,
+    coords: [44.83, -111.20], // Near Hebgen Lake / West Yellowstone, MT
+    fault: 'Hebgen Lake & Red Canyon Normal Faults',
+    distanceMiles: 692.0,
+    summary: 'Triggered the massive Madison Canyon rockslide (80 million tons of rock) damming the Madison River to create Earthquake Lake; created 20-foot vertical fault scarps.',
+    shakingIntensity: 'MMI X (Extreme)',
+  },
+  {
+    id: 'cape_mendocino_1992',
+    name: '1992 Cape Mendocino Earthquake',
+    year: 1992,
+    date: 'April 25, 1992 (11:06 PDT)',
+    magnitude: 7.2,
+    depthKm: 15.0,
+    coords: [40.33, -124.23], // Petrolia / Mendocino Triple Junction
+    fault: 'Cascadia Megathrust Subduction Zone',
+    distanceMiles: 202.0,
+    summary: 'The only recorded modern megathrust earthquake on the Cascadia Subduction Zone in California. Uplifted the shoreline by 1.4 meters near Petrolia and generated a localized tsunami along the Pacific coast.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'el_mayor_2010',
+    name: '2010 El Mayor–Cucapah Earthquake',
+    year: 2010,
+    date: 'April 4, 2010 (15:40 PDT)',
+    magnitude: 7.2,
+    depthKm: 10.0,
+    coords: [32.259, -115.287], // Baja California / Mexicali Valley
+    fault: 'Laguna Salada / Indiviso Fault System',
+    distanceMiles: 512.0,
+    summary: 'A complex multi-fault rupture spanning 120 km of faults in northern Baja California that shook skyscrapers in San Diego and Los Angeles.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'eureka_1980',
+    name: '1980 Eureka / Gorda Plate Earthquake',
+    year: 1980,
+    date: 'November 8, 1980 (02:27 PST)',
+    magnitude: 7.2,
+    depthKm: 19.0,
+    coords: [41.12, -124.64], // Offshore Cape Mendocino
+    fault: 'Gorda Plate Intraplate Strike-Slip Fault',
+    distanceMiles: 254.0,
+    summary: 'Major left-lateral rupture within the oceanic Gorda Plate offshore Humboldt County; collapsed an overpass on Highway 101 and shook coastal Northern California.',
+    shakingIntensity: 'MMI VII (Very Strong)',
   },
   {
     id: 'ridgecrest_2019',
@@ -288,19 +340,6 @@ export const HISTORIC_EARTHQUAKES = [
     fault: 'Little Lake Fault / Eastern California Shear Zone',
     distanceMiles: 298.5,
     summary: 'Ruptured conjugate strike-slip faults following an M6.4 foreshock. Caused visible surface ruptures and severe ground displacement across the Searles Valley and Naval Air Weapons Station China Lake.',
-    shakingIntensity: 'MMI IX (Violent)',
-  },
-  {
-    id: 'northridge_1994',
-    name: '1994 Northridge Earthquake',
-    year: 1994,
-    date: 'January 17, 1994 (04:30 PST)',
-    magnitude: 6.7,
-    depthKm: 18.2,
-    coords: [34.213, -118.537], // San Fernando Valley / Reseda
-    fault: 'Northridge Blind Thrust Fault',
-    distanceMiles: 320.0,
-    summary: 'One of the costliest natural disasters in US history. The hidden blind thrust fault produced extreme peak ground accelerations (up to 1.82 g) that collapsed freeway overpasses and parking structures across Los Angeles.',
     shakingIntensity: 'MMI IX (Violent)',
   },
   {
@@ -317,108 +356,43 @@ export const HISTORIC_EARTHQUAKES = [
     shakingIntensity: 'MMI VIII (Severe)',
   },
   {
-    id: 'landers_1992',
-    name: '1992 Landers Earthquake',
-    year: 1992,
-    date: 'June 28, 1992 (04:57 PDT)',
-    magnitude: 7.3,
-    depthKm: 1.1,
-    coords: [34.200, -116.437], // High Desert / Landers
-    fault: 'Johnson Valley, Kickapoo, Homestead Valley, & Camp Rock Faults',
-    distanceMiles: 412.0,
-    summary: 'A complex multi-fault rupture jumping across 5 distinct faults over 70 km. Triggered remote microseisms across Yellowstone and California, followed 3 hours later by the M6.5 Big Bear earthquake.',
-    shakingIntensity: 'MMI IX (Violent)',
-  },
-  {
-    id: 'cape_mendocino_1992',
-    name: '1992 Cape Mendocino Earthquake',
-    year: 1992,
-    date: 'April 25, 1992 (11:06 PDT)',
-    magnitude: 7.2,
-    depthKm: 15.0,
-    coords: [40.33, -124.23], // Petrolia / Mendocino Triple Junction
-    fault: 'Cascadia Megathrust Subduction Zone',
-    distanceMiles: 202.0,
-    summary: 'The only recorded modern megathrust earthquake on the Cascadia Subduction Zone in California. Uplifted the shoreline by 1.4 meters near Petrolia and generated a localized tsunami along the Pacific coast.',
-    shakingIntensity: 'MMI IX (Violent)',
-  },
-  {
-    id: 'san_simeon_2003',
-    name: '2003 San Simeon Earthquake',
-    year: 2003,
-    date: 'December 22, 2003 (11:15 PST)',
-    magnitude: 6.6,
-    depthKm: 7.6,
-    coords: [35.700, -121.100], // Central Coast near Paso Robles
-    fault: 'Oceanic Fault Zone',
-    distanceMiles: 162.0,
-    summary: 'Struck the Santa Lucia Range on the Central Coast, damaging historic unreinforced masonry buildings in Paso Robles and causing hot sulfur springs to erupt into parking lots.',
-    shakingIntensity: 'MMI VIII (Severe)',
-  },
-  {
-    id: 'morgan_hill_1984',
-    name: '1984 Morgan Hill Earthquake',
-    year: 1984,
-    date: 'April 24, 1984 (13:15 PST)',
-    magnitude: 6.2,
-    depthKm: 8.0,
-    coords: [37.310, -121.680], // Calaveras Fault near Mt. Hamilton
-    fault: 'Calaveras Fault (Central segment)',
-    distanceMiles: 48.3,
-    summary: 'Unilateral rupture extending 30 km southward along the Calaveras Fault with severe directivity effects focusing seismic waves into Morgan Hill.',
-    shakingIntensity: 'MMI VIII (Severe)',
-  },
-  {
-    id: 'parkfield_1966',
-    name: '1966 Parkfield Earthquake',
-    year: 1966,
-    date: 'June 28, 1966 (20:26 PST)',
-    magnitude: 6.0,
-    depthKm: 8.9,
-    coords: [35.900, -120.500], // San Andreas Fault at Parkfield
-    fault: 'San Andreas Fault (Parkfield creeping transition segment)',
-    distanceMiles: 171.0,
-    summary: 'Part of the famous repeating Parkfield earthquake sequence (1857, 1881, 1901, 1922, 1934, 1966, 2004) that led the USGS to install the world\'s densest earthquake sensor array (SAFOD borehole observatory).',
-    shakingIntensity: 'MMI VII (Very Strong)',
-  },
-  {
-    id: 'fort_tejon_1857',
-    name: '1857 Great Fort Tejon Earthquake',
-    year: 1857,
-    date: 'January 9, 1857 (08:20 PST)',
-    magnitude: 7.9,
+    id: 'fairview_1954',
+    name: '1954 Fairview Peak & Dixie Valley Earthquakes',
+    year: 1954,
+    date: 'December 16, 1954 (03:07 PST)',
+    magnitude: 7.1,
     depthKm: 12.0,
-    coords: [35.720, -120.300], // Cholame / Carrizo Plain
-    fault: 'San Andreas Fault (Southern & Central segments, 350 km rupture)',
-    distanceMiles: 186.0,
-    summary: 'One of the largest recorded earthquakes in US history. Ruptured 225 miles of the San Andreas Fault from Parkfield to Wrightwood with up to 30 feet of lateral offset in the Carrizo Plain.',
+    coords: [39.30, -118.15], // Churchill County, Nevada
+    fault: 'Fairview Peak & Dixie Valley Faults (Central Nevada Seismic Zone)',
+    distanceMiles: 262.0,
+    summary: 'Twin major earthquakes occurring 4 minutes apart that created 20-foot vertical and horizontal surface ruptures visible for miles across the Great Basin.',
     shakingIntensity: 'MMI X (Extreme)',
   },
   {
-    id: 'ferndale_2022',
-    name: '2022 Ferndale / Humboldt County Earthquake',
-    year: 2022,
-    date: 'December 20, 2022 (02:34 PST)',
-    magnitude: 6.4,
-    depthKm: 17.9,
-    coords: [40.530, -124.430], // 12 km WSW of Ferndale
-    fault: 'Mendocino Fracture Zone / Gorda Plate',
-    distanceMiles: 215.0,
-    summary: 'Strike-slip rupture within the subducting Gorda oceanic plate near the Mendocino Triple Junction. Caused liquefaction and shut down the historic Fernbridge on Highway 211.',
+    id: 'olympia_1949',
+    name: '1949 Olympia / Puget Sound Earthquake',
+    year: 1949,
+    date: 'April 13, 1949 (11:55 PST)',
+    magnitude: 7.1,
+    depthKm: 54.0,
+    coords: [47.100, -122.600], // Puget Sound, WA
+    fault: 'Cascadia Intraplate Deep Benioff Zone',
+    distanceMiles: 680.0,
+    summary: 'Major deep intraslab earthquake beneath South Puget Sound causing extensive damage to brick buildings from Portland to Seattle.',
     shakingIntensity: 'MMI VIII (Severe)',
   },
   {
-    id: 'hebgen_1959',
-    name: '1959 Hebgen Lake / Yellowstone Earthquake',
-    year: 1959,
-    date: 'August 17, 1959 (23:37 MST)',
-    magnitude: 7.3,
-    depthKm: 10.0,
-    coords: [44.83, -111.20], // Near Hebgen Lake / West Yellowstone, MT
-    fault: 'Hebgen Lake & Red Canyon Normal Faults',
-    distanceMiles: 692.0,
-    summary: 'Triggered the massive Madison Canyon rockslide (80 million tons of rock) damming the Madison River to create Earthquake Lake; created 20-foot vertical fault scarps.',
-    shakingIntensity: 'MMI X (Extreme)',
+    id: 'loma_prieta_1989',
+    name: '1989 Loma Prieta ("World Series") Earthquake',
+    year: 1989,
+    date: 'October 17, 1989 (17:04 PDT)',
+    magnitude: 6.9,
+    depthKm: 19.0,
+    coords: [37.036, -121.883], // Santa Cruz Mountains near Loma Prieta peak
+    fault: 'San Andreas Fault (Santa Cruz Mountains segment)',
+    distanceMiles: 59.4,
+    summary: 'Struck during Game 3 warmups of the Bay Bridge World Series (Giants vs A\'s). Caused the collapse of the upper deck of the I-880 Cypress Street Viaduct in Oakland and a section of the San Francisco-Oakland Bay Bridge.',
+    shakingIntensity: 'MMI IX (Violent)',
   },
   {
     id: 'borah_1983',
@@ -434,30 +408,69 @@ export const HISTORIC_EARTHQUAKES = [
     shakingIntensity: 'MMI IX (Violent)',
   },
   {
-    id: 'fairview_1954',
-    name: '1954 Fairview Peak & Dixie Valley Earthquakes',
-    year: 1954,
-    date: 'December 16, 1954 (03:07 PST)',
-    magnitude: 7.1,
-    depthKm: 12.0,
-    coords: [39.30, -118.15], // Churchill County, Nevada
-    fault: 'Fairview Peak & Dixie Valley Faults (Central Nevada Seismic Zone)',
-    distanceMiles: 262.0,
-    summary: 'Twin major earthquakes occurring 4 minutes apart that created 20-foot vertical and horizontal surface ruptures visible for miles across the Great Basin.',
-    shakingIntensity: 'MMI X (Extreme)',
+    id: 'hayward_1868',
+    name: '1868 Great Hayward Fault Earthquake',
+    year: 1868,
+    date: 'October 21, 1868 (07:53 PST)',
+    magnitude: 6.8,
+    depthKm: 10.0,
+    coords: [37.70, -122.10], // Directly on Hayward Fault near San Leandro/Hayward
+    fault: 'Hayward Fault (Southern & Central segments, 32 km rupture)',
+    distanceMiles: 14.1,
+    summary: 'Known as the "Original Great San Francisco Earthquake" before 1906. Ruptured directly through the East Bay from San Leandro to Warm Springs, destroying the Alameda County Courthouse and severely shaking the Berkeley Hills.',
+    shakingIntensity: 'MMI IX (Violent)',
   },
   {
-    id: 'el_mayor_2010',
-    name: '2010 El Mayor–Cucapah Earthquake',
-    year: 2010,
-    date: 'April 4, 2010 (15:40 PDT)',
-    magnitude: 7.2,
-    depthKm: 10.0,
-    coords: [32.259, -115.287], // Baja California / Mexicali Valley
-    fault: 'Laguna Salada / Indiviso Fault System',
-    distanceMiles: 512.0,
-    summary: 'A complex multi-fault rupture spanning 120 km of faults in northern Baja California that shook skyscrapers in San Diego and Los Angeles.',
+    id: 'nisqually_2001',
+    name: '2001 Nisqually / Puget Sound Earthquake',
+    year: 2001,
+    date: 'February 28, 2001 (10:54 PST)',
+    magnitude: 6.8,
+    depthKm: 52.0,
+    coords: [47.149, -122.727], // South Puget Sound / Olympia, WA
+    fault: 'Cascadia Intraplate Deep Benioff Zone',
+    distanceMiles: 684.0,
+    summary: 'Deep slab earthquake beneath Puget Sound shaking Seattle, Olympia, and Tacoma; damaged the Alaskan Way Viaduct and Sea-Tac air traffic control tower.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'northridge_1994',
+    name: '1994 Northridge Earthquake',
+    year: 1994,
+    date: 'January 17, 1994 (04:30 PST)',
+    magnitude: 6.7,
+    depthKm: 18.2,
+    coords: [34.213, -118.537], // San Fernando Valley / Reseda
+    fault: 'Northridge Blind Thrust Fault',
+    distanceMiles: 320.0,
+    summary: 'One of the costliest natural disasters in US history. The hidden blind thrust fault produced extreme peak ground accelerations (up to 1.82 g) that collapsed freeway overpasses and parking structures across Los Angeles.',
     shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'san_fernando_1971',
+    name: '1971 San Fernando / Sylmar Earthquake',
+    year: 1971,
+    date: 'February 9, 1971 (06:00 PST)',
+    magnitude: 6.6,
+    depthKm: 8.4,
+    coords: [34.41, -118.40], // San Fernando Valley / Sylmar
+    fault: 'San Fernando Fault Zone (Sierra Madre Fault system)',
+    distanceMiles: 312.0,
+    summary: 'Severely damaged the Olive View Hospital and Lower San Fernando Dam, prompting landmark California earthquake building code reforms (Alquist-Priolo Act).',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'san_simeon_2003',
+    name: '2003 San Simeon Earthquake',
+    year: 2003,
+    date: 'December 22, 2003 (11:15 PST)',
+    magnitude: 6.6,
+    depthKm: 7.6,
+    coords: [35.700, -121.100], // Central Coast near Paso Robles
+    fault: 'Oceanic Fault Zone',
+    distanceMiles: 162.0,
+    summary: 'Struck the Santa Lucia Range on the Central Coast, damaging historic unreinforced masonry buildings in Paso Robles and causing hot sulfur springs to erupt into parking lots.',
+    shakingIntensity: 'MMI VIII (Severe)',
   },
   {
     id: 'stanley_2020',
@@ -486,30 +499,95 @@ export const HISTORIC_EARTHQUAKES = [
     shakingIntensity: 'MMI VIII (Severe)',
   },
   {
-    id: 'nisqually_2001',
-    name: '2001 Nisqually / Puget Sound Earthquake',
-    year: 2001,
-    date: 'February 28, 2001 (10:54 PST)',
-    magnitude: 6.8,
-    depthKm: 52.0,
-    coords: [47.149, -122.727], // South Puget Sound / Olympia, WA
-    fault: 'Cascadia Intraplate Deep Benioff Zone',
-    distanceMiles: 684.0,
-    summary: 'Deep slab earthquake beneath Puget Sound shaking Seattle, Olympia, and Tacoma; damaged the Alaskan Way Viaduct and Sea-Tac air traffic control tower.',
+    id: 'big_bear_1992',
+    name: '1992 Big Bear Earthquake',
+    year: 1992,
+    date: 'June 28, 1992 (08:05 PDT)',
+    magnitude: 6.5,
+    depthKm: 5.0,
+    coords: [34.20, -116.82], // San Bernardino Mountains
+    fault: 'Northridge / Helendale Fault stepover',
+    distanceMiles: 395.0,
+    summary: 'Triggered just 3 hours after the M7.3 Landers earthquake along a conjugate northeast-trending left-lateral fault in the San Bernardino Mountains.',
     shakingIntensity: 'MMI VIII (Severe)',
   },
   {
-    id: 'olympia_1949',
-    name: '1949 Olympia / Puget Sound Earthquake',
-    year: 1949,
-    date: 'April 13, 1949 (11:55 PST)',
-    magnitude: 7.1,
-    depthKm: 54.0,
-    coords: [47.100, -122.600], // Puget Sound, WA
-    fault: 'Cascadia Intraplate Deep Benioff Zone',
-    distanceMiles: 680.0,
-    summary: 'Major deep intraslab earthquake beneath South Puget Sound causing extensive damage to brick buildings from Portland to Seattle.',
+    id: 'ridgecrest_foreshock_2019',
+    name: '2019 Ridgecrest M6.4 Foreshock',
+    year: 2019,
+    date: 'July 4, 2019 (10:33 PDT)',
+    magnitude: 6.4,
+    depthKm: 10.5,
+    coords: [35.705, -117.508], // Searles Valley / Ridgecrest
+    fault: 'Little Lake Fault Zone',
+    distanceMiles: 302.0,
+    summary: 'Occurred on 4th of July on a northeast-trending fault, triggering thousands of aftershocks and culminating in the M7.1 mainshock 34 hours later.',
     shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'ferndale_2022',
+    name: '2022 Ferndale / Humboldt County Earthquake',
+    year: 2022,
+    date: 'December 20, 2022 (02:34 PST)',
+    magnitude: 6.4,
+    depthKm: 17.9,
+    coords: [40.530, -124.430], // 12 km WSW of Ferndale
+    fault: 'Mendocino Fracture Zone / Gorda Plate',
+    distanceMiles: 215.0,
+    summary: 'Strike-slip rupture within the subducting Gorda oceanic plate near the Mendocino Triple Junction. Caused liquefaction and shut down the historic Fernbridge on Highway 211.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'morgan_hill_1984',
+    name: '1984 Morgan Hill Earthquake',
+    year: 1984,
+    date: 'April 24, 1984 (13:15 PST)',
+    magnitude: 6.2,
+    depthKm: 8.0,
+    coords: [37.310, -121.680], // Calaveras Fault near Mt. Hamilton
+    fault: 'Calaveras Fault (Central segment)',
+    distanceMiles: 48.3,
+    summary: 'Unilateral rupture extending 30 km southward along the Calaveras Fault with severe directivity effects focusing seismic waves into Morgan Hill.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'south_napa_2014',
+    name: '2014 South Napa Earthquake',
+    year: 2014,
+    date: 'August 24, 2014 (03:20 PDT)',
+    magnitude: 6.0,
+    depthKm: 11.1,
+    coords: [38.215, -122.312], // 6 km NW of American Canyon
+    fault: 'West Napa Fault System',
+    distanceMiles: 24.2,
+    summary: 'The largest earthquake in the San Francisco Bay Area since Loma Prieta. Surface faulting ruptured through Napa valley vineyards and historic brick architecture in downtown Napa.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'parkfield_2004',
+    name: '2004 Parkfield Earthquake',
+    year: 2004,
+    date: 'September 28, 2004 (10:15 PDT)',
+    magnitude: 6.0,
+    depthKm: 7.9,
+    coords: [35.815, -120.374], // San Andreas Fault at Parkfield
+    fault: 'San Andreas Fault (Parkfield segment)',
+    distanceMiles: 178.0,
+    summary: 'The long-awaited characteristic Parkfield event recorded by the dense USGS SAFOD borehole instrumentation array, confirming repeating rupture physics.',
+    shakingIntensity: 'MMI VII (Very Strong)',
+  },
+  {
+    id: 'parkfield_1966',
+    name: '1966 Parkfield Earthquake',
+    year: 1966,
+    date: 'June 28, 1966 (20:26 PST)',
+    magnitude: 6.0,
+    depthKm: 8.9,
+    coords: [35.900, -120.500], // San Andreas Fault at Parkfield
+    fault: 'San Andreas Fault (Parkfield creeping transition segment)',
+    distanceMiles: 171.0,
+    summary: 'Part of the famous repeating Parkfield earthquake sequence (1857, 1881, 1901, 1922, 1934, 1966, 2004) that led the USGS to build the SAFOD borehole observatory.',
+    shakingIntensity: 'MMI VII (Very Strong)',
   },
   {
     id: 'klamath_1993',
@@ -523,6 +601,71 @@ export const HISTORIC_EARTHQUAKES = [
     distanceMiles: 322.0,
     summary: 'Doublet earthquake in southern Oregon damaging historic brick buildings and the Klamath County Courthouse.',
     shakingIntensity: 'MMI VII (Very Strong)',
+  },
+  {
+    id: 'scotts_mills_1993',
+    name: '1993 Scotts Mills ("Spring Break") Earthquake',
+    year: 1993,
+    date: 'March 25, 1993 (05:34 PST)',
+    magnitude: 6.0,
+    depthKm: 15.0,
+    coords: [45.034, -122.607], // Willamette Valley / Mt. Angel, OR
+    fault: 'Mount Angel Fault Zone',
+    distanceMiles: 472.0,
+    summary: 'Struck Western Oregon, damaging the State Capitol building in Salem and historic unreinforced masonry across the Willamette Valley.',
+    shakingIntensity: 'MMI VII (Very Strong)',
+  },
+  {
+    id: 'whittier_1987',
+    name: '1987 Whittier Narrows Earthquake',
+    year: 1987,
+    date: 'October 1, 1987 (07:42 PDT)',
+    magnitude: 5.9,
+    depthKm: 9.5,
+    coords: [34.061, -118.080], // San Gabriel Valley / Los Angeles
+    fault: 'Puente Hills Blind Thrust Fault System',
+    distanceMiles: 338.0,
+    summary: 'Revealed the presence of the hazardous Puente Hills blind thrust system beneath downtown Los Angeles, damaging historic Whittier Uptown.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'sierra_madre_1991',
+    name: '1991 Sierra Madre Earthquake',
+    year: 1991,
+    date: 'June 28, 1991 (07:43 PDT)',
+    magnitude: 5.8,
+    depthKm: 12.0,
+    coords: [34.26, -118.00], // San Gabriel Mountains / Pasadena
+    fault: 'Clamshell-Sawpit Fault Zone',
+    distanceMiles: 336.0,
+    summary: 'Deep thrust rupture in the San Gabriel Mountains shaking the Los Angeles basin and damaging buildings in Pasadena and Monrovia.',
+    shakingIntensity: 'MMI VII (Very Strong)',
+  },
+  {
+    id: 'magna_2020',
+    name: '2020 Magna / Salt Lake City Earthquake',
+    year: 2020,
+    date: 'March 18, 2020 (07:09 MDT)',
+    magnitude: 5.7,
+    depthKm: 11.9,
+    coords: [40.751, -112.078], // Magna / Salt Lake Valley, Utah
+    fault: 'Wasatch Fault Zone (Salt Lake City Segment)',
+    distanceMiles: 585.0,
+    summary: 'The largest earthquake in Utah since 1992; shook Salt Lake City, displaced the trumpet of the Angel Moroni statue on the Salt Lake Temple, and caused $62M in damage.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'alum_rock_2007',
+    name: '2007 Alum Rock / San Jose Earthquake',
+    year: 2007,
+    date: 'October 30, 2007 (20:04 PDT)',
+    magnitude: 5.6,
+    depthKm: 9.2,
+    coords: [37.432, -121.776], // Alum Rock / East San Jose
+    fault: 'Calaveras Fault Zone',
+    distanceMiles: 39.8,
+    summary: 'Widely felt across the San Francisco Bay Area and Berkeley Hills; the largest East Bay earthquake since the 1984 Morgan Hill rupture.',
+    shakingIntensity: 'MMI VI (Strong)',
   },
 ];
 
@@ -542,31 +685,30 @@ function generateStarburstPath(cx, cy, outerR, innerR, points) {
 
 export function createStarburstIcon(mag) {
   if (typeof L === 'undefined') return null;
-  const size = Math.round(26 + Math.max(0, mag - 6.0) * 11);
+  // Size by magnitude: M5.6 -> 28px, M6.0 -> 32px, M6.9 -> 40px, M7.9 -> 50px
+  const size = Math.round(28 + Math.max(0, mag - 5.5) * 9);
   const half = size / 2;
   const magId = mag.toFixed(1).replace('.', '_');
 
   const svg = `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="historic-starburst-svg">
       <defs>
-        <radialGradient id="starGrad-${magId}" cx="50%" cy="50%" r="50%">
+        <radialGradient id="starGrad-${magId}-${Math.round(half)}" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stop-color="#ffffff" />
           <stop offset="25%" stop-color="#fbbf24" />
           <stop offset="65%" stop-color="#ef4444" />
-          <stop offset="100%" stop-color="#991b1b" stop-opacity="0.95" />
+          <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0.95" />
         </radialGradient>
-        <filter id="starGlow-${magId}" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="2.2" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
       </defs>
+      <!-- Radiant glow backdrop -->
+      <circle cx="${half}" cy="${half}" r="${half * 0.95}" fill="rgba(245, 158, 11, 0.35)" />
+      <!-- 12-point radiant starburst -->
       <path d="${generateStarburstPath(half, half, half * 0.95, half * 0.44, 12)}"
-            fill="url(#starGrad-${magId})"
-            filter="url(#starGlow-${magId})"
+            fill="url(#starGrad-${magId}-${Math.round(half)})"
             stroke="#ffffff"
-            stroke-width="1.2" />
-      <circle cx="${half}" cy="${half}" r="${half * 0.35}" fill="#ffffff" />
-      <text x="${half}" y="${half + 3.2}" font-family="'JetBrains Mono', monospace" font-size="${Math.max(7, size * 0.22)}px" font-weight="900" fill="#991b1b" text-anchor="middle">M${mag.toFixed(1)}</text>
+            stroke-width="1.4" />
+      <circle cx="${half}" cy="${half}" r="${half * 0.36}" fill="#ffffff" stroke="#991b1b" stroke-width="1" />
+      <text x="${half}" y="${half + 3.2}" font-family="'JetBrains Mono', monospace" font-size="${Math.max(7.5, size * 0.23)}px" font-weight="900" fill="#991b1b" text-anchor="middle">M${mag.toFixed(1)}</text>
     </svg>
   `;
 
@@ -712,15 +854,37 @@ export function initRadarMap() {
     zoomControl: true,
   });
 
-  // Base map layer switcher control
-  const baseMaps = {
-    "🌌 Dark Observatory": darkMatterLayer,
-    "🛰️ Satellite Imagery (ESRI)": satelliteLayer,
-    "⛰️ Topographical Relief": topoLayer,
-    "🗺️ OpenStreetMap Streets": osmStreetLayer,
+  // Base map layers
+  const allBaseLayers = {
+    dark: darkMatterLayer,
+    satellite: satelliteLayer,
+    topo: topoLayer,
+    osm: osmStreetLayer,
   };
 
-  L.control.layers(baseMaps, null, { position: 'topright', collapsed: true }).addTo(leafletMap);
+  function switchBaseLayer(layerKey) {
+    Object.values(allBaseLayers).forEach((layer) => {
+      if (leafletMap.hasLayer(layer)) leafletMap.removeLayer(layer);
+    });
+    if (allBaseLayers[layerKey]) {
+      leafletMap.addLayer(allBaseLayers[layerKey]);
+      allBaseLayers[layerKey].bringToBack();
+    }
+    document.querySelectorAll('.basemap-pill').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-layer') === layerKey);
+    });
+  }
+
+  // Bind floating basemap switcher buttons
+  ['btnBasemapDark', 'btnBasemapSatellite', 'btnBasemapTopo', 'btnBasemapOsm'].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-layer');
+        if (key) switchBaseLayer(key);
+      });
+    }
+  });
 
   // Home Station Marker (Berkeley Hills AM.R1A3D)
   const stationIcon = L.divIcon({
@@ -1031,6 +1195,7 @@ export function initRadarMap() {
     }, 1000);
   }
 
+  updateRadarMap();
   fetchRadarEvents();
 }
 
@@ -1243,6 +1408,7 @@ export function updateRadarMap() {
 
 let lastActive48hEvents = [];
 let isDrawerListenersInit = false;
+let currentDrawerFilter = 'all';
 
 export function initRadarDrawerListeners() {
   if (isDrawerListenersInit) return;
@@ -1252,6 +1418,19 @@ export function initRadarDrawerListeners() {
   const expandBtn = document.getElementById('radarDrawerExpandBtn');
   const drawerEl = document.getElementById('radarEventsDrawer');
   const historicCheckbox = document.getElementById('radarHistoricCheckbox');
+
+  // Filter Tabs: All Events, Recent 48h, Historic Giants
+  ['radarTabAll', 'radarTabRecent', 'radarTabHistoric'].forEach((tabId) => {
+    const tabBtn = document.getElementById(tabId);
+    if (tabBtn) {
+      tabBtn.addEventListener('click', () => {
+        document.querySelectorAll('.drawer-tab').forEach((el) => el.classList.remove('active'));
+        tabBtn.classList.add('active');
+        currentDrawerFilter = tabBtn.getAttribute('data-filter') || 'all';
+        renderRadarEventsList(lastActive48hEvents);
+      });
+    }
+  });
 
   if (collapseBtn && drawerEl) {
     collapseBtn.addEventListener('click', (e) => {
@@ -1319,8 +1498,15 @@ export function renderRadarEventsList(events) {
     combined = combined.concat(histEvents);
   }
 
+  // Filter by drawer tab (all / recent / historic)
+  if (currentDrawerFilter === 'recent') {
+    combined = combined.filter((e) => !e.isHistoric);
+  } else if (currentDrawerFilter === 'historic') {
+    combined = combined.filter((e) => e.isHistoric);
+  }
+
   if (combined.length === 0) {
-    listEl.innerHTML = '<div class="drawer-empty">No regional seismic events detected within 700 miles.</div>';
+    listEl.innerHTML = '<div class="drawer-empty">No regional seismic events found for this filter.</div>';
     if (countBadge) countBadge.textContent = '0 events';
     return;
   }
@@ -1351,12 +1537,21 @@ export function renderRadarEventsList(events) {
     const distA = a.distance_miles !== undefined ? a.distance_miles : (a.distance_km ? a.distance_km * 0.621371 : 9999);
     const distB = b.distance_miles !== undefined ? b.distance_miles : (b.distance_km ? b.distance_km * 0.621371 : 9999);
 
-    if (sortMode === 'mag') {
-      return magB - magA; // Largest first
+    if (sortMode === 'historic') {
+      // Historic giants first (sorted by magnitude), then live events
+      if (a.isHistoric && !b.isHistoric) return -1;
+      if (!a.isHistoric && b.isHistoric) return 1;
+      if (a.isHistoric && b.isHistoric) return magB - magA;
+      return (b.time || 0) - (a.time || 0);
+    } else if (sortMode === 'mag') {
+      return magB - magA; // Largest first across both live & historic!
     } else if (sortMode === 'dist') {
-      return distA - distB; // Closest first
+      return distA - distB; // Closest to Berkeley station first
     }
-    // Default: 'time' (Most recent at top, historic at bottom or by timestamp)
+    // Default: 'time' (Most recent live events first, then historic ordered by year)
+    if (!a.isHistoric && b.isHistoric) return -1;
+    if (a.isHistoric && !b.isHistoric) return 1;
+    if (a.isHistoric && b.isHistoric) return (b.year || 0) - (a.year || 0);
     return (b.time || 0) - (a.time || 0);
   });
 
