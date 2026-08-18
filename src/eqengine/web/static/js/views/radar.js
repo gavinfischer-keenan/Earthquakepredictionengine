@@ -132,6 +132,96 @@ export const CLUSTER_ZONES = [
     statusBadge: "⚠️ PERIODIC SHALLOW EAST BAY SWARM ZONE",
     statusColor: '#f43f5e',
   },
+  {
+    id: 'yellowstone',
+    name: '🌋 Yellowstone Supervolcano Caldera',
+    location: 'NW Wyoming / Montana / Idaho border (~685 mi NE)',
+    color: '#ef4444',
+    coords: [
+      [44.85, -111.15],
+      [44.85, -110.15],
+      [44.15, -110.15],
+      [44.15, -111.15],
+    ],
+    center: [44.45, -110.65],
+    radiusKm: 55.0,
+    whatIsThere: "Active continental supervolcano caldera (45×30 miles), Norris Geyser Basin, and massive hydrothermal reservoir underlain by a 10,000 km³ magma reservoir.",
+    whyItSwarms: "Tectonic stretching along the Intermountain Seismic Belt coupled with hydrothermal fluid/gas migration causes 1,500–3,000 earthquakes annually in intense episodic swarm clusters.",
+    statusBadge: "🟡 ACTIVE SUPERVOLCANO HYDROTHERMAL SWARM SYSTEM",
+    statusColor: '#ef4444',
+  },
+  {
+    id: 'mount_st_helens',
+    name: '🌋 Mount St. Helens & Cascade Volcanic Arc',
+    location: 'Skamania County, Washington (~565 mi North)',
+    color: '#f97316',
+    coords: [
+      [46.32, -122.35],
+      [46.32, -122.05],
+      [46.08, -122.05],
+      [46.08, -122.35],
+    ],
+    center: [46.20, -122.19],
+    radiusKm: 22.0,
+    whatIsThere: "Active Cascade arc stratovolcano with 1980 cataclysmic crater, growing dacite lava dome, and hydrothermal fumaroles.",
+    whyItSwarms: "Subsurface magma recharge into the 2–8 km conduit system triggers continuous low-frequency volcanic earthquakes and volcano-tectonic (VT) swarms.",
+    statusBadge: "🌋 ACTIVE CASCADE VOLCANIC SEISMIC ARC",
+    statusColor: '#f97316',
+  },
+  {
+    id: 'wasatch_front',
+    name: '⚡ Wasatch Fault Zone / Salt Lake Rift Stepover',
+    location: 'Wasatch Front, Utah (~585 mi East)',
+    color: '#a855f7',
+    coords: [
+      [41.25, -112.15],
+      [41.25, -111.70],
+      [40.35, -111.70],
+      [40.35, -112.15],
+    ],
+    center: [40.75, -111.90],
+    radiusKm: 42.0,
+    whatIsThere: "370-km Holocene normal fault system bounding the Wasatch Mountain range and the Great Salt Lake urban corridor.",
+    whyItSwarms: "Extensional crustal rifting of the Basin and Range province with active intra-basin stepovers (e.g. 2020 M5.7 Magna earthquake sequence).",
+    statusBadge: "⚡ INTERMOUNTAIN EXTENSIONAL FAULT ZONE",
+    statusColor: '#a855f7',
+  },
+  {
+    id: 'cerro_prieto',
+    name: '♨️ Cerro Prieto Spreading Center & Geothermal Basin',
+    location: 'Mexicali Valley, Baja California (~520 mi SE)',
+    color: '#14b8a6',
+    coords: [
+      [32.60, -115.42],
+      [32.60, -115.08],
+      [32.22, -115.08],
+      [32.22, -115.42],
+    ],
+    center: [32.42, -115.24],
+    radiusKm: 26.0,
+    whatIsThere: "Major continental pull-apart rift basin between Imperial and Cerro Prieto faults hosting the world's 2nd largest geothermal power complex (~720 MW).",
+    whyItSwarms: "Active crustal spreading center linking the Gulf of California rift with the San Andreas transform system, generating high-density strike-slip earthquake swarms.",
+    statusBadge: "🌊 ACTIVE GULF RIFT SPREADING CENTER",
+    statusColor: '#14b8a6',
+  },
+  {
+    id: 'newberry',
+    name: '🌋 Newberry Volcano & Geothermal Caldera',
+    location: 'Deschutes County, Oregon (~375 mi North)',
+    color: '#eab308',
+    coords: [
+      [43.88, -121.42],
+      [43.88, -121.05],
+      [43.58, -121.05],
+      [43.58, -121.42],
+    ],
+    center: [43.72, -121.23],
+    radiusKm: 24.0,
+    whatIsThere: "Massive 1,200 sq mile shield volcano with a 4×5 mile central caldera (Paulina & East Lakes), Big Obsidian Flow, and deep EGS geothermal research wells.",
+    whyItSwarms: "Crustal extension along the Sisters and Brothers fault zones combined with geothermal fluid circulation in young rhyolitic magma chambers.",
+    statusBadge: "🟡 ACTIVE CASCADE CALDERA & GEOTHERMAL ZONE",
+    statusColor: '#eab308',
+  },
 ];
 
 export const HISTORIC_EARTHQUAKES = [
@@ -317,6 +407,123 @@ export const HISTORIC_EARTHQUAKES = [
     summary: 'Strike-slip rupture within the subducting Gorda oceanic plate near the Mendocino Triple Junction. Caused liquefaction and shut down the historic Fernbridge on Highway 211.',
     shakingIntensity: 'MMI VIII (Severe)',
   },
+  {
+    id: 'hebgen_1959',
+    name: '1959 Hebgen Lake / Yellowstone Earthquake',
+    year: 1959,
+    date: 'August 17, 1959 (23:37 MST)',
+    magnitude: 7.3,
+    depthKm: 10.0,
+    coords: [44.83, -111.20], // Near Hebgen Lake / West Yellowstone, MT
+    fault: 'Hebgen Lake & Red Canyon Normal Faults',
+    distanceMiles: 692.0,
+    summary: 'Triggered the massive Madison Canyon rockslide (80 million tons of rock) damming the Madison River to create Earthquake Lake; created 20-foot vertical fault scarps.',
+    shakingIntensity: 'MMI X (Extreme)',
+  },
+  {
+    id: 'borah_1983',
+    name: '1983 Borah Peak Earthquake',
+    year: 1983,
+    date: 'October 28, 1983 (08:06 MST)',
+    magnitude: 6.9,
+    depthKm: 16.0,
+    coords: [44.05, -113.89], // Lost River Range / Mackay, Idaho
+    fault: 'Lost River Fault Zone (Thousand Springs segment)',
+    distanceMiles: 622.0,
+    summary: 'The largest recorded earthquake in Idaho history; produced a spectacular 21-mile-long, 9-foot-high surface rupture along the base of the Lost River Range.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'fairview_1954',
+    name: '1954 Fairview Peak & Dixie Valley Earthquakes',
+    year: 1954,
+    date: 'December 16, 1954 (03:07 PST)',
+    magnitude: 7.1,
+    depthKm: 12.0,
+    coords: [39.30, -118.15], // Churchill County, Nevada
+    fault: 'Fairview Peak & Dixie Valley Faults (Central Nevada Seismic Zone)',
+    distanceMiles: 262.0,
+    summary: 'Twin major earthquakes occurring 4 minutes apart that created 20-foot vertical and horizontal surface ruptures visible for miles across the Great Basin.',
+    shakingIntensity: 'MMI X (Extreme)',
+  },
+  {
+    id: 'el_mayor_2010',
+    name: '2010 El Mayor–Cucapah Earthquake',
+    year: 2010,
+    date: 'April 4, 2010 (15:40 PDT)',
+    magnitude: 7.2,
+    depthKm: 10.0,
+    coords: [32.259, -115.287], // Baja California / Mexicali Valley
+    fault: 'Laguna Salada / Indiviso Fault System',
+    distanceMiles: 512.0,
+    summary: 'A complex multi-fault rupture spanning 120 km of faults in northern Baja California that shook skyscrapers in San Diego and Los Angeles.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'stanley_2020',
+    name: '2020 Stanley / Central Idaho Earthquake',
+    year: 2020,
+    date: 'March 31, 2020 (17:52 MDT)',
+    magnitude: 6.5,
+    depthKm: 10.0,
+    coords: [44.465, -115.118], // Sawtooth Wilderness, Idaho
+    fault: 'Sawtooth Fault System',
+    distanceMiles: 564.0,
+    summary: 'Strike-slip mainshock northwest of Stanley, Idaho felt across 6 Western states and Canada; triggered extensive rockfalls in the Sawtooth Mountains.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'monte_cristo_2020',
+    name: '2020 Monte Cristo Range Earthquake',
+    year: 2020,
+    date: 'May 15, 2020 (04:03 PDT)',
+    magnitude: 6.5,
+    depthKm: 2.7,
+    coords: [38.169, -117.850], // Mina Deflection / Tonopah, Nevada
+    fault: 'Walker Lane / Mina Deflection Fault Zone',
+    distanceMiles: 218.0,
+    summary: 'Left-lateral strike-slip rupture near Tonopah, NV; the largest earthquake in Nevada in 66 years, severely cracking Highway 95.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'nisqually_2001',
+    name: '2001 Nisqually / Puget Sound Earthquake',
+    year: 2001,
+    date: 'February 28, 2001 (10:54 PST)',
+    magnitude: 6.8,
+    depthKm: 52.0,
+    coords: [47.149, -122.727], // South Puget Sound / Olympia, WA
+    fault: 'Cascadia Intraplate Deep Benioff Zone',
+    distanceMiles: 684.0,
+    summary: 'Deep slab earthquake beneath Puget Sound shaking Seattle, Olympia, and Tacoma; damaged the Alaskan Way Viaduct and Sea-Tac air traffic control tower.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'olympia_1949',
+    name: '1949 Olympia / Puget Sound Earthquake',
+    year: 1949,
+    date: 'April 13, 1949 (11:55 PST)',
+    magnitude: 7.1,
+    depthKm: 54.0,
+    coords: [47.100, -122.600], // Puget Sound, WA
+    fault: 'Cascadia Intraplate Deep Benioff Zone',
+    distanceMiles: 680.0,
+    summary: 'Major deep intraslab earthquake beneath South Puget Sound causing extensive damage to brick buildings from Portland to Seattle.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'klamath_1993',
+    name: '1993 Klamath Falls Earthquake Sequence',
+    year: 1993,
+    date: 'September 20, 1993 (20:28 PDT)',
+    magnitude: 6.0,
+    depthKm: 9.0,
+    coords: [42.316, -122.062], // Southern Oregon
+    fault: 'West Klamath Lake Fault Zone',
+    distanceMiles: 322.0,
+    summary: 'Doublet earthquake in southern Oregon damaging historic brick buildings and the Klamath County Courthouse.',
+    shakingIntensity: 'MMI VII (Very Strong)',
+  },
 ];
 
 function generateStarburstPath(cx, cy, outerR, innerR, points) {
@@ -440,7 +647,7 @@ export async function fetchRadarEvents() {
             const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
             const distMi = distKm * 0.621371;
 
-            if (distMi <= 500.0) {
+            if (distMi <= 700.0) {
               state.usgsEvents.push({
                 id: id,
                 magnitude: props.mag,
@@ -496,18 +703,18 @@ export function initRadarMap() {
     maxZoom: 19,
   });
 
-  // Strict 500-mile bounding box around station (37.8696° N, 122.2491° W)
-  const bounds500Mi = L.latLngBounds([
-    [30.5, -131.0], // South-West corner (Pacific margin / Baja)
-    [45.2, -113.5], // North-East corner (Oregon / Nevada / Utah border)
+  // Strict 700-mile bounding box around station (37.8696° N, 122.2491° W)
+  const bounds700Mi = L.latLngBounds([
+    [28.0, -134.5], // South-West corner (Pacific margin / Baja California Sur)
+    [49.0, -109.0], // North-East corner (Puget Sound / Yellowstone / Utah-Wyoming)
   ]);
 
   leafletMap = L.map('radarMap', {
     center: [37.8696, -122.2491],
-    zoom: 8,
-    minZoom: 6,
+    zoom: 7,
+    minZoom: 5,
     maxZoom: 18,
-    maxBounds: bounds500Mi,
+    maxBounds: bounds700Mi,
     maxBoundsViscosity: 1.0,
     layers: [darkMatterLayer],
     zoomControl: true,
@@ -537,12 +744,12 @@ export function initRadarMap() {
       <b>Coordinates:</b> 37.8696° N, 122.2491° W<br>
       <b>Elevation:</b> ~240m above sea level<br>
       <b>Fault:</b> Hayward Fault Zone (~400m West)<br>
-      <span style="color: #38bdf8;">Listening to 500-mile regional seismicity</span>
+      <span style="color: #38bdf8;">Listening to 700-mile regional seismicity</span>
     </div>
   `);
 
   // =========================================================================
-  // 500-Mile California Fault System Mapping
+  // 700-Mile Western North America Fault System Mapping
   // =========================================================================
 
   // 1. Hayward Fault Trace (~400m West of Station)
@@ -674,16 +881,97 @@ export function initRadarMap() {
     .addTo(leafletMap)
     .bindPopup('<b>Elsinore Fault Zone</b>');
 
-  // 13. Cascadia Subduction Front & Mendocino Fracture Zone
+  // 13. Mendocino Fracture Zone & Gorda Plate Boundary
   const mendocinoFracture = [
-    [40.35, -124.50], [40.35, -126.50], [40.35, -128.00]
+    [40.35, -124.50], [40.35, -126.50], [40.35, -128.50], [40.35, -130.00]
   ];
-  L.polyline(mendocinoFracture, { color: '#06b6d4', weight: 2.5, opacity: 0.8, dashArray: '6, 4' })
+  L.polyline(mendocinoFracture, { color: '#06b6d4', weight: 2.5, opacity: 0.85, dashArray: '6, 4' })
     .addTo(leafletMap)
     .bindPopup('<b>Mendocino Fracture Zone / Gorda Plate Boundary</b>');
 
+  // 14. Cascadia Megathrust Subduction Zone (Northern California to Washington)
+  const cascadiaMegathrust = [
+    [40.35, -124.60], [41.20, -124.70], [42.40, -124.90], [44.00, -124.95],
+    [45.50, -124.85], [47.00, -125.10], [48.50, -125.80]
+  ];
+  L.polyline(cascadiaMegathrust, { color: '#ec4899', weight: 3.2, opacity: 0.9, dashArray: '8, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Cascadia Megathrust Subduction Zone</b><br>1,000 km convergent boundary capable of M 9.0+ megathrust ruptures.');
+
+  // 15. Blanco Fracture Zone (Oceanic Transform linking Gorda & Juan de Fuca Ridges)
+  const blancoFracture = [
+    [42.75, -125.50], [43.50, -127.20], [44.20, -129.00], [44.60, -130.50]
+  ];
+  L.polyline(blancoFracture, { color: '#38bdf8', weight: 2.2, opacity: 0.8, dashArray: '5, 5' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Blanco Fracture Zone</b><br>Active oceanic transform fault between Gorda and Juan de Fuca plates.');
+
+  // 16. Wasatch Fault Zone (Utah Normal Fault System)
+  const wasatchCoords = [
+    [39.40, -111.75], [39.90, -111.65], [40.40, -111.75], [40.75, -111.85],
+    [41.25, -111.95], [41.80, -112.05], [42.30, -112.10]
+  ];
+  L.polyline(wasatchCoords, { color: '#a855f7', weight: 2.8, opacity: 0.85, dashArray: '5, 5' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Wasatch Fault Zone (Utah)</b><br>370-km active normal fault system capable of M 7.0+ ruptures.');
+
+  // 17. Walker Lane Tectonic Belt (Nevada)
+  const walkerLaneCoords = [
+    [36.80, -116.80], [37.60, -117.40], [38.40, -118.20], [39.20, -119.10],
+    [39.90, -119.70], [40.80, -120.30]
+  ];
+  L.polyline(walkerLaneCoords, { color: '#f59e0b', weight: 2.4, opacity: 0.8, dashArray: '4, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Walker Lane Tectonic Belt (Nevada)</b><br>Accommodates ~20% of Pacific-North American dextral shear.');
+
+  // 18. Central Nevada Seismic Zone / Fairview Peak Fault
+  const cnszCoords = [
+    [38.70, -118.20], [39.15, -118.15], [39.60, -118.10], [40.10, -118.00]
+  ];
+  L.polyline(cnszCoords, { color: '#e11d48', weight: 2.2, opacity: 0.8, dashArray: '4, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Central Nevada Seismic Zone</b><br>Site of the 1954 Fairview Peak (M7.1) & Dixie Valley (M6.8) ruptures.');
+
+  // 19. Lost River & Sawtooth Faults (Idaho Basin & Range)
+  const lostRiverCoords = [
+    [43.60, -113.50], [44.00, -113.85], [44.45, -114.15]
+  ];
+  L.polyline(lostRiverCoords, { color: '#8b5cf6', weight: 2.2, opacity: 0.8, dashArray: '4, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Lost River Fault Zone (Idaho)</b><br>Source of the 1983 Borah Peak M6.9 earthquake.');
+
+  const sawtoothCoords = [
+    [43.85, -114.85], [44.25, -115.00], [44.65, -115.15]
+  ];
+  L.polyline(sawtoothCoords, { color: '#6366f1', weight: 2.0, opacity: 0.8, dashArray: '4, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Sawtooth Fault Zone (Idaho)</b><br>Source of the 2020 Stanley M6.5 earthquake.');
+
+  // 20. Imperial & Cerro Prieto Faults (Baja California / Salton Trough)
+  const imperialBajaCoords = [
+    [33.10, -115.60], [32.80, -115.45], [32.55, -115.30], [32.25, -115.10], [31.95, -114.90]
+  ];
+  L.polyline(imperialBajaCoords, { color: '#14b8a6', weight: 2.8, opacity: 0.85, dashArray: '6, 4' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Imperial & Cerro Prieto Fault System (Baja California)</b><br>Connecting the San Andreas Fault to the Gulf of California spreading centers.');
+
+  // 21. Seattle & Portland Hills Faults (Pacific Northwest)
+  const seattleFaultCoords = [
+    [47.60, -122.65], [47.58, -122.35], [47.54, -122.05], [47.52, -121.80]
+  ];
+  L.polyline(seattleFaultCoords, { color: '#ef4444', weight: 2.2, opacity: 0.8, dashArray: '3, 3' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Seattle Fault Zone (Washington)</b><br>Active shallow crustal thrust fault beneath Puget Sound.');
+
+  const portlandFaultCoords = [
+    [45.35, -122.55], [45.55, -122.75], [45.75, -122.90]
+  ];
+  L.polyline(portlandFaultCoords, { color: '#f97316', weight: 2.0, opacity: 0.8, dashArray: '3, 3' })
+    .addTo(leafletMap)
+    .bindPopup('<b>Portland Hills Fault Zone (Oregon)</b>');
+
   // =========================================================================
-  // California Swarm / Geothermal / Volcanic Cluster Overlays
+  // California & Regional Swarm / Geothermal / Volcanic Cluster Overlays
   // =========================================================================
   clusterPolygons.forEach((p) => leafletMap.removeLayer(p));
   clusterPolygons = [];
@@ -729,9 +1017,9 @@ export function initRadarMap() {
     clusterPolygons.push(poly);
   });
 
-  // Radar range rings (10, 25, 50, 100, 250, 500 miles)
-  [16.09, 40.23, 80.47, 160.93, 402.33, 804.67].forEach((km, idx) => {
-    const labels = ['10 mi', '25 mi', '50 mi', '100 mi', '250 mi', '500 mi'];
+  // Radar range rings (10, 25, 50, 100, 250, 500, 700 miles)
+  [16.09, 40.23, 80.47, 160.93, 402.33, 804.67, 1126.54].forEach((km, idx) => {
+    const labels = ['10 mi', '25 mi', '50 mi', '100 mi', '250 mi', '500 mi', '700 mi'];
     L.circle([37.8696, -122.2491], {
       radius: km * 1000,
       color: '#1e293b',
@@ -768,7 +1056,7 @@ export function updateRadarMap() {
     if (!evt.latitude || !evt.longitude || !evt.time) return false;
     if (evt.time < cutoff48h) return false;
     const distMi = evt.distance_miles !== undefined ? evt.distance_miles : (evt.distance_km ? evt.distance_km * 0.621371 : 9999);
-    return distMi <= 500.0;
+    return distMi <= 700.0;
   });
 
   let maxMag = 0;
@@ -1040,7 +1328,7 @@ export function renderRadarEventsList(events) {
   }
 
   if (combined.length === 0) {
-    listEl.innerHTML = '<div class="drawer-empty">No regional seismic events detected within 500 miles.</div>';
+    listEl.innerHTML = '<div class="drawer-empty">No regional seismic events detected within 700 miles.</div>';
     if (countBadge) countBadge.textContent = '0 events';
     return;
   }
