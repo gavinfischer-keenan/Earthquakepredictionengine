@@ -199,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTableListeners();
   initReviewStudioListeners();
   connectWebSocket();
+  initRadarMap();
   fetchRadarEvents();
   requestAnimationFrame(mainLoop);
 });

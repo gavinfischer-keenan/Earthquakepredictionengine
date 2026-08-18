@@ -9,6 +9,7 @@ import { state } from '../state.js';
 let leafletMap = null;
 let stationMarker = null;
 let quakeMarkers = [];
+let historicMarkers = [];
 let elapsedTimer = null;
 let clusterPolygons = [];
 
