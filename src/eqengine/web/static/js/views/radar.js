@@ -134,6 +134,244 @@ export const CLUSTER_ZONES = [
   },
 ];
 
+export const HISTORIC_EARTHQUAKES = [
+  {
+    id: 'sf_1906',
+    name: '1906 Great San Francisco Earthquake',
+    year: 1906,
+    date: 'April 18, 1906 (05:12 PST)',
+    magnitude: 7.9,
+    depthKm: 8.0,
+    coords: [37.75, -122.55], // Off Daly City / Olema
+    fault: 'San Andreas Fault (Northern Segment, 470 km rupture)',
+    distanceMiles: 18.2,
+    summary: 'The catastrophic Great 1906 earthquake ruptured 296 miles of the San Andreas Fault from San Juan Bautista to Cape Mendocino. Ground displacement reached 28 feet (8.5m) near Point Reyes, leveling cities and igniting the Great Fire of San Francisco.',
+    shakingIntensity: 'MMI XI (Extreme / Violent)',
+  },
+  {
+    id: 'loma_prieta_1989',
+    name: '1989 Loma Prieta ("World Series") Earthquake',
+    year: 1989,
+    date: 'October 17, 1989 (17:04 PDT)',
+    magnitude: 6.9,
+    depthKm: 19.0,
+    coords: [37.036, -121.883], // Santa Cruz Mountains near Loma Prieta peak
+    fault: 'San Andreas Fault (Santa Cruz Mountains segment)',
+    distanceMiles: 59.4,
+    summary: 'Struck during Game 3 warmups of the Bay Bridge World Series (Giants vs A\'s). Caused the collapse of the upper deck of the I-880 Cypress Street Viaduct in Oakland and a section of the San Francisco-Oakland Bay Bridge.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'hayward_1868',
+    name: '1868 Great Hayward Fault Earthquake',
+    year: 1868,
+    date: 'October 21, 1868 (07:53 PST)',
+    magnitude: 6.8,
+    depthKm: 10.0,
+    coords: [37.70, -122.10], // Directly on Hayward Fault near San Leandro/Hayward
+    fault: 'Hayward Fault (Southern & Central segments, 32 km rupture)',
+    distanceMiles: 14.1,
+    summary: 'Known as the "Original Great San Francisco Earthquake" before 1906. Ruptured directly through the East Bay from San Leandro to Warm Springs, destroying the Alameda County Courthouse and severely shaking the Berkeley Hills.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'south_napa_2014',
+    name: '2014 South Napa Earthquake',
+    year: 2014,
+    date: 'August 24, 2014 (03:20 PDT)',
+    magnitude: 6.0,
+    depthKm: 11.1,
+    coords: [38.215, -122.312], // 6 km NW of American Canyon
+    fault: 'West Napa Fault System',
+    distanceMiles: 24.2,
+    summary: 'The largest earthquake in the San Francisco Bay Area since Loma Prieta. Surface faulting ruptured through Napa valley vineyards and historic brick architecture in downtown Napa.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'ridgecrest_2019',
+    name: '2019 Ridgecrest Earthquake Sequence (Mainshock)',
+    year: 2019,
+    date: 'July 5, 2019 (20:19 PDT)',
+    magnitude: 7.1,
+    depthKm: 8.0,
+    coords: [35.770, -117.599], // Mojave Desert / China Lake
+    fault: 'Little Lake Fault / Eastern California Shear Zone',
+    distanceMiles: 298.5,
+    summary: 'Ruptured conjugate strike-slip faults following an M6.4 foreshock. Caused visible surface ruptures and severe ground displacement across the Searles Valley and Naval Air Weapons Station China Lake.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'northridge_1994',
+    name: '1994 Northridge Earthquake',
+    year: 1994,
+    date: 'January 17, 1994 (04:30 PST)',
+    magnitude: 6.7,
+    depthKm: 18.2,
+    coords: [34.213, -118.537], // San Fernando Valley / Reseda
+    fault: 'Northridge Blind Thrust Fault',
+    distanceMiles: 320.0,
+    summary: 'One of the costliest natural disasters in US history. The hidden blind thrust fault produced extreme peak ground accelerations (up to 1.82 g) that collapsed freeway overpasses and parking structures across Los Angeles.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'hector_mine_1999',
+    name: '1999 Hector Mine Earthquake',
+    year: 1999,
+    date: 'October 16, 1999 (02:46 PDT)',
+    magnitude: 7.1,
+    depthKm: 6.0,
+    coords: [34.594, -116.271], // Twentynine Palms / Marine Corps Base
+    fault: 'Lavic Lake & Bullion Faults (ECSZ)',
+    distanceMiles: 405.0,
+    summary: 'A powerful strike-slip rupture in the remote Mojave Desert that derailed an Amtrak train and produced over 5 meters of lateral displacement.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'landers_1992',
+    name: '1992 Landers Earthquake',
+    year: 1992,
+    date: 'June 28, 1992 (04:57 PDT)',
+    magnitude: 7.3,
+    depthKm: 1.1,
+    coords: [34.200, -116.437], // High Desert / Landers
+    fault: 'Johnson Valley, Kickapoo, Homestead Valley, & Camp Rock Faults',
+    distanceMiles: 412.0,
+    summary: 'A complex multi-fault rupture jumping across 5 distinct faults over 70 km. Triggered remote microseisms across Yellowstone and California, followed 3 hours later by the M6.5 Big Bear earthquake.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'cape_mendocino_1992',
+    name: '1992 Cape Mendocino Earthquake',
+    year: 1992,
+    date: 'April 25, 1992 (11:06 PDT)',
+    magnitude: 7.2,
+    depthKm: 15.0,
+    coords: [40.33, -124.23], // Petrolia / Mendocino Triple Junction
+    fault: 'Cascadia Megathrust Subduction Zone',
+    distanceMiles: 202.0,
+    summary: 'The only recorded modern megathrust earthquake on the Cascadia Subduction Zone in California. Uplifted the shoreline by 1.4 meters near Petrolia and generated a localized tsunami along the Pacific coast.',
+    shakingIntensity: 'MMI IX (Violent)',
+  },
+  {
+    id: 'san_simeon_2003',
+    name: '2003 San Simeon Earthquake',
+    year: 2003,
+    date: 'December 22, 2003 (11:15 PST)',
+    magnitude: 6.6,
+    depthKm: 7.6,
+    coords: [35.700, -121.100], // Central Coast near Paso Robles
+    fault: 'Oceanic Fault Zone',
+    distanceMiles: 162.0,
+    summary: 'Struck the Santa Lucia Range on the Central Coast, damaging historic unreinforced masonry buildings in Paso Robles and causing hot sulfur springs to erupt into parking lots.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'morgan_hill_1984',
+    name: '1984 Morgan Hill Earthquake',
+    year: 1984,
+    date: 'April 24, 1984 (13:15 PST)',
+    magnitude: 6.2,
+    depthKm: 8.0,
+    coords: [37.310, -121.680], // Calaveras Fault near Mt. Hamilton
+    fault: 'Calaveras Fault (Central segment)',
+    distanceMiles: 48.3,
+    summary: 'Unilateral rupture extending 30 km southward along the Calaveras Fault with severe directivity effects focusing seismic waves into Morgan Hill.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+  {
+    id: 'parkfield_1966',
+    name: '1966 Parkfield Earthquake',
+    year: 1966,
+    date: 'June 28, 1966 (20:26 PST)',
+    magnitude: 6.0,
+    depthKm: 8.9,
+    coords: [35.900, -120.500], // San Andreas Fault at Parkfield
+    fault: 'San Andreas Fault (Parkfield creeping transition segment)',
+    distanceMiles: 171.0,
+    summary: 'Part of the famous repeating Parkfield earthquake sequence (1857, 1881, 1901, 1922, 1934, 1966, 2004) that led the USGS to install the world\'s densest earthquake sensor array (SAFOD borehole observatory).',
+    shakingIntensity: 'MMI VII (Very Strong)',
+  },
+  {
+    id: 'fort_tejon_1857',
+    name: '1857 Great Fort Tejon Earthquake',
+    year: 1857,
+    date: 'January 9, 1857 (08:20 PST)',
+    magnitude: 7.9,
+    depthKm: 12.0,
+    coords: [35.720, -120.300], // Cholame / Carrizo Plain
+    fault: 'San Andreas Fault (Southern & Central segments, 350 km rupture)',
+    distanceMiles: 186.0,
+    summary: 'One of the largest recorded earthquakes in US history. Ruptured 225 miles of the San Andreas Fault from Parkfield to Wrightwood with up to 30 feet of lateral offset in the Carrizo Plain.',
+    shakingIntensity: 'MMI X (Extreme)',
+  },
+  {
+    id: 'ferndale_2022',
+    name: '2022 Ferndale / Humboldt County Earthquake',
+    year: 2022,
+    date: 'December 20, 2022 (02:34 PST)',
+    magnitude: 6.4,
+    depthKm: 17.9,
+    coords: [40.530, -124.430], // 12 km WSW of Ferndale
+    fault: 'Mendocino Fracture Zone / Gorda Plate',
+    distanceMiles: 215.0,
+    summary: 'Strike-slip rupture within the subducting Gorda oceanic plate near the Mendocino Triple Junction. Caused liquefaction and shut down the historic Fernbridge on Highway 211.',
+    shakingIntensity: 'MMI VIII (Severe)',
+  },
+];
+
+function generateStarburstPath(cx, cy, outerR, innerR, points) {
+  let path = '';
+  const step = Math.PI / points;
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = i * step - Math.PI / 2;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    path += (i === 0 ? `M ${x.toFixed(2)} ${y.toFixed(2)}` : ` L ${x.toFixed(2)} ${y.toFixed(2)}`);
+  }
+  path += ' Z';
+  return path;
+}
+
+export function createStarburstIcon(mag) {
+  if (typeof L === 'undefined') return null;
+  const size = Math.round(26 + Math.max(0, mag - 6.0) * 11);
+  const half = size / 2;
+  const magId = mag.toFixed(1).replace('.', '_');
+
+  const svg = `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="historic-starburst-svg">
+      <defs>
+        <radialGradient id="starGrad-${magId}" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="25%" stop-color="#fbbf24" />
+          <stop offset="65%" stop-color="#ef4444" />
+          <stop offset="100%" stop-color="#991b1b" stop-opacity="0.95" />
+        </radialGradient>
+        <filter id="starGlow-${magId}" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+      </defs>
+      <path d="${generateStarburstPath(half, half, half * 0.95, half * 0.44, 12)}"
+            fill="url(#starGrad-${magId})"
+            filter="url(#starGlow-${magId})"
+            stroke="#ffffff"
+            stroke-width="1.2" />
+      <circle cx="${half}" cy="${half}" r="${half * 0.35}" fill="#ffffff" />
+      <text x="${half}" y="${half + 3.2}" font-family="'JetBrains Mono', monospace" font-size="${Math.max(7, size * 0.22)}px" font-weight="900" fill="#991b1b" text-anchor="middle">M${mag.toFixed(1)}</text>
+    </svg>
+  `;
+
+  return L.divIcon({
+    html: svg,
+    className: 'historic-starburst-marker',
+    iconSize: [size, size],
+    iconAnchor: [half, half],
+    popupAnchor: [0, -half],
+  });
+}
+
 export function getClusterZoneForEvent(lat, lon) {
   for (const zone of CLUSTER_ZONES) {
     const dLat = (lat - zone.center[0]) * 111.0;
@@ -233,18 +471,57 @@ export function initRadarMap() {
   const mapEl = document.getElementById('radarMap');
   if (!mapEl) return;
 
+  // 1. Dark Matter CartoDB Basemap (Default)
+  const darkMatterLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; CartoDB & OpenStreetMap',
+    maxZoom: 19,
+    subdomains: 'abcd',
+  });
+
+  // 2. High-Resolution Satellite Imagery (ESRI World Imagery)
+  const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    maxZoom: 19,
+  });
+
+  // 3. Topographical Relief Map (OpenTopoMap / SRTM)
+  const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
+    maxZoom: 17,
+  });
+
+  // 4. OpenStreetMap Standard (OSM Streets)
+  const osmStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  });
+
+  // Strict 500-mile bounding box around station (37.8696° N, 122.2491° W)
+  const bounds500Mi = L.latLngBounds([
+    [30.5, -131.0], // South-West corner (Pacific margin / Baja)
+    [45.2, -113.5], // North-East corner (Oregon / Nevada / Utah border)
+  ]);
+
   leafletMap = L.map('radarMap', {
     center: [37.8696, -122.2491],
     zoom: 8,
+    minZoom: 6,
+    maxZoom: 18,
+    maxBounds: bounds500Mi,
+    maxBoundsViscosity: 1.0,
+    layers: [darkMatterLayer],
     zoomControl: true,
   });
 
-  // Dark Matter CartoDB Basemap
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; CartoDB & USGS',
-    maxZoom: 19,
-    subdomains: 'abcd',
-  }).addTo(leafletMap);
+  // Base map layer switcher control
+  const baseMaps = {
+    "🌌 Dark Observatory": darkMatterLayer,
+    "🛰️ Satellite Imagery (ESRI)": satelliteLayer,
+    "⛰️ Topographical Relief": topoLayer,
+    "🗺️ OpenStreetMap Streets": osmStreetLayer,
+  };
+
+  L.control.layers(baseMaps, null, { position: 'topright', collapsed: true }).addTo(leafletMap);
 
   // Home Station Marker (Berkeley Hills AM.R1A3D)
   const stationIcon = L.divIcon({
@@ -597,6 +874,45 @@ export function updateRadarMap() {
   });
 
   // -------------------------------------------------------------------------
+  // Render Major Historic California Epicenters (M >= 6.0) Starbursts
+  // -------------------------------------------------------------------------
+  historicMarkers.forEach((m) => leafletMap.removeLayer(m));
+  historicMarkers = [];
+
+  const historicCheckbox = document.getElementById('radarHistoricCheckbox');
+  const showHistoric = historicCheckbox ? historicCheckbox.checked : true;
+
+  if (showHistoric) {
+    HISTORIC_EARTHQUAKES.forEach((quake) => {
+      const starIcon = createStarburstIcon(quake.magnitude);
+      const marker = L.marker(quake.coords, {
+        icon: starIcon,
+        zIndexOffset: 500,
+      }).addTo(leafletMap);
+
+      const popupHtml = `
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.5; min-width: 270px; max-width: 320px; color: #f8fafc;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; border-bottom: 1px solid rgba(245, 158, 11, 0.4); padding-bottom: 4px;">
+            <span style="font-weight: 800; color: #fbbf24; font-size: 13px;">⭐ HISTORIC M ${quake.magnitude.toFixed(1)}</span>
+            <span style="color: #ef4444; font-weight: 700; font-size: 10px;">${quake.year}</span>
+          </div>
+          <div style="font-weight: 700; color: #ffffff; font-size: 12px; margin-bottom: 4px;">${quake.name}</div>
+          <div style="color: #cbd5e1; margin-bottom: 2px;">📅 <b>Date & Time:</b> ${quake.date}</div>
+          <div style="color: #38bdf8; margin-bottom: 2px;">⚡ <b>Fault Rupture:</b> ${quake.fault}</div>
+          <div style="color: #cbd5e1; margin-bottom: 2px;">📍 <b>Distance to Berkeley:</b> ${quake.distanceMiles.toFixed(1)} miles</div>
+          <div style="color: #ef4444; margin-bottom: 4px;">💥 <b>Intensity:</b> ${quake.shakingIntensity} (Depth ${quake.depthKm.toFixed(1)} km)</div>
+          <div style="font-size: 10px; color: #94a3b8; background: rgba(255,255,255,0.06); padding: 5px 7px; border-radius: 4px; border-left: 2px solid #fbbf24; margin-top: 4px;">
+            ${quake.summary}
+          </div>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml, { maxWidth: 330, className: 'historic-quake-popup' });
+      historicMarkers.push(marker);
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // Update Overlay HUD Stats & Regional Benchmarks
   // -------------------------------------------------------------------------
   const countEl = document.getElementById('radarQuakeCount');
@@ -652,6 +968,29 @@ export function initRadarDrawerListeners() {
   if (isDrawerListenersInit) return;
   const sortSelect = document.getElementById('radarSortSelect');
   const searchInput = document.getElementById('radarSearchInput');
+  const collapseBtn = document.getElementById('radarDrawerCollapseBtn');
+  const expandBtn = document.getElementById('radarDrawerExpandBtn');
+  const drawerEl = document.getElementById('radarEventsDrawer');
+  const historicCheckbox = document.getElementById('radarHistoricCheckbox');
+
+  if (collapseBtn && drawerEl) {
+    collapseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      drawerEl.classList.add('collapsed');
+    });
+  }
+
+  if (expandBtn && drawerEl) {
+    expandBtn.addEventListener('click', () => {
+      drawerEl.classList.remove('collapsed');
+    });
+  }
+
+  if (historicCheckbox) {
+    historicCheckbox.addEventListener('change', () => {
+      updateRadarMap();
+    });
+  }
 
   if (sortSelect) {
     sortSelect.addEventListener('change', () => {
@@ -675,7 +1014,32 @@ export function renderRadarEventsList(events) {
   const countBadge = document.getElementById('radarDrawerCount');
   if (!listEl) return;
 
-  if (!events || events.length === 0) {
+  const historicCheckbox = document.getElementById('radarHistoricCheckbox');
+  const showHistoric = historicCheckbox ? historicCheckbox.checked : true;
+
+  let combined = events ? events.slice() : [];
+
+  if (showHistoric) {
+    const histEvents = HISTORIC_EARTHQUAKES.map((hq) => ({
+      id: hq.id,
+      place: hq.name,
+      magnitude: hq.magnitude,
+      latitude: hq.coords[0],
+      longitude: hq.coords[1],
+      distance_miles: hq.distanceMiles,
+      depth_km: hq.depthKm,
+      time: new Date(hq.date).getTime() / 1000 || 0,
+      isHistoric: true,
+      year: hq.year,
+      fault: hq.fault,
+      rawDate: hq.date,
+      summary: hq.summary,
+      shakingIntensity: hq.shakingIntensity,
+    }));
+    combined = combined.concat(histEvents);
+  }
+
+  if (combined.length === 0) {
     listEl.innerHTML = '<div class="drawer-empty">No regional seismic events detected within 500 miles.</div>';
     if (countBadge) countBadge.textContent = '0 events';
     return;
@@ -688,13 +1052,14 @@ export function renderRadarEventsList(events) {
   const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
   // Filter events by query if specified
-  let filtered = events.slice();
+  let filtered = combined.slice();
   if (query) {
     filtered = filtered.filter((evt) => {
       const place = (evt.place || '').toLowerCase();
-      const zone = getClusterZoneForEvent(evt.latitude, evt.longitude);
+      const fault = (evt.fault || '').toLowerCase();
+      const zone = !evt.isHistoric ? getClusterZoneForEvent(evt.latitude, evt.longitude) : null;
       const zoneName = zone ? zone.name.toLowerCase() : '';
-      return place.includes(query) || zoneName.includes(query);
+      return place.includes(query) || fault.includes(query) || zoneName.includes(query);
     });
   }
 
@@ -711,7 +1076,7 @@ export function renderRadarEventsList(events) {
     } else if (sortMode === 'dist') {
       return distA - distB; // Closest first
     }
-    // Default: 'time' (Most recent at top)
+    // Default: 'time' (Most recent at top, historic at bottom or by timestamp)
     return (b.time || 0) - (a.time || 0);
   });
 
@@ -728,10 +1093,32 @@ export function renderRadarEventsList(events) {
   const html = filtered.map((evt) => {
     const mag = evt.magnitude !== undefined && evt.magnitude !== null ? evt.magnitude : 1.2;
     const distMi = evt.distance_miles !== undefined ? evt.distance_miles : (evt.distance_km ? evt.distance_km * 0.621371 : 0);
-    const timeUtc = new Date(evt.time * 1000).toISOString().substring(11, 19);
-    const elapsedStr = formatElapsedTime(evt.time);
     const depthStr = evt.depth_km !== undefined ? `${evt.depth_km.toFixed(1)} km` : '--';
     const placeStr = evt.place || 'California Regional Event';
+
+    if (evt.isHistoric) {
+      return `
+        <div class="radar-event-item" data-lat="${evt.latitude}" data-lng="${evt.longitude}" data-historic="true">
+          <div class="event-mag-badge mag-historic">
+            <span class="event-mag-num">M${mag.toFixed(1)}</span>
+            <span class="event-mag-tag">⭐ ${evt.year}</span>
+          </div>
+          <div class="event-info-col">
+            <div class="event-place" title="${placeStr}" style="color: #fbbf24; font-weight: 700;">⭐ ${placeStr}</div>
+            <div class="event-meta-row">
+              <span class="event-dist">📍 ${distMi.toFixed(1)} mi · ${depthStr}</span>
+              <span class="event-time" style="color: #f59e0b;"><b>${evt.year} Epicenter</b></span>
+            </div>
+            <div class="event-zone-tag" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
+              ⚡ ${evt.fault ? evt.fault.split('(')[0] : 'Major Fault Rupture'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    const timeUtc = new Date(evt.time * 1000).toISOString().substring(11, 19);
+    const elapsedStr = formatElapsedTime(evt.time);
 
     let badgeClass = 'mag-micro';
     let tagLabel = 'MICRO';
@@ -787,10 +1174,11 @@ export function renderRadarEventsList(events) {
         item.classList.add('active-item');
 
         // Find corresponding marker and trigger popup
-        const marker = quakeMarkers.find((m) => {
+        const allMarkers = quakeMarkers.concat(historicMarkers);
+        const marker = allMarkers.find((m) => {
           if (!m.getLatLng) return false;
           const ll = m.getLatLng();
-          return Math.abs(ll.lat - lat) < 0.001 && Math.abs(ll.lng - lng) < 0.001;
+          return Math.abs(ll.lat - lat) < 0.005 && Math.abs(ll.lng - lng) < 0.005;
         });
         if (marker && marker.openPopup) {
           marker.openPopup();
