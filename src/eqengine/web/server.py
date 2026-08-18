@@ -23,18 +23,23 @@ from fastapi.staticfiles import StaticFiles
 from eqengine import __version__
 from eqengine.config import get_config
 from eqengine.web.broadcaster import get_broadcaster
+from eqengine.ingest.ring_buffer import RingBuffer
 
 log = structlog.get_logger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
 
-def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
-    """Create and configure the FastAPI application."""
+def create_app(
+    ring_buffer: RingBuffer | None = None,
+    detector: Any | None = None,
+    usgs_poller: Any | None = None,
+) -> FastAPI:
+    """Create and configure the FastAPI web application."""
     app = FastAPI(
-        title="EarthquakePredictionEngine Observatory",
-        description="Real-Time Seismic Early Warning & Waveform Observatory",
+        title="Earthquake Prediction Engine API",
         version=__version__,
+        description="Real-Time RS4D Seismic Waveform & Early Warning Telemetry Hub",
     )
 
     # Enable CORS for local development & internal LAN access
@@ -88,11 +93,29 @@ def create_app(ring_buffer: Any = None, detector: Any = None) -> FastAPI:
         }
 
     @app.get("/api/usgs-events")
-    async def get_usgs_events() -> dict[str, Any]:
-        """Return recently recorded and observable USGS earthquakes."""
+    async def get_usgs_events(response: Response) -> dict[str, Any]:
+        """Return recently recorded and observable USGS earthquakes from memory/cache."""
+        response.headers["Cache-Control"] = "public, max-age=15"
+        events = []
+        if usgs_poller is not None:
+            events = usgs_poller.get_recent_events(max_age_sec=172800.0)
+        elif broadcaster.recent_usgs:
+            events = broadcaster.recent_usgs
+        else:
+            # Fallback: check local disk cache directly
+            cache_file = Path("./data/usgs_cache.json")
+            if cache_file.exists():
+                try:
+                    with open(cache_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        now = time.time()
+                        events = [e for e in data if isinstance(e, dict) and e.get("time", 0) >= (now - 172800.0)]
+                except Exception:
+                    pass
+
         return {
-            "events": broadcaster.recent_usgs,
-            "count": len(broadcaster.recent_usgs),
+            "events": events,
+            "count": len(events),
             "timestamp": time.time(),
         }
 

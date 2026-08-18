@@ -182,30 +182,7 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
     )
 
     # ---------------------------------------------------------------
-    # 8.  Start ingest & Web Server
-    # ---------------------------------------------------------------
-    ingest.start()
-    log.info("engine.ingest_started", mode=getattr(config, "ingest_mode", "udp"))
-
-    web_server_task = None
-    if getattr(config, "web_enabled", True):
-        try:
-            import uvicorn
-            from eqengine.web.server import create_app
-            app = create_app(ring_buffer=ring_buffer, detector=detector)
-            server_config = uvicorn.Config(
-                app=app,
-                host=str(getattr(config, "web_host", "0.0.0.0")),
-                port=int(getattr(config, "web_port", 8088)),
-                log_level="warning",
-            )
-            server = uvicorn.Server(server_config)
-            web_server_task = asyncio.create_task(server.serve())
-            log.info("engine.web_server_started", host=config.web_host, port=config.web_port)
-        except Exception:
-            log.exception("engine.web_server_start_failed")
-
-    # Start USGS External Earthquake Monitor
+    # Start USGS External Earthquake Monitor & Cache
     usgs_poller = None
     if getattr(config, "usgs_enabled", True):
         try:
@@ -221,6 +198,30 @@ async def run_engine(config: Any) -> None:  # noqa: C901 — intentionally a lon
             log.info("engine.usgs_poller_started")
         except Exception:
             log.exception("engine.usgs_poller_start_failed")
+
+    # ---------------------------------------------------------------
+    # 8.  Start ingest & Web Server
+    # ---------------------------------------------------------------
+    ingest.start()
+    log.info("engine.ingest_started", mode=getattr(config, "ingest_mode", "udp"))
+
+    web_server_task = None
+    if getattr(config, "web_enabled", True):
+        try:
+            import uvicorn
+            from eqengine.web.server import create_app
+            app = create_app(ring_buffer=ring_buffer, detector=detector, usgs_poller=usgs_poller)
+            server_config = uvicorn.Config(
+                app=app,
+                host=str(getattr(config, "web_host", "0.0.0.0")),
+                port=int(getattr(config, "web_port", 8088)),
+                log_level="warning",
+            )
+            server = uvicorn.Server(server_config)
+            web_server_task = asyncio.create_task(server.serve())
+            log.info("engine.web_server_started", host=config.web_host, port=config.web_port)
+        except Exception:
+            log.exception("engine.web_server_start_failed")
 
     # ---------------------------------------------------------------
     # 9.  Main processing loop (4 Hz cadence)

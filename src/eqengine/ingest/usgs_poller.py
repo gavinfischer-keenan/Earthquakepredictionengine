@@ -30,6 +30,9 @@ log = structlog.get_logger(__name__)
 KM_TO_MILES: float = 0.621371
 EARTH_RADIUS_KM: float = 6371.0
 
+import json
+from pathlib import Path
+
 # Distance classification thresholds (km)
 _DIST_LOCAL_KM: float = 80.0      # ~50 miles
 _DIST_REGIONAL_KM: float = 240.0  # ~150 miles
@@ -116,23 +119,18 @@ def calculate_seismic_travel_times(
 
 
 def is_observable_on_shake(magnitude: float | None, distance_km: float) -> bool:
-    """Determine if an earthquake is theoretically observable on a Raspberry Shake RS4D within 500 miles.
+    """Determine if an earthquake is theoretically observable on a Raspberry Shake RS4D within 700 miles.
 
-    Uses a sliding scale where a M5.0 at 500 miles is observable, down to M0.8 nearby.
-    Earthquakes beyond 500 miles (804.7 km) are ignored / filtered out.
+    Uses a sliding scale where a M5.0 at 500-700 miles is observable, down to M0.8 nearby.
+    Earthquakes beyond 700 miles (1126.5 km) are filtered out unless large teleseismic (M5.5+).
     """
     if magnitude is None:
         return False
     distance_miles = distance_km * KM_TO_MILES
-    if distance_miles > 500.0:
-        return False  # Strict 500-mile limit
+    if distance_miles > 700.0:
+        return False  # 700-mile regional limit
 
     # Sliding scale: M_min(R) = 0.8 + 2.05 * log10(max(R, 5.0) / 5.0)
-    # R=5mi -> M0.8
-    # R=25mi -> M1.8
-    # R=100mi -> M2.8
-    # R=250mi -> M3.8
-    # R=500mi -> M4.9 (~5.0 at 500 miles)
     r_effective = max(distance_miles, 5.0)
     m_min = 0.8 + 2.05 * math.log10(r_effective / 5.0)
     return magnitude >= m_min
@@ -177,7 +175,7 @@ def classify_magnitude(mag: float | None) -> str:
 # USGS Poller
 # ---------------------------------------------------------------------------
 class USGSPoller:
-    """Async background poller for the USGS GeoJSON earthquake feed.
+    """Async background poller for the USGS GeoJSON earthquake feed with persistent disk caching.
 
     Parameters
     ----------
@@ -189,6 +187,8 @@ class USGSPoller:
         Seconds between API polls (default 60).
     min_magnitude:
         Minimum magnitude to process (default 1.0).
+    cache_path:
+        Path to persistent JSON cache file.
     """
 
     def __init__(
@@ -199,17 +199,50 @@ class USGSPoller:
         feed_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
         poll_interval_sec: float = 60.0,
         min_magnitude: float = 1.0,
+        cache_path: str = "./data/usgs_cache.json",
     ) -> None:
         self._lat = station_lat
         self._lon = station_lon
         self._feed_url = feed_url
         self._poll_interval = poll_interval_sec
         self._min_mag = min_magnitude
+        self._cache_path = Path(cache_path)
 
         self._seen_ids: set[str] = set()
         self._recent_events: list[dict[str, Any]] = []
         self._task: asyncio.Task | None = None
         self._running = False
+
+    def _load_cache(self) -> None:
+        """Load cached earthquakes from disk."""
+        if not self._cache_path.exists():
+            return
+        try:
+            with open(self._cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    now = time.time()
+                    # Filter events from past 7 days
+                    valid_events = [e for e in data if isinstance(e, dict) and e.get("time", 0) >= (now - 7 * 86400)]
+                    self._recent_events = valid_events
+                    for e in valid_events:
+                        if "id" in e:
+                            self._seen_ids.add(str(e["id"]))
+                    log.info("usgs_poller.cache_loaded", count=len(self._recent_events), path=str(self._cache_path))
+        except Exception:
+            log.exception("usgs_poller.cache_load_failed", path=str(self._cache_path))
+
+    def _save_cache(self) -> None:
+        """Persist cached earthquakes to disk."""
+        try:
+            self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+            # Keep up to 2000 events, sorted by time descending
+            self._recent_events.sort(key=lambda x: x.get("time", 0), reverse=True)
+            to_save = self._recent_events[:2000]
+            with open(self._cache_path, "w", encoding="utf-8") as f:
+                json.dump(to_save, f, indent=2)
+        except Exception:
+            log.exception("usgs_poller.cache_save_failed", path=str(self._cache_path))
 
     # ── lifecycle ──────────────────────────────────────────────────────
 
@@ -218,11 +251,21 @@ class USGSPoller:
         if self._running:
             return
         self._running = True
+        self._load_cache()
+
+        # Seed cache on first run if empty
+        if len(self._recent_events) < 20:
+            try:
+                await self._poll_feed("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson")
+            except Exception:
+                log.warning("usgs_poller.initial_seed_failed")
+
         self._task = asyncio.create_task(self._poll_loop(), name="usgs-poller")
         log.info(
             "usgs_poller.started",
             feed_url=self._feed_url,
             interval_sec=self._poll_interval,
+            cached_count=len(self._recent_events),
         )
 
     async def stop(self) -> None:
@@ -234,23 +277,15 @@ class USGSPoller:
                 await self._task
             except asyncio.CancelledError:
                 pass
+        self._save_cache()
         log.info("usgs_poller.stopped")
 
     # ── public API ─────────────────────────────────────────────────────
 
     def get_recent_events(self, max_age_sec: float = 172800.0) -> list[dict[str, Any]]:
-        """Return events from the last *max_age_sec* seconds (default 48 hours).
- 
-        Returns
-        -------
-        list[dict]
-            Each dict contains: ``id``, ``magnitude``, ``place``,
-            ``time`` (unix epoch), ``distance_km``, ``distance_miles``,
-            ``distance_class``, ``mag_class``, ``latitude``, ``longitude``,
-            ``depth_km``.
-        """
+        """Return events from the last *max_age_sec* seconds (default 48 hours)."""
         cutoff = time.time() - max_age_sec
-        return [e for e in self._recent_events if e["time"] >= cutoff]
+        return [e for e in self._recent_events if e.get("time", 0) >= cutoff]
 
     def correlate_with_trigger(
         self,
@@ -258,38 +293,16 @@ class USGSPoller:
         max_time_diff: float = 120.0,
         max_distance_km: float = 50.0,
     ) -> dict[str, Any] | None:
-        """Find a USGS event that matches a local RS4D trigger.
-
-        Matching criteria:
-        - Event time within ±max_time_diff seconds of trigger_time
-        - Event distance ≤ max_distance_km from station
-
-        Returns the best match (closest in time), or None.
-
-        Parameters
-        ----------
-        trigger_time:
-            Unix epoch seconds of the RS4D trigger.
-        max_time_diff:
-            Maximum |trigger_time - event_time| in seconds.
-        max_distance_km:
-            Maximum distance from station in km.
-
-        Returns
-        -------
-        dict | None
-            The matching USGS event dict, or None.
-        """
+        """Find a USGS event that matches a local RS4D trigger."""
         candidates = []
         for event in self._recent_events:
-            dt = abs(trigger_time - event["time"])
-            if dt <= max_time_diff and event["distance_km"] <= max_distance_km:
+            dt = abs(trigger_time - event.get("time", 0))
+            if dt <= max_time_diff and event.get("distance_km", 9999) <= max_distance_km:
                 candidates.append((dt, event))
 
         if not candidates:
             return None
 
-        # Return the closest in time
         candidates.sort(key=lambda x: x[0])
         return candidates[0][1]
 
@@ -299,7 +312,7 @@ class USGSPoller:
         """Background loop: poll → parse → store → sleep."""
         while self._running:
             try:
-                await self._poll_once()
+                await self._poll_feed(self._feed_url)
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -310,15 +323,15 @@ class USGSPoller:
             except asyncio.CancelledError:
                 break
 
-    async def _poll_once(self) -> None:
-        """Fetch and process one cycle of the USGS feed."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(self._feed_url)
+    async def _poll_feed(self, feed_url: str) -> None:
+        """Fetch and process one cycle of a USGS GeoJSON feed."""
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(feed_url)
             resp.raise_for_status()
             data = resp.json()
 
         features = data.get("features", [])
-        new_count = 0
+        new_events = []
 
         for feature in features:
             props = feature.get("properties", {})
@@ -357,8 +370,8 @@ class USGSPoller:
             theor_surf = event_time + travel["surface_travel_sec"]
             observable = is_observable_on_shake(mag, distance_km)
 
-            # Only store events within 500 miles, or observable/large teleseismic events
-            if distance_miles > 500.0 and not observable and (mag is None or mag < 5.5):
+            # Only store events within 700 miles, or observable/large teleseismic events
+            if distance_miles > 700.0 and not observable and (mag is None or mag < 5.5):
                 self._seen_ids.add(event_id)
                 continue
 
@@ -378,50 +391,35 @@ class USGSPoller:
                 "fetched_at": time.time(),
                 "p_travel_sec": travel["p_travel_sec"],
                 "s_travel_sec": travel["s_travel_sec"],
-                "p_arrival": round(theor_p, 2),
-                "s_arrival": round(theor_s, 2),
-                "surf_arrival": round(theor_surf, 2),
+                "surface_travel_sec": travel["surface_travel_sec"],
+                "theor_p_arrival": theor_p,
+                "theor_s_arrival": theor_s,
+                "theor_surface_arrival": theor_surf,
                 "is_observable": observable,
             }
 
-            self._recent_events.append(event_record)
             self._seen_ids.add(event_id)
-            new_count += 1
+            new_events.append(event_record)
 
-            # Only broadcast individual live events after initial history is seeded
+            # Broadcast live event if initial poll already done
             if getattr(self, "_initial_poll_done", False):
                 try:
                     from eqengine.web.broadcaster import get_broadcaster
-                    await get_broadcaster().broadcast_usgs_event(event_record)
+                    asyncio.create_task(get_broadcaster().broadcast_usgs_event(event_record))
                 except Exception:
                     pass
 
-            log.info(
-                "usgs_poller.new_event",
-                event_id=event_id,
-                magnitude=mag,
-                place=props.get("place"),
-                distance_km=round(distance_km, 1),
-                distance_class=dist_class,
-                is_observable=observable,
-                theor_p=theor_p,
-            )
+        if new_events:
+            self._recent_events.extend(new_events)
+            self._save_cache()
+            log.info("usgs_poller.new_events_cached", count=len(new_events), total=len(self._recent_events))
 
         self._initial_poll_done = True
 
-        # Prune old events (strictly retain full 48 hours = 172,800 seconds)
-        cutoff_48h = time.time() - 172800.0
-        self._recent_events = [e for e in self._recent_events if e["time"] >= cutoff_48h]
+        # Prune old events (retain 7 days in memory / disk)
+        cutoff_7d = time.time() - 7 * 86400.0
+        self._recent_events = [e for e in self._recent_events if e.get("time", 0) >= cutoff_7d]
 
         # Prune seen IDs if too large
         if len(self._seen_ids) > _MAX_SEEN_IDS:
-            # Keep only IDs from current events
-            self._seen_ids = {e["id"] for e in self._recent_events}
-
-        if new_count > 0:
-            log.info(
-                "usgs_poller.poll_complete",
-                new_events=new_count,
-                total_cached=len(self._recent_events),
-            )
-"""Module-level convenience function for standalone haversine testing."""
+            self._seen_ids = {e["id"] for e in self._recent_events if "id" in e}

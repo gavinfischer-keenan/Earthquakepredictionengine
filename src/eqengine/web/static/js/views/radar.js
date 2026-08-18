@@ -751,67 +751,33 @@ export function formatElapsedTime(timeSec) {
   return `${days} days ago`;
 }
 
+const RADAR_CACHE_KEY = 'eqengine_radar_usgs_events_v2';
+
 export async function fetchRadarEvents() {
   try {
-    // 1. Fetch from local engine API
+    // Fetch directly from local engine API cache (no external third-party requests)
     const resp = await fetch('/api/usgs-events');
     if (resp.ok) {
       const data = await resp.json();
       const incomingEvents = data.events || [];
-      const existingIds = new Set(state.usgsEvents.map((e) => e.id));
-      incomingEvents.forEach((evt) => {
-        if (evt && evt.id && !existingIds.has(evt.id)) {
-          state.usgsEvents.push(evt);
-          existingIds.add(evt.id);
-        }
-      });
-    }
-
-    // 2. Fetch directly from USGS 48-hour feed
-    if (state.usgsEvents.length < 20) {
-      const usgsResp = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson');
-      if (usgsResp.ok) {
-        const usgsData = await usgsResp.json();
-        const features = usgsData.features || [];
+      if (incomingEvents.length > 0) {
         const existingIds = new Set(state.usgsEvents.map((e) => e.id));
-
-        features.forEach((f) => {
-          const id = f.id;
-          if (!existingIds.has(id) && f.geometry && f.geometry.coordinates) {
-            const lon = f.geometry.coordinates[0];
-            const lat = f.geometry.coordinates[1];
-            const depth = f.geometry.coordinates[2] || 5.0;
-            const props = f.properties || {};
-
-            // Calculate distance to Berkeley station (37.8696, -122.2491)
-            const dLat = (lat - 37.8696) * 111.0;
-            const dLon = (lon - (-122.2491)) * (111.0 * Math.cos((37.8696 * Math.PI) / 180));
-            const distKm = Math.sqrt(dLat * dLat + dLon * dLon);
-            const distMi = distKm * 0.621371;
-
-            if (distMi <= 700.0) {
-              state.usgsEvents.push({
-                id: id,
-                magnitude: props.mag,
-                place: props.place,
-                time: props.time ? props.time / 1000 : Date.now() / 1000,
-                latitude: lat,
-                longitude: lon,
-                depth_km: depth,
-                distance_km: distKm,
-                distance_miles: distMi,
-                url: props.url,
-              });
-              existingIds.add(id);
-            }
+        incomingEvents.forEach((evt) => {
+          if (evt && evt.id && !existingIds.has(evt.id)) {
+            state.usgsEvents.push(evt);
+            existingIds.add(evt.id);
           }
         });
+        // Cache to browser localStorage
+        try {
+          localStorage.setItem(RADAR_CACHE_KEY, JSON.stringify(state.usgsEvents.slice(-500)));
+        } catch (e) {}
       }
     }
-
-    updateRadarMap();
   } catch (err) {
-    console.error('Failed to fetch USGS radar events:', err);
+    console.warn('Local USGS API sync:', err);
+  } finally {
+    updateRadarMap();
   }
 }
 
@@ -819,6 +785,23 @@ export function initRadarMap() {
   if (leafletMap || typeof L === 'undefined') return;
   const mapEl = document.getElementById('radarMap');
   if (!mapEl) return;
+
+  // 0. Load cached events from localStorage immediately for 0ms startup
+  try {
+    const cached = localStorage.getItem(RADAR_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const existingIds = new Set(state.usgsEvents.map((e) => e.id));
+        parsed.forEach((evt) => {
+          if (evt && evt.id && !existingIds.has(evt.id)) {
+            state.usgsEvents.push(evt);
+            existingIds.add(evt.id);
+          }
+        });
+      }
+    }
+  } catch (e) {}
 
   // 1. Dark Matter CartoDB Basemap (Default)
   const darkMatterLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
