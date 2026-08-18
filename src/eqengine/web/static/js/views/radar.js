@@ -637,4 +637,165 @@ export function updateRadarMap() {
       alertEl.textContent = `Seismicity within normal California background range (${geysersCount} in The Geysers)`;
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Render Left-Side Dynamic Events Drawer List
+  // -------------------------------------------------------------------------
+  lastActive48hEvents = active48hEvents;
+  renderRadarEventsList(active48hEvents);
+}
+
+let lastActive48hEvents = [];
+let isDrawerListenersInit = false;
+
+export function initRadarDrawerListeners() {
+  if (isDrawerListenersInit) return;
+  const sortSelect = document.getElementById('radarSortSelect');
+  const searchInput = document.getElementById('radarSearchInput');
+
+  if (sortSelect) {
+    sortSelect.addEventListener('change', () => {
+      renderRadarEventsList(lastActive48hEvents);
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderRadarEventsList(lastActive48hEvents);
+    });
+  }
+
+  isDrawerListenersInit = true;
+}
+
+export function renderRadarEventsList(events) {
+  initRadarDrawerListeners();
+
+  const listEl = document.getElementById('radarEventsList');
+  const countBadge = document.getElementById('radarDrawerCount');
+  if (!listEl) return;
+
+  if (!events || events.length === 0) {
+    listEl.innerHTML = '<div class="drawer-empty">No regional seismic events detected within 500 miles.</div>';
+    if (countBadge) countBadge.textContent = '0 events';
+    return;
+  }
+
+  const sortSelect = document.getElementById('radarSortSelect');
+  const sortMode = sortSelect ? sortSelect.value : 'time';
+
+  const searchInput = document.getElementById('radarSearchInput');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  // Filter events by query if specified
+  let filtered = events.slice();
+  if (query) {
+    filtered = filtered.filter((evt) => {
+      const place = (evt.place || '').toLowerCase();
+      const zone = getClusterZoneForEvent(evt.latitude, evt.longitude);
+      const zoneName = zone ? zone.name.toLowerCase() : '';
+      return place.includes(query) || zoneName.includes(query);
+    });
+  }
+
+  // Sort events
+  filtered.sort((a, b) => {
+    const magA = a.magnitude !== undefined && a.magnitude !== null ? a.magnitude : 1.2;
+    const magB = b.magnitude !== undefined && b.magnitude !== null ? b.magnitude : 1.2;
+
+    const distA = a.distance_miles !== undefined ? a.distance_miles : (a.distance_km ? a.distance_km * 0.621371 : 9999);
+    const distB = b.distance_miles !== undefined ? b.distance_miles : (b.distance_km ? b.distance_km * 0.621371 : 9999);
+
+    if (sortMode === 'mag') {
+      return magB - magA; // Largest first
+    } else if (sortMode === 'dist') {
+      return distA - distB; // Closest first
+    }
+    // Default: 'time' (Most recent at top)
+    return (b.time || 0) - (a.time || 0);
+  });
+
+  if (countBadge) {
+    countBadge.textContent = `${filtered.length} events`;
+  }
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div class="drawer-empty">No events match "${query}".</div>`;
+    return;
+  }
+
+  // Build event cards
+  const html = filtered.map((evt) => {
+    const mag = evt.magnitude !== undefined && evt.magnitude !== null ? evt.magnitude : 1.2;
+    const distMi = evt.distance_miles !== undefined ? evt.distance_miles : (evt.distance_km ? evt.distance_km * 0.621371 : 0);
+    const timeUtc = new Date(evt.time * 1000).toISOString().substring(11, 19);
+    const elapsedStr = formatElapsedTime(evt.time);
+    const depthStr = evt.depth_km !== undefined ? `${evt.depth_km.toFixed(1)} km` : '--';
+    const placeStr = evt.place || 'California Regional Event';
+
+    let badgeClass = 'mag-micro';
+    let tagLabel = 'MICRO';
+    if (mag >= 4.0) {
+      badgeClass = 'mag-strong';
+      tagLabel = 'STRONG';
+    } else if (mag >= 2.5) {
+      badgeClass = 'mag-moderate';
+      tagLabel = 'LIGHT';
+    } else if (mag >= 1.5) {
+      badgeClass = 'mag-minor';
+      tagLabel = 'MINOR';
+    }
+
+    const matchedZone = getClusterZoneForEvent(evt.latitude, evt.longitude);
+
+    return `
+      <div class="radar-event-item" data-lat="${evt.latitude}" data-lng="${evt.longitude}" data-time="${evt.time}">
+        <div class="event-mag-badge ${badgeClass}">
+          <span class="event-mag-num">M${mag.toFixed(1)}</span>
+          <span class="event-mag-tag">${tagLabel}</span>
+        </div>
+        <div class="event-info-col">
+          <div class="event-place" title="${placeStr}">${placeStr}</div>
+          <div class="event-meta-row">
+            <span class="event-dist">📍 ${distMi.toFixed(1)} mi · ${depthStr}</span>
+            <span class="event-time"><span class="live-elapsed" data-time="${evt.time}">${elapsedStr}</span></span>
+          </div>
+          ${matchedZone ? `
+            <div class="event-zone-tag" style="background: ${matchedZone.color}20; color: ${matchedZone.color}; border-color: ${matchedZone.color}40;">
+              ${matchedZone.name.split(' ')[0]} ${matchedZone.name.split(' ').slice(1, 3).join(' ')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  listEl.innerHTML = html;
+
+  // Attach click listeners to jump map center WITHOUT changing zoom!
+  listEl.querySelectorAll('.radar-event-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const lat = parseFloat(item.getAttribute('data-lat'));
+      const lng = parseFloat(item.getAttribute('data-lng'));
+
+      if (!isNaN(lat) && !isNaN(lng) && leafletMap) {
+        // Pan to coordinates as center — keep current zoom level!
+        leafletMap.panTo([lat, lng], { animate: true, duration: 0.5 });
+
+        // Highlight selected card
+        listEl.querySelectorAll('.radar-event-item').forEach((el) => el.classList.remove('active-item'));
+        item.classList.add('active-item');
+
+        // Find corresponding marker and trigger popup
+        const marker = quakeMarkers.find((m) => {
+          if (!m.getLatLng) return false;
+          const ll = m.getLatLng();
+          return Math.abs(ll.lat - lat) < 0.001 && Math.abs(ll.lng - lng) < 0.001;
+        });
+        if (marker && marker.openPopup) {
+          marker.openPopup();
+        }
+      }
+    });
+  });
 }
