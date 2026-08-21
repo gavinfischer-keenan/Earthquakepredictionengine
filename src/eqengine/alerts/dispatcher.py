@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TypeAlias
@@ -196,7 +197,7 @@ MQTT_TOPIC_ALERTS: str = os.getenv("MQTT_TOPIC_ALERTS", "home/alerts/earthquake"
 MQTT_TOPIC_STATUS: str = os.getenv("MQTT_TOPIC_STATUS", "home/status/earthquake-engine")
 MQTT_TOPIC_EVENTS: str = os.getenv("MQTT_TOPIC_EVENTS", "home/events/earthquake")
 MQTT_TOPIC_COMMANDS: str = os.getenv("MQTT_TOPIC_COMMANDS", "home/commands/display")
-MQTT_TOPIC_RSAM: str = os.getenv("MQTT_TOPIC_RSAM", "home/sensors/earthquake/rsam")
+MQTT_TOPIC_RSAM: str = os.getenv("MQTT_TOPIC_RSAM", "home/sensors/rsam")
 MQTT_ENABLED: bool = os.getenv("MQTT_ENABLED", "false").lower() in ("true", "1", "yes")
 
 _mqtt_client = None
@@ -212,6 +213,13 @@ def _get_mqtt_client():
         _mqtt_client = mqtt.Client(
             client_id="eqengine",
             protocol=mqtt.MQTTv311,
+        )
+        # Set Last Will and Testament (LWT) per BerkeleyPlatform architecture
+        _mqtt_client.will_set(
+            MQTT_TOPIC_STATUS,
+            json.dumps({"status": "offline", "agent": "earthquake-engine", "version": __version__}),
+            qos=0,
+            retain=True,
         )
         if MQTT_USERNAME and MQTT_PASSWORD:
             _mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)

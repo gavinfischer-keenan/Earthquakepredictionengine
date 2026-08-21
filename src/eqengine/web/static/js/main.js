@@ -2,21 +2,21 @@
  * EarthquakePredictionEngine - Main Application Orchestrator
  */
 
-import { state } from './state.js';
-import { elements, updateClock, initDomListeners } from './dom.js';
-import { initAudio, toggleSonification, renderSonificationVisualizer } from './audio.js';
-import { connectWebSocket } from './websocket.js';
-import { renderOscilloscope } from './views/oscilloscope.js';
-import { renderSpectrogram } from './views/spectrogram.js';
-import { renderHelicorder } from './views/helicorder.js';
-import { renderStaLta } from './views/stalta.js';
-import { renderHodogram } from './views/hodogram.js';
-import { renderUrbanProfiler } from './views/urban.js';
-import { renderPhaseNet } from './views/phasenet.js';
-import { renderPetersonCurve } from './views/peterson.js';
-import { initRadarMap, updateRadarMap, fetchRadarEvents } from './views/radar.js';
-import { loadHistoricalSeismograph, initReviewStudioListeners } from './views/review_studio.js';
-import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/tables.js';
+import { state } from './state.js?v=1787296000';
+import { elements, updateClock, initDomListeners } from './dom.js?v=1787296000';
+import { initAudio, toggleSonification, renderSonificationVisualizer } from './audio.js?v=1787296000';
+import { connectWebSocket } from './websocket.js?v=1787296000';
+import { renderOscilloscope } from './views/oscilloscope.js?v=1787296000';
+import { renderSpectrogram } from './views/spectrogram.js?v=1787296000';
+import { renderHelicorder } from './views/helicorder.js?v=1787296000';
+import { renderStaLta } from './views/stalta.js?v=1787296000';
+import { renderHodogram } from './views/hodogram.js?v=1787296000';
+import { renderUrbanProfiler } from './views/urban.js?v=1787296000';
+import { renderPhaseNet } from './views/phasenet.js?v=1787296000';
+import { renderPetersonCurve } from './views/peterson.js?v=1787296000';
+import { initRadarMap, updateRadarMap, fetchRadarEvents } from './views/radar.js?v=1787296000';
+import { loadHistoricalSeismograph, initReviewStudioListeners } from './views/review_studio.js?v=1787296000';
+import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/tables.js?v=1787296000';
 
 // ---------------------------------------------------------------------------
 // Telemetry Header Counters

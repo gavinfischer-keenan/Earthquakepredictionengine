@@ -147,9 +147,9 @@ export function renderUrbanProfiler() {
   ctx.fillRect(0, 0, w, h);
 
   const padL = 48;
-  const padR = 16;
-  const padT = 24;
-  const padB = 22;
+  const padR = 24;
+  const padT = 32;
+  const padB = 24;
   const pW = Math.max(w - padL - padR, 50);
   const pH = Math.max(h - padT - padB, 40);
 
@@ -164,6 +164,7 @@ export function renderUrbanProfiler() {
   // Y-Axis Horizontal Gridlines
   ctx.font = '8.5px "JetBrains Mono", monospace';
   ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
   const gridSteps = 4;
   for (let g = 0; g <= gridSteps; g++) {
     const val = (displayMax * g) / gridSteps;
@@ -177,7 +178,7 @@ export function renderUrbanProfiler() {
     ctx.stroke();
 
     ctx.fillStyle = '#64748b';
-    ctx.fillText((val * 0.05).toFixed(1), padL - 6, y + 3);
+    ctx.fillText((val * 0.05).toFixed(1), padL - 6, y);
   }
 
   // Y-Axis Label
@@ -186,11 +187,13 @@ export function renderUrbanProfiler() {
   ctx.rotate(-Math.PI / 2);
   ctx.fillStyle = '#94a3b8';
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillText('Energy (µm/s)', 0, 0);
   ctx.restore();
 
   // X-Axis Time Ticks (-5m to Now)
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
   const timeLabels = [
     { ratio: 0.0, label: '-5 min' },
     { ratio: 0.25, label: '-3.75 min' },
@@ -206,26 +209,29 @@ export function renderUrbanProfiler() {
     ctx.lineTo(x, padT + pH + 4);
     ctx.stroke();
     ctx.fillStyle = '#64748b';
-    ctx.fillText(tl.label, x, padT + pH + 14);
+    ctx.fillText(tl.label, x, padT + pH + 6);
   });
 
   const bands = [
-    { key: 'stadium', color: '#f43f5e', label: 'Cal Stadium (2–5 Hz)' },
-    { key: 'concert', color: '#c084fc', label: 'Greek Theatre (25–45 Hz)' },
-    { key: 'traffic', color: '#f59e0b', label: 'Roadway Traffic (8–14 Hz)' },
-    { key: 'steps', color: '#10b981', label: 'Indoor Impacts (15–24 Hz)' },
-    { key: 'wind', color: '#38bdf8', label: 'Wind / Sway (0.1–0.5 Hz)' },
+    { key: 'stadium', color: '#f43f5e', icon: '🏈', label: 'Cal Stadium (2–5 Hz)' },
+    { key: 'concert', color: '#c084fc', icon: '🎸', label: 'Greek Theatre (25–45 Hz)' },
+    { key: 'traffic', color: '#f59e0b', icon: '🚛', label: 'Roadway Traffic (8–14 Hz)' },
+    { key: 'steps', color: '#10b981', icon: '🏃', label: 'Indoor Impacts (15–24 Hz)' },
+    { key: 'wind', color: '#38bdf8', icon: '💨', label: 'Wind / Sway (0.1–0.5 Hz)' },
   ];
 
   const n = urbanHistory.length;
   if (n >= 2) {
     const stepX = pW / Math.max(n - 1, 1);
 
-    // Draw each spectral energy band with glow
+    // Draw each spectral energy band with crisp anti-aliasing & live endpoint markers
     bands.forEach((b) => {
       ctx.strokeStyle = b.color;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
+
+      let lastX = padL;
+      let lastY = padT + pH;
 
       for (let i = 0; i < n; i++) {
         const x = padL + i * stepX;
@@ -235,19 +241,57 @@ export function renderUrbanProfiler() {
 
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
+
+        if (i === n - 1) {
+          lastX = x;
+          lastY = y;
+        }
       }
+      ctx.stroke();
+
+      // Right-edge live endpoint marker
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
     });
   }
 
-  // Top Canvas Interactive Legend
-  ctx.font = '8.5px "JetBrains Mono", monospace';
-  ctx.textAlign = 'left';
+  // Top Canvas Interactive Legend Pills
+  ctx.font = 'bold 9px "JetBrains Mono", monospace';
+  ctx.textBaseline = 'middle';
   let legendX = padL + 4;
   bands.forEach((b) => {
+    const text = `${b.icon} ${b.label}`;
+    const txtW = ctx.measureText(text).width;
+    const pillW = txtW + 18;
+    const pillH = 18;
+    const pillY = padT - 25;
+
+    // Draw pill backdrop
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.beginPath();
+    ctx.roundRect(legendX, pillY, pillW, pillH, 4);
+    ctx.fill();
+    ctx.strokeStyle = `${b.color}80`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw color indicator dot
     ctx.fillStyle = b.color;
-    ctx.fillText(`■ ${b.label}`, legendX, padT - 8);
-    legendX += ctx.measureText(`■ ${b.label}`).width + 14;
+    ctx.beginPath();
+    ctx.arc(legendX + 8, pillY + pillH / 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw text in matching color
+    ctx.fillStyle = b.color;
+    ctx.textAlign = 'left';
+    ctx.fillText(text, legendX + 15, pillY + pillH / 2 + 0.5);
+
+    legendX += pillW + 8;
   });
 
   // Outer plot frame
