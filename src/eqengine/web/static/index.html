@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Earthquake Prediction Engine — Seismic Observatory</title>
-  <link rel="stylesheet" href="/static/style.css?v=1787019500">
+  <link rel="stylesheet" href="/static/style.css?v=1787294000">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -936,17 +936,17 @@
         <div class="env-container">
           <div class="env-grid">
             <!-- Cal Stadium Card -->
-            <div class="env-card" id="envCardStadium">
+            <div class="env-card" id="envCardStadium" style="border-top: 3px solid #f43f5e;">
               <div class="env-card-header">
                 <span class="env-icon">🏈</span>
                 <div class="env-title-group">
-                  <h4>Cal Memorial Stadium (100 yds)</h4>
+                  <h4 style="color: #f43f5e;">Cal Memorial Stadium (100 yds)</h4>
                   <span class="env-sub">Game Crowd Roar & Stomping (2–5 Hz)</span>
                 </div>
                 <span class="env-badge" id="envBadgeStadium">QUIET</span>
               </div>
               <div class="env-meter-bar">
-                <div class="env-meter-fill" id="envFillStadium" style="width: 5%;"></div>
+                <div class="env-meter-fill" id="envFillStadium" style="width: 5%; background: #f43f5e;"></div>
               </div>
               <div class="env-details">
                 <span>Power: <b id="envValStadium">0.12</b> µm/s</span>
@@ -955,17 +955,17 @@
             </div>
 
             <!-- Greek Theatre Card -->
-            <div class="env-card" id="envCardConcert">
+            <div class="env-card" id="envCardConcert" style="border-top: 3px solid #c084fc;">
               <div class="env-card-header">
                 <span class="env-icon">🎸</span>
                 <div class="env-title-group">
-                  <h4>Greek Theatre Concerts</h4>
+                  <h4 style="color: #c084fc;">Greek Theatre Concerts</h4>
                   <span class="env-sub">Acoustic Sub-Bass Resonance (25–45 Hz)</span>
                 </div>
                 <span class="env-badge" id="envBadgeConcert">IDLE</span>
               </div>
               <div class="env-meter-bar">
-                <div class="env-meter-fill" id="envFillConcert" style="width: 8%; background: #d080ff;"></div>
+                <div class="env-meter-fill" id="envFillConcert" style="width: 8%; background: #c084fc;"></div>
               </div>
               <div class="env-details">
                 <span>Sub-Bass: <b id="envValConcert">0.05</b> µm/s</span>
@@ -974,17 +974,17 @@
             </div>
 
             <!-- Heavy Traffic Card -->
-            <div class="env-card" id="envCardTraffic">
+            <div class="env-card" id="envCardTraffic" style="border-top: 3px solid #f59e0b;">
               <div class="env-card-header">
                 <span class="env-icon">🚛</span>
                 <div class="env-title-group">
-                  <h4>Heavy Truck & Bus Traffic</h4>
+                  <h4 style="color: #f59e0b;">Heavy Truck & Bus Traffic</h4>
                   <span class="env-sub">Roadway Acoustic-Ground Waves (8–14 Hz)</span>
                 </div>
                 <span class="env-badge" id="envBadgeTraffic">LIGHT</span>
               </div>
               <div class="env-meter-bar">
-                <div class="env-meter-fill" id="envFillTraffic" style="width: 12%; background: #ffaa00;"></div>
+                <div class="env-meter-fill" id="envFillTraffic" style="width: 12%; background: #f59e0b;"></div>
               </div>
               <div class="env-details">
                 <span>Road Power: <b id="envValTraffic">0.25</b> µm/s</span>
@@ -993,17 +993,17 @@
             </div>
 
             <!-- Human / Indoor Card -->
-            <div class="env-card" id="envCardHuman">
+            <div class="env-card" id="envCardHuman" style="border-top: 3px solid #10b981;">
               <div class="env-card-header">
                 <span class="env-icon">🏃</span>
                 <div class="env-title-group">
-                  <h4>Indoor Human Activity</h4>
+                  <h4 style="color: #10b981;">Indoor Human Activity</h4>
                   <span class="env-sub">Stairs, Floor Impacts & Door Transients</span>
                 </div>
                 <span class="env-badge" id="envBadgeHuman">QUIET</span>
               </div>
               <div class="env-meter-bar">
-                <div class="env-meter-fill" id="envFillHuman" style="width: 15%; background: #00ff88;"></div>
+                <div class="env-meter-fill" id="envFillHuman" style="width: 15%; background: #10b981;"></div>
               </div>
               <div class="env-details">
                 <span>Impact Level: <b id="envValHuman">0.001</b> m/s²</span>
@@ -1012,11 +1012,11 @@
             </div>
 
             <!-- Wind / Building Sway Card -->
-            <div class="env-card" id="envCardWind">
+            <div class="env-card" id="envCardWind" style="border-top: 3px solid #38bdf8;">
               <div class="env-card-header">
                 <span class="env-icon">💨</span>
                 <div class="env-title-group">
-                  <h4>Wind & Structural Sway</h4>
+                  <h4 style="color: #38bdf8;">Wind & Structural Sway</h4>
                   <span class="env-sub">Long-Period Rocking & Tree Roots (0.1–0.5 Hz)</span>
                 </div>
                 <span class="env-badge" id="envBadgeWind">CALM</span>
@@ -1293,6 +1293,6 @@
     </footer>
   </div>
 
-  <script type="module" src="/static/js/main.js?v=1787019500"></script>
+  <script type="module" src="/static/js/main.js?v=1787294000"></script>
 </body>
 </html>

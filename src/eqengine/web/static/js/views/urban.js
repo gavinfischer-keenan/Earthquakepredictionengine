@@ -68,36 +68,36 @@ export function renderUrbanProfiler() {
   // 1. Cal Stadium
   updateCard('Stadium', pStadium, 50, 'µm/s', [
     { minPct: 0, badge: 'QUIET', desc: 'Baseline / Empty Field', color: '#64748b' },
-    { minPct: 30, badge: 'ACTIVITY', desc: 'Practice / Crowd Noise', color: '#eab308' },
-    { minPct: 65, badge: 'ROARING', desc: 'Game Touchdown / Surge', color: '#ef4444' },
+    { minPct: 30, badge: 'ACTIVITY', desc: 'Practice / Crowd Noise', color: '#fb7185' },
+    { minPct: 65, badge: 'ROARING', desc: 'Game Touchdown / Surge', color: '#f43f5e' },
   ]);
 
   // 2. Greek Theatre Concerts
   updateCard('Concert', pConcert, 35, 'µm/s', [
     { minPct: 0, badge: 'IDLE', desc: 'No Live Audio', color: '#64748b' },
     { minPct: 35, badge: 'SOUNDCHECK', desc: 'Sub-Bass Resonance', color: '#c084fc' },
-    { minPct: 70, badge: 'LIVE CONCERT', desc: 'Heavy Bass Acoustic Coupling', color: '#ec4899' },
+    { minPct: 70, badge: 'LIVE CONCERT', desc: 'Heavy Bass Acoustic Coupling', color: '#e879f9' },
   ]);
 
   // 3. Roadway Traffic
   updateCard('Traffic', pTraffic, 45, 'µm/s', [
-    { minPct: 0, badge: 'LIGHT', desc: 'Normal Residential', color: '#22c55e' },
-    { minPct: 40, badge: 'MODERATE', desc: 'Bus / Delivery Truck', color: '#f59e0b' },
-    { minPct: 75, badge: 'HEAVY', desc: 'Highway 24 Traffic Surge', color: '#ef4444' },
+    { minPct: 0, badge: 'LIGHT', desc: 'Normal Residential', color: '#64748b' },
+    { minPct: 40, badge: 'MODERATE', desc: 'Bus / Delivery Truck', color: '#fbbf24' },
+    { minPct: 75, badge: 'HEAVY', desc: 'Highway 24 Traffic Surge', color: '#f59e0b' },
   ]);
 
   // 4. Human Activity
   updateCard('Human', pHuman, 40, 'm/s²', [
     { minPct: 0, badge: 'QUIET', desc: 'Idle / Still', color: '#64748b' },
-    { minPct: 35, badge: 'MOTION', desc: 'Footsteps / Floor Impacts', color: '#00ff88' },
-    { minPct: 70, badge: 'TRANSIENT', desc: 'Door Slam / Stair Impact', color: '#f59e0b' },
+    { minPct: 35, badge: 'MOTION', desc: 'Footsteps / Floor Impacts', color: '#34d399' },
+    { minPct: 70, badge: 'TRANSIENT', desc: 'Door Slam / Stair Impact', color: '#10b981' },
   ]);
 
   // 5. Wind / Sway
   updateCard('Wind', pWind, 30, 'µm/s', [
-    { minPct: 0, badge: 'CALM', desc: 'Light Breeze (<5 mph)', color: '#38bdf8' },
-    { minPct: 40, badge: 'BREEZY', desc: 'Canopy & Tree Sway', color: '#3b82f6' },
-    { minPct: 75, badge: 'GUSTING', desc: 'High Wind / Ridge Gusts', color: '#f59e0b' },
+    { minPct: 0, badge: 'CALM', desc: 'Light Breeze (<5 mph)', color: '#64748b' },
+    { minPct: 40, badge: 'BREEZY', desc: 'Canopy & Tree Sway', color: '#60a5fa' },
+    { minPct: 75, badge: 'GUSTING', desc: 'High Wind / Ridge Gusts', color: '#38bdf8' },
   ]);
 
   // Maintain 5-minute rolling history (sampled at 1 Hz)
@@ -210,11 +210,11 @@ export function renderUrbanProfiler() {
   });
 
   const bands = [
-    { key: 'stadium', color: '#ffaa00', label: 'Cal Stadium (2–5 Hz)' },
-    { key: 'concert', color: '#d080ff', label: 'Greek Theatre (25–45 Hz)' },
-    { key: 'traffic', color: '#38bdf8', label: 'Roadway Traffic (8–14 Hz)' },
-    { key: 'steps', color: '#00ff88', label: 'Indoor Impacts (15–24 Hz)' },
-    { key: 'wind', color: '#3b82f6', label: 'Wind / Sway (0.1–0.5 Hz)' },
+    { key: 'stadium', color: '#f43f5e', label: 'Cal Stadium (2–5 Hz)' },
+    { key: 'concert', color: '#c084fc', label: 'Greek Theatre (25–45 Hz)' },
+    { key: 'traffic', color: '#f59e0b', label: 'Roadway Traffic (8–14 Hz)' },
+    { key: 'steps', color: '#10b981', label: 'Indoor Impacts (15–24 Hz)' },
+    { key: 'wind', color: '#38bdf8', label: 'Wind / Sway (0.1–0.5 Hz)' },
   ];
 
   const n = urbanHistory.length;
