@@ -2711,3 +2711,16 @@ body {
 .status-indicator-dot.online {
   box-shadow: 0 0 4px #00ff88;
 }
+
+/* ==========================================================================
+   Public Observatory Mode (11mosswood.us)
+   ========================================================================== */
+body.public-mode #simUsgsBtn,
+body.public-mode #simTriggerBtn,
+body.public-mode #audioToggle,
+body.public-mode .tab-btn[data-tab="sonification"],
+body.public-mode .tab-btn[data-tab="ml"],
+body.public-mode #tab-sonification,
+body.public-mode #tab-ml {
+  display: none !important;
+}

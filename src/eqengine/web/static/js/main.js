@@ -189,9 +189,46 @@ function initToolbarControls() {
 }
 
 // ---------------------------------------------------------------------------
+// Public Mode Initialization
+// ---------------------------------------------------------------------------
+function initPublicMode() {
+  const host = window.location.hostname.toLowerCase();
+  const search = new URLSearchParams(window.location.search);
+  const isPublic =
+    host === '11mosswood.us' ||
+    (host.endsWith('11mosswood.us') && !host.startsWith('tto')) ||
+    search.get('mode') === 'public' ||
+    document.body.classList.contains('public-mode');
+
+  if (isPublic) {
+    document.body.classList.add('public-mode');
+
+    // 1. Hide simulation buttons
+    if (elements.simUsgsBtn) elements.simUsgsBtn.style.display = 'none';
+    if (elements.simTriggerBtn) elements.simTriggerBtn.style.display = 'none';
+
+    // 2. Hide audio and ML nav tabs
+    const sonificationTab = document.querySelector('.tab-btn[data-tab="sonification"]');
+    const mlTab = document.querySelector('.tab-btn[data-tab="ml"]');
+    if (sonificationTab) sonificationTab.style.display = 'none';
+    if (mlTab) mlTab.style.display = 'none';
+
+    // 3. Hide audio header toggle button
+    if (elements.audioToggle) elements.audioToggle.style.display = 'none';
+
+    // 4. If current active tab is forbidden, fall back to oscilloscope
+    if (state.activeTab === 'sonification' || state.activeTab === 'ml') {
+      const oscTab = document.querySelector('.tab-btn[data-tab="oscilloscope"]');
+      if (oscTab) oscTab.click();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Bootstrap
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+  initPublicMode();
   setInterval(updateClock, 50);
   initDomListeners();
   initTabNavigation();
