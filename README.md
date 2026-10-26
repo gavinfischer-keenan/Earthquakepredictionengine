@@ -45,12 +45,29 @@ By default, the engine monitors **EHZ** for event detection, but all four channe
 
 ---
 
-## Installation
+## 🚀 Quick 1-Click Installation
+
+### Windows (Zero-Configuration)
+1. Download this repository as a ZIP (click the green **Code** button ➔ **Download ZIP**) and extract it.
+2. Double-click **install.bat**.
+3. The interactive setup wizard will auto-detect your Raspberry Shake on your home network, set your station coordinates, configure your .env, and create a **1-click desktop shortcut** (Start Earthquake Observatory.bat)!
+
+### Linux & macOS
+`ash
+git clone https://github.com/gavinfischer-keenan/Earthquakepredictionengine.git
+cd EarthquakePredictionEngine
+chmod +x install.sh
+./install.sh
+`
+
+---
+
+## Manual Installation (Advanced)
 
 ### Prerequisites
 
 - Python **3.11+**
-- A Raspberry Shake RS4D on your local network with SeedLink or UDP forwarding enabled
+- A Raspberry Shake RS4D (or RS1D / RS3D / Boom) on your local network with SeedLink enabled (default port 18000)
 
 ### Steps
 

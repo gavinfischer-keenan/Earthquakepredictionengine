@@ -5,4 +5,4 @@ This package provides a complete pipeline for ingesting, processing, detecting,
 validating, and alerting on seismic events from a single RS4D station.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
