@@ -7,7 +7,7 @@
  * 3. 100% Gap-Free & Stutter-Free: Continuous direct-buffer STFT synchronized with PLL Playhead Clock.
  */
 
-import { state, SAMPLING_RATE } from '../state.js';
+import { state, SAMPLING_RATE, BUFFER_DELAY_SEC } from '../state.js';
 import { filterData, computeFFT256, getMagColor32 } from '../dsp.js';
 
 let specPllPlayheadT = 0;
@@ -42,16 +42,17 @@ export function renderSpectrogram() {
 
   if (state.paused) {
     // Retain paused position
-  } else if (latestReceivedT > 0) {
-    if (specPllPlayheadT === 0 || Math.abs(specPllPlayheadT - latestReceivedT) > 4.0) {
-      specPllPlayheadT = latestReceivedT - 0.15;
+  } else if (!state.buffering.isBuffering && latestReceivedT > 0) {
+    const targetT = latestReceivedT - BUFFER_DELAY_SEC;
+    if (specPllPlayheadT === 0 || Math.abs(specPllPlayheadT - targetT) > 15.0) {
+      specPllPlayheadT = targetT;
     } else {
-      const drift = (latestReceivedT - 0.15) - specPllPlayheadT;
-      const rateTrim = Math.max(-0.25, Math.min(0.25, drift * 0.6));
+      const drift = targetT - specPllPlayheadT;
+      const rateTrim = Math.max(-0.15, Math.min(0.15, drift * 0.25));
       specPllPlayheadT += dtSec * (1.0 + rateTrim);
     }
-  } else {
-    specPllPlayheadT = Date.now() / 1000;
+  } else if (!state.buffering.isBuffering) {
+    specPllPlayheadT = Date.now() / 1000 - BUFFER_DELAY_SEC;
   }
 
   const endT = state.paused ? (state.lastPausedTimestamp || specPllPlayheadT) : specPllPlayheadT;

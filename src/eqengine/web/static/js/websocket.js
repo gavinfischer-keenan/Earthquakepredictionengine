@@ -2,7 +2,7 @@
  * WebSocket Live Waveform & Telemetry Ingestion Hub
  */
 
-import { state, SAMPLING_RATE, MAX_SAMPLES } from './state.js';
+import { state, SAMPLING_RATE, MAX_SAMPLES, BUFFER_DELAY_SEC } from './state.js';
 import { elements, showWarningHud, showIncomingHud } from './dom.js';
 import { playAlertSound } from './audio.js';
 import { addEventToTable } from './views/tables.js';
@@ -59,7 +59,16 @@ export function connectWebSocket() {
     }
     state.connected = true;
     if (elements.statusPulse) elements.statusPulse.classList.add('online');
-    if (elements.footerConnection) elements.footerConnection.textContent = `Connected to ${wsUrl}`;
+    if (state.buffering && state.buffering.isBuffering) {
+      if (!state.buffering.startTime) state.buffering.startTime = performance.now();
+      if (elements.footerConnection) {
+        elements.footerConnection.textContent = `Connected. Buffering 10s jitter cushion for stutter-free display...`;
+      }
+    } else {
+      if (elements.footerConnection) {
+        elements.footerConnection.textContent = `Connected to ${wsUrl} • 10s Jitter Buffer Active`;
+      }
+    }
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

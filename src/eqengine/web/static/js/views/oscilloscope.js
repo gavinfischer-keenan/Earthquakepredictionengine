@@ -8,7 +8,7 @@
  * - Real UTC Time Grid & Interactive Markers
  */
 
-import { state, CHANNELS, SAMPLING_RATE } from '../state.js';
+import { state, CHANNELS, SAMPLING_RATE, BUFFER_DELAY_SEC } from '../state.js';
 import { elements } from '../dom.js';
 import { filterData } from '../dsp.js';
 
@@ -37,20 +37,35 @@ export function renderOscilloscope() {
   const ehzTs = state.timestamps.EHZ || [];
   const latestReceivedT = state.latestStreamTimestamp || (ehzTs.length > 0 ? ehzTs[ehzTs.length - 1] : 0);
 
+  // Monitor initial 10-second buffering cushion
+  if (state.buffering && state.buffering.isBuffering) {
+    if (!state.buffering.startTime) state.buffering.startTime = nowPerf;
+    const elapsedSec = (nowPerf - state.buffering.startTime) / 1000.0;
+    state.buffering.progress = Math.min(1.0, elapsedSec / BUFFER_DELAY_SEC);
+
+    if (latestReceivedT > 0 && elapsedSec >= BUFFER_DELAY_SEC) {
+      state.buffering.isBuffering = false;
+      state.buffering.complete = true;
+      pllPlayheadT = latestReceivedT - BUFFER_DELAY_SEC;
+      if (elements.footerConnection) {
+        elements.footerConnection.textContent = `Connected • 10.0s Jitter Buffer Active (Stutter-Free)`;
+      }
+    }
+  }
+
   if (state.paused) {
     // Retain paused position
-  } else if (latestReceivedT > 0) {
-    if (pllPlayheadT === 0 || Math.abs(pllPlayheadT - latestReceivedT) > 4.0) {
-      // Sync playhead with a tiny 150ms buffer for seamless jitter absorption
-      pllPlayheadT = latestReceivedT - 0.15;
+  } else if (!state.buffering.isBuffering && latestReceivedT > 0) {
+    const targetT = latestReceivedT - BUFFER_DELAY_SEC;
+    if (pllPlayheadT === 0 || Math.abs(pllPlayheadT - targetT) > 15.0) {
+      pllPlayheadT = targetT;
     } else {
-      // Advance playhead smoothly at real-time clock speed with micro-drift compensation
-      const drift = (latestReceivedT - 0.15) - pllPlayheadT;
-      const rateTrim = Math.max(-0.25, Math.min(0.25, drift * 0.6));
+      const drift = targetT - pllPlayheadT;
+      const rateTrim = Math.max(-0.15, Math.min(0.15, drift * 0.25));
       pllPlayheadT += dtSec * (1.0 + rateTrim);
     }
-  } else {
-    pllPlayheadT = Date.now() / 1000;
+  } else if (!state.buffering.isBuffering) {
+    pllPlayheadT = Date.now() / 1000 - BUFFER_DELAY_SEC;
   }
 
   const endT = state.paused ? (state.lastPausedTimestamp || pllPlayheadT) : pllPlayheadT;
@@ -123,7 +138,7 @@ export function renderOscilloscope() {
         const d = new Date(t * 1000);
         const timeLabel = d.toISOString().substring(11, 19);
         const relSec = Math.round(t - endT);
-        const relLabel = relSec === 0 ? 'NOW' : `${relSec}s`;
+        const relLabel = relSec === 0 ? '-10s' : `${relSec}s`;
 
         ctx.fillStyle = '#64748b';
         ctx.fillText(timeLabel, x, plotH + 16);
@@ -142,11 +157,64 @@ export function renderOscilloscope() {
     ctx.lineTo(w, plotH);
     ctx.stroke();
 
-    // Rightmost Live Indicator badge on X-axis
+    // Rightmost Live Indicator badge on X-axis (shows 10s buffer cushion status)
     ctx.font = '8px JetBrains Mono';
     ctx.textAlign = 'right';
     ctx.fillStyle = '#00ff88';
-    ctx.fillText('LIVE 🔴', w - 6, plotH + 16);
+    ctx.fillText('LIVE 🔴 (10s BUFFER)', w - 6, plotH + 16);
+
+    // If initial 10-second buffering is active, render centered status HUD overlay
+    if (state.buffering && state.buffering.isBuffering) {
+      const elapsed = Math.min(BUFFER_DELAY_SEC, (nowPerf - (state.buffering.startTime || nowPerf)) / 1000.0);
+      const remaining = Math.max(0, BUFFER_DELAY_SEC - elapsed);
+      const pct = Math.round((elapsed / BUFFER_DELAY_SEC) * 100);
+
+      const boxW = Math.min(380, w - 30);
+      const boxH = 68;
+      const boxX = (w - boxW) / 2;
+      const boxY = (plotH - boxH) / 2;
+
+      ctx.fillStyle = 'rgba(6, 12, 24, 0.88)';
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxW, boxH, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = 'bold 11px JetBrains Mono, monospace';
+      ctx.fillStyle = '#00ff88';
+      ctx.textAlign = 'center';
+      ctx.fillText(`BUFFERING SEISMIC OBSERVATORY (${BUFFER_DELAY_SEC.toFixed(0)}s CUSHION)`, w / 2, boxY + 22);
+
+      ctx.font = '10px Inter, sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`Accumulating jitter reservoir for smooth 60 FPS playback: ${remaining.toFixed(1)}s`, w / 2, boxY + 38);
+
+      const barW = boxW - 40;
+      const barH = 6;
+      const barX = boxX + 20;
+      const barY = boxY + 48;
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW, barH, 3);
+      ctx.fill();
+
+      const fillW = Math.max(4, (barW * pct) / 100);
+      ctx.fillStyle = '#00ff88';
+      ctx.shadowColor = '#00ff88';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, fillW, barH, 3);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      if (ch === 'EHZ' && elements.footerConnection) {
+        elements.footerConnection.textContent = `Buffering live seismic stream (${remaining.toFixed(1)}s remaining)...`;
+      }
+      return;
+    }
 
     const rawBuf = state.buffers[ch] || [];
     const tsBuf = state.timestamps[ch] || [];

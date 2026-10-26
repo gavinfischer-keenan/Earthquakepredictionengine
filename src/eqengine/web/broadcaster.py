@@ -51,7 +51,7 @@ class WaveformBroadcaster:
         if self._ring_buffer is not None:
             try:
                 for ch in getattr(self._ring_buffer, "channels", []):
-                    tr = self._ring_buffer.get_latest(ch, duration_sec=35.0)
+                    tr = self._ring_buffer.get_latest(ch, duration_sec=60.0)
                     if tr is not None and len(tr.data) > 0:
                         initial_waveforms[ch] = {
                             "samples": [round(float(v), 2) for v in tr.data],

@@ -4,8 +4,9 @@
  */
 
 export const SAMPLING_RATE = 100;
-export const MAX_BUFFER_SECONDS = 120;
-export const MAX_SAMPLES = SAMPLING_RATE * MAX_BUFFER_SECONDS; // 12,000 samples per channel
+export const BUFFER_DELAY_SEC = 10.0; // 10-second jitter absorption cushion for 100% stutter-free 60 FPS playback
+export const MAX_BUFFER_SECONDS = 300;
+export const MAX_SAMPLES = SAMPLING_RATE * MAX_BUFFER_SECONDS; // 30,000 samples per channel
 
 export const CHANNELS = ['EHZ', 'ENZ', 'ENN', 'ENE'];
 
@@ -24,6 +25,15 @@ export const state = {
   audioEnabled: false,
   latestStreamTimestamp: 0.0,
   lastPacketArrivalLocalMs: 0,
+
+  // 10-second initial buffering & playhead delay state
+  buffering: {
+    isBuffering: true,
+    startTime: null,
+    durationSec: BUFFER_DELAY_SEC,
+    progress: 0.0,
+    complete: false,
+  },
 
   // User controls
   windowSec: 30,
