@@ -421,4 +421,11 @@ def create_app(
                 raise HTTPException(status_code=404, detail="index.html not found")
             return FileResponse(str(index_path))
 
+        @app.get("/manual")
+        async def serve_manual() -> FileResponse:
+            manual_path = STATIC_DIR / "manual.html"
+            if not manual_path.exists():
+                raise HTTPException(status_code=404, detail="manual.html not found")
+            return FileResponse(str(manual_path))
+
     return app

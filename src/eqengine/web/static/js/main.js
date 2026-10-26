@@ -186,6 +186,36 @@ function initToolbarControls() {
   if (sonBtn) {
     sonBtn.addEventListener('click', toggleSonification);
   }
+
+  // 'Tell Me What This Shows' Quick Explainer Button
+  const explainBtn = document.getElementById('explainViewBtn');
+  if (explainBtn) {
+    explainBtn.addEventListener('click', () => {
+      const tabManualBtn = document.querySelector('.tab-btn[data-tab="manual"]');
+      if (tabManualBtn) tabManualBtn.click();
+      const iframe = document.getElementById('manualIframe');
+      if (iframe && iframe.contentWindow) {
+        const chapterAnchorMap = {
+          oscilloscope: 'ch-oscilloscope',
+          traces: 'ch-oscilloscope',
+          spectrogram: 'ch-spectrogram',
+          helicorder: 'ch-helicorder',
+          stalta: 'ch-stalta',
+          hodogram: 'ch-hodogram',
+          radar: 'ch-radar',
+          environment: 'ch-environment',
+          psd: 'ch-psd',
+          phasenet: 'ch-phasenet',
+        };
+        const anchor = chapterAnchorMap[state.activeTab] || 'ch-oscilloscope';
+        setTimeout(() => {
+          try {
+            iframe.contentWindow.location.hash = anchor;
+          } catch (e) {}
+        }, 150);
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -110,6 +110,7 @@
         <button class="tab-btn" data-tab="sonification">🔊 Earth Audio</button>
         <button class="tab-btn" data-tab="events">📋 Event Log</button>
         <button class="tab-btn" data-tab="ml">🤖 ML Dataset & Annotations</button>
+        <button class="tab-btn" data-tab="manual" id="tabBtnManual" style="color: #38bdf8; border-left: 1px solid var(--border-subtle);">📖 Field Manual</button>
       </div>
 
       <div class="toolbar-controls">
@@ -153,6 +154,7 @@
         </div>
 
         <button class="btn btn-sm btn-ghost" id="pauseBtn">⏸ Pause</button>
+        <button class="btn btn-sm btn-ghost" id="explainViewBtn" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); margin-left: 6px;" title="Tell me what this view shows (Opens Field Manual)">💡 Tell Me What This Shows</button>
       </div>
     </nav>
 
@@ -1191,6 +1193,30 @@
               <canvas id="sonVisualizer" class="son-canvas"></canvas>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- 13. Field Manual & Science Guide Tab -->
+      <section class="tab-panel" id="tab-manual" style="padding: 0; height: calc(100vh - 120px);">
+        <div style="display: flex; flex-direction: column; height: 100%; width: 100%;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: #0a0e1a; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.3); color: #00ff88; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">📖 OBSERVATORY FIELD MANUAL</span>
+              <span style="font-size: 12px; color: #94a3b8;">What is being shown across 3 progressive layers: <b>Layperson</b> &bull; <b>Science</b> &bull; <b>Raw Math</b></span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <a href="/static/docs/Seismic_Observatory_Field_Manual.pdf" download class="btn btn-sm btn-primary" id="downloadManualPdfBtn">
+                📥 Download PDF Manual
+              </a>
+              <button onclick="const f=document.getElementById('manualIframe'); if(f&&f.contentWindow) f.contentWindow.print();" class="btn btn-sm btn-ghost">
+                🖨️ Print
+              </button>
+              <a href="/manual" target="_blank" class="btn btn-sm btn-ghost" title="Open in dedicated browser window">
+                ↗ Standalone Window
+              </a>
+            </div>
+          </div>
+          <iframe id="manualIframe" src="/static/manual.html" style="flex: 1; width: 100%; border: none; background: #060913;"></iframe>
         </div>
       </section>
     </main>
