@@ -20,7 +20,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "obspy>=1.4.0",
+    # obspy 1.5.x cannot connect to SeedLink (a float-versus-None timeout bug), found 2 Nov 2026 on the
+    # web box; 1.4.x imports pkg_resources, which setuptools 81 removed.
+    "obspy>=1.4.2,<1.5",
+    "setuptools<81",
     "numpy>=1.24",
     "scipy>=1.10",
     "pydantic>=2.0",
@@ -54,6 +57,10 @@ eqengine = "eqengine.main:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The live view's files ship with the package, so a normal (non-editable) install serves them.
+[tool.setuptools.package-data]
+eqengine = ["web/static/*", "web/static/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
