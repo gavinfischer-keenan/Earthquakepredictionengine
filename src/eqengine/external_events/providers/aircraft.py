@@ -271,9 +271,10 @@ class AircraftProvider(ExternalEventProvider):
         )
 
     def _source_candidates(self) -> list[tuple[str, str]]:
+        radius_int = max(1, round(self.radius_nm))
         return [
-            ("adsb-lol", f"https://api.adsb.lol/v2/lat/{self.station_lat}/{self.station_lon}/{self.radius_nm}"),
-            ("adsb-fi", f"https://opendata.adsb.fi/api/v2/lat/{self.station_lat}/{self.station_lon}/{self.radius_nm}"),
+            ("adsb-lol", f"https://api.adsb.lol/v2/lat/{self.station_lat}/lon/{self.station_lon}/dist/{radius_int}"),
+            ("adsb-fi", f"https://opendata.adsb.fi/api/v2/lat/{self.station_lat}/lon/{self.station_lon}/dist/{radius_int}"),
             ("airplanes-live", f"https://api.airplanes.live/v2/point/{self.station_lat}/{self.station_lon}/{self.radius_nm}"),
             ("opensky", self._opensky_url()),
         ]
