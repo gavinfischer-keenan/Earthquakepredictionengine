@@ -309,10 +309,12 @@ class TestAircraftProvider:
         calls: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            calls.append(request.url.host)
+            calls.append(f"{request.url.host}{request.url.path}")
             if "adsb.lol" in request.url.host:
+                assert "/lon/" in request.url.path and "/dist/" in request.url.path
                 return httpx.Response(403, json={"error": "blocked"}, request=request)
             if "adsb.fi" in request.url.host:
+                assert "/lon/" in request.url.path and "/dist/" in request.url.path
                 return httpx.Response(
                     200,
                     json={"aircraft": [{"hex": "abc123", "flight": "TEST1", "t": "H125", "lat": 37.87, "lon": -122.25, "alt_baro": 1500}]},
@@ -325,10 +327,10 @@ class TestAircraftProvider:
             snap, _ = await provider.fetch(client)
             assert snap.source == "adsb-fi"
             assert snap.low_overhead_count == 1
-            assert "api.adsb.lol" in calls
+            assert any("api.adsb.lol" in c for c in calls)
 
             # Next poll skips blocked adsb.lol cleanly because cooldown is active
             calls.clear()
             snap2, _ = await provider.fetch(client)
             assert snap2.source == "adsb-fi"
-            assert "api.adsb.lol" not in calls
+            assert not any("api.adsb.lol" in c for c in calls)
