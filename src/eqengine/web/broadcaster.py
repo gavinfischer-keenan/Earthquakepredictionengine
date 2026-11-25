@@ -32,6 +32,8 @@ class WaveformBroadcaster:
         self._alert_history: deque[dict[str, Any]] = deque(maxlen=max_history)
         self._usgs_history: deque[dict[str, Any]] = deque(maxlen=1000)
         self._last_status: dict[str, Any] | None = None
+        self._latest_ml_pick: dict[str, Any] | None = None
+        self._latest_witness: dict[str, Any] | None = None
         self._latest_ratios: dict[str, float] = {}
         self._ring_buffer: Any = None
 
@@ -54,7 +56,7 @@ class WaveformBroadcaster:
                     tr = self._ring_buffer.get_latest(ch, duration_sec=60.0)
                     if tr is not None and len(tr.data) > 0:
                         initial_waveforms[ch] = {
-                            "samples": [round(float(v), 2) for v in tr.data],
+                            "samples": np.round(tr.data, 2).tolist(),
                             "start_time": float(tr.stats.starttime.timestamp),
                             "sampling_rate": float(tr.stats.sampling_rate),
                         }
@@ -70,6 +72,8 @@ class WaveformBroadcaster:
                 "recent_alerts": list(self._alert_history),
                 "recent_usgs": list(self._usgs_history),
                 "last_status": self._last_status,
+                "latest_ml_pick": self._latest_ml_pick,
+                "latest_witness": self._latest_witness,
                 "initial_waveforms": initial_waveforms,
             }
             await websocket.send_text(json.dumps(init_msg, default=str))
@@ -159,6 +163,28 @@ class WaveformBroadcaster:
             theor_p=usgs_dict.get("p_arrival"),
         )
         await self._broadcast_json(message)
+
+    async def broadcast_ml_pick(self, pick_dict: dict[str, Any]) -> None:
+        """Broadcast a backend PhaseNet ONNX/SeisBench P/S pick to observatory clients."""
+        self._latest_ml_pick = pick_dict
+        await self._broadcast_json(
+            {
+                "type": "ml_pick",
+                "timestamp": time.time(),
+                "pick": pick_dict,
+            }
+        )
+
+    async def broadcast_witness_verdict(self, verdict_dict: dict[str, Any]) -> None:
+        """Broadcast a multi-station witness verification verdict (e.g. BK.BKS)."""
+        self._latest_witness = verdict_dict
+        await self._broadcast_json(
+            {
+                "type": "witness_verdict",
+                "timestamp": time.time(),
+                "witness": verdict_dict,
+            }
+        )
 
     async def _broadcast_json(self, data: dict[str, Any]) -> None:
         """Send JSON payload to all active clients, pruning broken sockets."""

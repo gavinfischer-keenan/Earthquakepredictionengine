@@ -55,3 +55,8 @@ coverage.xml
 # ---------------------------------------------------------------------------
 events/
 *.mseed
+data/archive/
+data/highlights/
+data/forensics_history.*
+data/*.json
+data/ml_dataset/

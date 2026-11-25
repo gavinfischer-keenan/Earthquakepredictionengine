@@ -134,13 +134,19 @@ export function renderStaLta() {
       ctx.font = '8.5px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#64748b';
-      const xLabels = [
-        { ratio: 0.0, label: '-5 min' },
-        { ratio: 0.25, label: '-3.75m' },
-        { ratio: 0.5, label: '-2.5m' },
-        { ratio: 0.75, label: '-1.25m' },
-        { ratio: 1.0, label: 'Live' },
-      ];
+      const xLabels = w < 420
+        ? [
+            { ratio: 0.0, label: '-5m' },
+            { ratio: 0.5, label: '-2.5m' },
+            { ratio: 1.0, label: 'Live' },
+          ]
+        : [
+            { ratio: 0.0, label: '-5 min' },
+            { ratio: 0.25, label: '-3.75m' },
+            { ratio: 0.5, label: '-2.5m' },
+            { ratio: 0.75, label: '-1.25m' },
+            { ratio: 1.0, label: 'Live' },
+          ];
       xLabels.forEach((xl) => {
         const x = padL + xl.ratio * pW;
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -343,13 +349,19 @@ export function renderStaLta() {
       ctx.font = '8.5px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#64748b';
-      const timeMarks = [
-        { ratio: 0.0, label: '-60 min' },
-        { ratio: 0.25, label: '-45 min' },
-        { ratio: 0.5, label: '-30 min' },
-        { ratio: 0.75, label: '-15 min' },
-        { ratio: 1.0, label: 'Now' },
-      ];
+      const timeMarks = w < 420
+        ? [
+            { ratio: 0.0, label: '-60m' },
+            { ratio: 0.5, label: '-30m' },
+            { ratio: 1.0, label: 'Now' },
+          ]
+        : [
+            { ratio: 0.0, label: '-60 min' },
+            { ratio: 0.25, label: '-45 min' },
+            { ratio: 0.5, label: '-30 min' },
+            { ratio: 0.75, label: '-15 min' },
+            { ratio: 1.0, label: 'Now' },
+          ];
       timeMarks.forEach((tm) => {
         const x = padL + tm.ratio * pW;
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
@@ -379,15 +391,24 @@ export function renderStaLta() {
         rsamBadge.style.color = curMultiplier >= 5.0 ? '#ef4444' : curMultiplier >= 2.0 ? '#f59e0b' : '#00d2ff';
       }
 
-      // 2g. Top Legend Swatches
+      // 2g. Top Legend Swatches (Right-to-left measured layout — never overlaps on narrow screens)
       ctx.font = '8px JetBrains Mono, monospace';
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#00d2ff';
-      ctx.fillText('■ Quiet (<1.2x)', padL + pW - 140, padT + 12);
-      ctx.fillStyle = '#00ff88';
-      ctx.fillText('■ Normal (1.2-2x)', padL + pW - 65, padT + 12);
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillText('■ Elevated (2x+)', padL + pW, padT + 12);
+      ctx.textAlign = 'left';
+      const swatches = [
+        { color: '#f59e0b', text: '■ Elevated (2x+)' },
+        { color: '#00ff88', text: '■ Normal (1.2-2x)' },
+        { color: '#00d2ff', text: '■ Quiet (<1.2x)' },
+      ];
+      let swatchX = padL + pW - 4;
+      for (let i = 0; i < swatches.length; i++) {
+        const sw = swatches[i];
+        const tw = ctx.measureText(sw.text).width;
+        swatchX -= tw;
+        if (swatchX < padL + 4) break;
+        ctx.fillStyle = sw.color;
+        ctx.fillText(sw.text, swatchX, padT + 12);
+        swatchX -= 10;
+      }
     }
   }
 }

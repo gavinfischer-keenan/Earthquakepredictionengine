@@ -131,21 +131,23 @@ setup_env() {
         warn "No .env.example found — creating minimal .env."
         cat > "${INSTALL_DIR}/.env" <<'EOF'
 # EarthquakePredictionEngine configuration
-# Raspberry Shake RS4D settings
+SHAKE_IP=192.168.4.164
 SHAKE_STATION=R1A3D
 SHAKE_NETWORK=AM
-SHAKE_PORT=8888
-SHAKE_HOST=0.0.0.0
+INGEST_MODE=seedlink
+SEEDLINK_PORT=18000
+UDP_PORT=8888
 
 # Alert settings
-DASHBOARD_URL=http://localhost:8080/api/alerts
-EVENTS_DIR=/opt/eqengine/events
+DASHBOARD_ENABLED=false
+DASHBOARD_URL=http://localhost:5050/api/ingest/earthquake-engine
+EVENT_LOG_DIR=/opt/eqengine/events
 
 # Detector thresholds
-STA_WINDOW=1.0
-LTA_WINDOW=30.0
-TRIGGER_ON=3.5
-TRIGGER_OFF=1.5
+STA_SECONDS=0.5
+LTA_SECONDS=20.0
+TRIGGER_ON=6.5
+TRIGGER_OFF=2.0
 EOF
         chown "${SERVICE_USER}:${SERVICE_GROUP}" "${INSTALL_DIR}/.env"
         chmod 600 "${INSTALL_DIR}/.env"
@@ -154,14 +156,14 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# 5. Events directory
+# 5. Events & Data directories
 # ---------------------------------------------------------------------------
 create_events_dir() {
-    info "Creating events directory..."
-    mkdir -p "${INSTALL_DIR}/events"
-    chown "${SERVICE_USER}:${SERVICE_GROUP}" "${INSTALL_DIR}/events"
-    chmod 755 "${INSTALL_DIR}/events"
-    ok "Events directory ready at ${INSTALL_DIR}/events."
+    info "Creating events and data directories..."
+    mkdir -p "${INSTALL_DIR}/events" "${INSTALL_DIR}/data"
+    chown "${SERVICE_USER}:${SERVICE_GROUP}" "${INSTALL_DIR}/events" "${INSTALL_DIR}/data"
+    chmod 755 "${INSTALL_DIR}/events" "${INSTALL_DIR}/data"
+    ok "Directories ready at ${INSTALL_DIR}/events and ${INSTALL_DIR}/data."
 }
 
 # ---------------------------------------------------------------------------

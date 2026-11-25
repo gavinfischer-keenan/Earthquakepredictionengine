@@ -2,17 +2,17 @@
 
 ## Overview
 
-**EarthquakePredictionEngine (`eqengine`)** is a low-latency, real-time seismic monitoring and earthquake early warning (EEW) system designed for Raspberry Shake RS4D stations (100 Hz geophone and triaxial accelerometer channels). The system continuously buffers waveform streams, applies digital signal processing, triggers on candidate seismic phase arrivals, filters false positives using physical and statistical checks, estimates earthquake magnitude and distance, fuses local picks with USGS feed data, and dispatches structured alerts to dashboards and notification endpoints.
+**EarthquakePredictionEngine (`eqengine`)** is a low-latency, real-time seismic monitoring and earthquake early warning (EEW) system designed for Raspberry Shake RS4D stations (100 Hz geophone and triaxial accelerometer channels). The system continuously buffers waveform streams, applies digital signal processing, triggers on candidate seismic phase arrivals, filters false positives using physical and statistical checks, estimates earthquake magnitude and distance, fuses local picks with USGS feed data, correlates ambient vibrations against NOAA buoys and Berkeley-local external events, and dispatches structured alerts to dashboards, MQTT, and an embedded web observatory.
 
 ---
 
 ## System Architecture Pipeline
 
-The runtime pipeline consists of five primary sequential processing stages with concurrent telemetry and enrichment sidecars:
+The runtime pipeline is driven by `SeismicEngine` (`eqengine.engine`) on a 4 Hz cadence with concurrent telemetry, USGS, environmental intelligence, external events, and web sidecars:
 
 ```
 ┌─────────────────┐
-│ Ingest Layer    │  (SeedLink Client / UDP Listener)
+│ Ingest Layer    │  (SeedLinkClient / UDPListener)
 └────────┬────────┘
          │ Waveform Streams (EHZ, ENZ, ENN, ENE @ 100 Hz)
          ▼
@@ -22,126 +22,138 @@ The runtime pipeline consists of five primary sequential processing stages with 
          │ Raw Waveform Windows
          ▼
 ┌─────────────────┐
-│ Preprocessing   │  (Demean, Cosine Taper, Bandpass Filter, Displacement Integration)
+│ Preprocessing   │  (Demean, Cosine Taper, Butterworth Bandpass)
 └────────┬────────┘
          │ Filtered Traces
          ▼
 ┌─────────────────┐
-│ Detection       │  (Recursive STA/LTA Triggering + ML Picker)
+│ Detection       │  (Recursive STA/LTA Triggering + optional SeisBench ML Picker)
 └────────┬────────┘
          │ Candidate Trigger Events
          ▼
 ┌─────────────────┐
-│ Validation      │  (Duration, EQ Frequency Band, Envelope Ratio, Noise Floor SNR)
+│ Validation      │  (Duration, 1–15 Hz PSD Band, Envelope Onset, Site NoiseModel)
 └────────┬────────┘
          │ Verified Seismic Triggers
          ▼
 ┌─────────────────┐
-│ Characterization│  (τ_c Predominant Period, P_d Peak Displacement, S-P Distance)
+│ Characterization│  (τ_c Predominant Period, P_d Peak Displacement, PGA/PGV, S-P)
+│ & USGS Fusion   │  (Correlates with USGSPoller for fused magnitude & distance)
 └────────┬────────┘
          │ Fused Event Parameters
          ▼
 ┌─────────────────┐
-│ Alert Dispatch  │  (Cooldown Manager, HTTP Webhooks, TTS Synthesis, Event Storage)
+│ Alert Dispatch  │  (AlertManager Cooldown + Async Webhooks, JSONL, WS, MQTT)
 └─────────────────┘
          ▲
-         │ Polling & Correlation
-┌─────────────────┐
-│ USGS Poller     │  (GeoJSON Feed Polling & Haversine Distance/Severity Matrix)
-└─────────────────┘
+         │ Sidecars (Background Poll & 1-Minute Telemetry)
+┌────────┴────────┬───────────────────────────┬──────────────────────────┐
+│ USGS Poller     │ Environmental Intelligence│ External Events Manager  │
+│ (GeoJSON Feed)  │ (NDBC Buoys, Quiet Hunter,│ (Cal Football, Greek     │
+│                 │  Forensics CSV/JSONL)     │  Theatre, Wind, BART)    │
+└─────────────────┘───────────────────────────┴──────────────────────────┘
 ```
 
 ---
 
 ## Subsystem Details
 
-### 1. Ingestion Layer (`eqengine.ingest`)
+### 1. Core Orchestration & Configuration (`eqengine`)
+- **`eqengine.constants`**: Single source of truth for RS4D channel lists (`RS4D_CHANNELS`), sampling rate (`DEFAULT_SAMPLING_RATE`), calibration factors (`COUNTS_TO_ACCEL`, `COUNTS_TO_VELOCITY_M_S`, `COUNTS_TO_VELOCITY_UM_S`), and geodesy/compass utilities (`KM_TO_MILES`, `EARTH_RADIUS_KM`, `deg_to_cardinal`).
+- **`eqengine.config.Settings`**: Pydantic v2 typed configuration loaded from `.env` with cross-field validation (station, ingest, STA/LTA, bandpass, ML, web server, USGS, External Events, dashboard webhook, and MQTT).
+- **`eqengine.engine.SeismicEngine`**: Async 4 Hz orchestrator coordinating ring buffering, WebSocket waveform streaming, STA/LTA trigger evaluation, USGS–RS4D trigger fusion, 1-minute heartbeat logging, and graceful shutdown.
+- **`eqengine.cli`**: CLI entry point (`eqengine`) supporting live mode, `--replay <file.mseed>`, `--calibrate-noise`, `--config`, and `--version`.
+- **`eqengine.main`**: Thin entry-point facade exposing `cli`, `run_engine`, and `SeismicEngine`.
+
+### 2. Ingestion Layer (`eqengine.ingest`)
 - **`UDPListener`**: Binds to a local UDP socket (default port `8888`) to receive raw Raspberry Shake Datacast packets formatted as `{'CHANNEL', timestamp, s1, s2, ..., s25}`.
-- **`SeedLinkClient`**: Connects via TCP to a SeedLink server (default port `18000`) for standard FDSN miniSEED streaming.
-- **`RingBuffer`**: Thread-safe circular buffer holding configurable durations (default 120s–600s) of waveform history across channels `EHZ` (geophone), `ENZ`, `ENN`, `ENE` (accelerometers).
+- **`SeedLinkClient`**: Connects via TCP to a SeedLink server (default port `18000`) for standard FDSN miniSEED streaming with exponential backoff reconnect.
+- **`RingBuffer`**: Thread-safe circular buffer holding configurable durations (default `120s`) across `EHZ`, `ENZ`, `ENN`, `ENE` with gap zero-filling and monotonic sample-offset streaming (`get_samples_since`).
+- **`MiniSeedArchiver` (`ingest/archive.py`)**: Writes rotating 1-hour Steim2/FLOAT32 MiniSEED chunks (`./data/archive/YYYYMMDD_HH.mseed`) with configurable 48-hour retention, powering retrospective USGS earthquake replay (`analyze_quake_replay`) with theoretical P/S/Surface arrival cursors and SNR verdicts (`CLEARLY RECORDED`, `WEAKLY DETECTED`, `BELOW NOISE FLOOR`).
+- **`USGSPoller`**: Polls USGS GeoJSON feeds, computes Haversine distances, classifies events (`earthquake`, `quarry blast`, etc.), enforces 700-mile Shake observability filtering, calculates theoretical P/S/Surface arrival timestamps, persists `./data/usgs_cache.json`, and correlates regional events with local triggers (`correlate_with_trigger`).
 
-### 2. Preprocessing (`eqengine.processing.preprocessor`)
+### 3. Preprocessing (`eqengine.processing.preprocessor`)
 - **Demean & Detrend**: Removes DC bias and baseline drift from raw ADC counts.
-- **Cosine Tapering**: Tapers edge samples (default 5%) to eliminate spectral leakage during filtering.
-- **Butterworth Bandpass**: 4-pole zero-phase Butterworth filter (typically 1.0–10.0 Hz) targeting P-wave signal-to-noise ratios.
-- **Displacement Integration**: Integrates velocity waveforms to displacement using cumulative trapezoidal integration and highpass drift filtering for peak displacement ($P_d$) calculation.
-- **Envelope Computation**: Computes analytic signal envelopes via the Hilbert transform.
+- **Cosine Tapering**: Tapers edge samples (5%) to eliminate spectral leakage.
+- **Butterworth Bandpass**: 4-pole zero-phase Butterworth filter (default `1.0–10.0 Hz`) targeting P-wave SNR.
+- **Displacement Integration & Envelopes**: `preprocess_for_displacement` and `compute_envelope` (Hilbert analytic signal) utilities.
 
-### 3. Detection Engine (`eqengine.processing.detector`)
-- **Recursive STA/LTA**: Stateful recursive Short-Term Average / Long-Term Average algorithm computing characteristic function ratios ($CFT$).
-- **Trigger Logic**: Declares trigger ON when $CFT \ge \text{trigger\_on}$ (default 4.0) and trigger OFF when $CFT \le \text{trigger\_off}$ (default 1.5).
-- **Duration Gate**: Enforces minimum trigger duration (default 0.5s) to eliminate transient glitches.
+### 4. Detection & Characterization (`eqengine.processing`)
+- **`Detector`**: Stateful ObsPy `recursive_sta_lta` + `trigger_onset` detector with minimum trigger duration filtering (`1.2s` default).
+- **`MagnitudeEstimator` & `intensity.py`**: Computes predominant period ($\tau_c$), peak initial displacement ($P_d$), 3-component accelerometer PGA, geophone PGV, empirical $M_{\tau_c}$ / $M_{P_d}$ magnitude estimates, $S-P$ distance / S-arrival countdowns, and USGS Worden et al. (2012) Modified Mercalli Intensity (**MMI `I–X`**, ShakeMap label, and hex color).
 
-### 4. Validation & False-Positive Rejection (`eqengine.validation`)
+### 5. Validation, Multi-Station Witness & ML Picking (`eqengine.validation`)
 - **`FalsePositiveFilter`**: Four physics-informed gates:
   1. *Signal Duration*: Rejects micro-spikes shorter than minimum duration.
-  2. *Frequency Band*: Welch PSD dominant frequency must lie in earthquake band ($1.0 - 15.0\text{ Hz}$).
-  3. *Envelope Onset*: Enforces gradual earthquake onset (first-quarter amplitude < threshold ratio of peak amplitude).
-  4. *Noise Floor & SNR*: Waveform RMS must be within physical multiplier of site baseline noise floor.
-- **`NoiseModel`**: Site background noise characterization capturing baseline RMS and PSD with JSON save/load persistence.
-- **`MLPicker`**: Optional SeisBench PhaseNet/EQTransformer model integration for ML phase classification.
-
-### 5. Magnitude & Distance Estimation (`eqengine.processing.magnitude`)
-- **$\tau_c$ (Predominant Period)**: Computed from the initial $3.0\text{ s}$ window after P-wave onset:
-  $$\tau_c = 2\pi \sqrt{\frac{\int \dot{u}^2 dt}{\int \ddot{u}^2 dt}}$$
-- **$P_d$ (Peak Displacement)**: Maximum absolute amplitude of displacement in the initial P-wave window.
-- **Magnitude Empirical Scaling**: Rapid magnitude estimate proxy based on $\log_{10}(\tau_c)$ and $\log_{10}(P_d)$.
-- **$S-P$ Distance Estimation**: Calculates hypocentral distance based on crustal velocities ($V_p \approx 6.0\text{ km/s}$, $V_s \approx 3.5\text{ km/s}$).
+  2. *Frequency Band*: Welch PSD dominant frequency must lie in the earthquake band ($1.0 - 15.0\text{ Hz}$).
+  3. *Envelope Onset*: Enforces gradual earthquake onset (first-quarter amplitude < `0.8` × peak amplitude).
+  4. *Noise Floor & SNR*: Waveform RMS must fall within `3× – 1000×` of site baseline noise floor.
+- **`NoiseModel`**: Site background noise characterization (RMS, 95th percentile, Welch PSD) with JSON save/load persistence.
+- **`MLPicker` (`validation/ml_picker.py`)**: Supports lightweight `onnxruntime` PhaseNet inference (`[onnx]` extra) alongside SeisBench PyTorch (`[ml]` extra), exposing honest active picker metadata (`PhaseNet ONNX AI`, `SeisBench PhaseNet AI`, or `Z/H Polarization Heuristic`) and live `/ws/live` `ml_pick` broadcasts.
+- **`MultiStationWitness` (`validation/witness.py`)**: Non-blocking FDSN coincidence cross-check against UC Berkeley's Byerly Vault (`BK.BKS..BHZ` via NCEDC) emitting `CONFIRMED_TECTONIC`, `LOCAL_ONLY`, or `UNAVAILABLE` verdicts over WebSocket and REST.
 
 ### 6. Alert Management & Dispatch (`eqengine.alerts`)
-- **`AlertManager`**: Single point of truth enforcing alert cooldowns (default 30s) to prevent notification storms, managing active alerts, updates, and cancellations.
-- **Severity Matrix**: 5-tier classification (`critical`, `warning`, `advisory`, `info`, `ignore`) combining magnitude and distance.
-- **`AlertDispatcher`**: Async HTTP webhook dispatcher and file archiver with custom hook registration.
-- **TTS Synthesis**: Generates clear, distance-qualified natural language speech descriptions.
+- **`AlertManager`**: Enforces alert cooldowns (`30s` default), builds `EarthquakeAlert` models (with `rs4d`, `usgs`, or `fused` data source), and tracks active/historical alerts.
+- **20-Cell Severity Matrix**: Maps `distance_class` × `mag_class` to `critical`, `warning`, `advisory`, `info`, or `ignore`, and synthesizes natural-language `tts_message`.
+- **`dispatcher`**: Async hook registry (`dashboard_hook`, `log_hook`, `console_hook`, `websocket_alert_hook`, and optional `mqtt_*` hooks for alerts, confirmed events, display commands, status, and RSAM).
 
-### 7. Telemetry & Monitoring (`eqengine.telemetry`)
-- **`RSAMCalculator`**: Real-time Seismic Amplitude Measurement tracking 1-minute RMS amplitudes and 1-hour historical trends.
-- **`HealthReporter`**: Emits periodic health status snapshots containing station uptime, buffer fill ratios, trigger counts, and noise floor metrics.
+### 7. Modular Telemetry & Environmental Intelligence (`eqengine.telemetry`)
+- **`RSAMCalculator`**: Tracks 1-minute RMS amplitudes and 60-minute rolling trends.
+- **`HealthReporter`**: Emits periodic `EngineStatus` snapshots (`buffer_health`, RSAM, trigger counts, uptime).
+- **`eqengine.telemetry.environmental`** (with `environmental_intelligence.py` compatibility facade):
+  - **`ndbc.py`**: Polls NOAA NDBC buoys `46026` (San Francisco Bar) and `46012` (Half Moon Bay) and computes $2f$ ocean microseism correlation (`LOCKED`, `PARTIAL`, `WIND_DOMINANT`).
+  - **`forensics.py`**: Computes 1-minute physical spectral bands (`wind`, `stadium`, `rail`, `traffic`, `human`, `concert`), block excess kurtosis ($\kappa$), 3-axis PGA, and Nakamura $H/V$ site resonance.
+  - **`quiet_hunter.py`**: Builds 24-hour station-local diurnal noise profiles, discovers the quietest 2-hour nocturnal window, and auto-calibrates `data/noise_model.json` and `data/quiet_baseline.json`.
+  - **`storage.py`**: Persists 1-minute forensics snapshots (including external-event attribution, weather wind/gusts, active BART trains, and overhead aircraft count/altitude) to `data/forensics_history.jsonl` and `data/forensics_history.csv`.
+  - **`trends.py`**: Computes multi-day (`24H`/`7D`/`30D`) **Berkeley Pulse** analytics: empirical site percentiles (**Light** `<=p25`, **Normal** `p25–p75`, **Heavy** `p75–p95`, **Extreme** `>p95`), NOAA Buoy `46026` $\rightarrow$ microseism linear transfer regression ($R^2$, anomaly z-score), Weekday vs. Weekend cultural diurnal models + next-24h forecast ($\pm 1\sigma$), and blind + scheduled game/concert surge day separation.
+- **`HighlightsRecorder` (`telemetry/highlights.py`)**: Automatically saves compressed 60-second `.npz` clips under `data/highlights/` on earthquake triggers, live Cal home football `2–5 Hz` surges, and live Greek Theatre `25–45 Hz` encores.
 
-### 8. Standalone Geophysical Observatory Web App (`eqengine.web`)
-- **Embedded Web Server**: FastAPI server (`eqengine.web.server`) providing REST endpoints (`/api/status`, `/api/alerts`, `/api/history`, `/api/waveform`, `/api/usgs-events`, `/api/config`) on configurable port (default `8088`).
-- **High-Speed WebSocket (`/ws/live`)**: Broadcasts real-time 100 Hz 4-channel raw and preprocessed waveform chunks, STA/LTA characteristic ratios, and immediate early warning overlays.
-- **12 Interactive Visualizer Modules (`eqengine.web.static`)**:
-  1. **Seismograms (Oscilloscope)**: 4-channel synchronized waveform streams (EHZ velocity, ENZ/ENN/ENE accelerations) with auto-gain and UTC time axis.
-  2. **HD Spectrogram (DataView)**: Dual-view 0–50 Hz STFT frequency waterfall with smooth bilinear interpolation, 256-level Inferno/Magma power scaling, and synchronized ground velocity seismogram.
-  3. **24h Helicorder**: Traditional 24-hour rotating drum record (1 hour per row) with active stylus indicator.
-  4. **STA/LTA & RSAM**: Instantaneous P-wave trigger ratio monitor (6.5x trigger threshold) alongside 60-minute demeaned RMS baseline energy trend.
-  5. **3D Orbit (Hodogram)**: Triaxial ground motion trajectory in horizontal (N-S vs E-W) and vertical planes with real-time back-azimuth and polarization angles.
-  6. **Epicenter Radar**: 500-mile West Coast fault system (San Andreas, Hayward, Calaveras, Garlock, Cascadia), The Geysers hydrothermal microseismicity zone, and magnitude-sized event markers.
-  7. **Urban Profiler**: 5-band environmental vibration decomposition (wind, Cal Stadium, traffic, footsteps, Greek Theatre concerts).
-  8. **AI PhaseNet**: Deep-learning phase arrival probability curves ($P(P)$, $P(S)$).
-  9. **Peterson Noise Model**: Live PSD comparison against USGS Global High/Low Noise Models (NLNM/NHNM).
-  10. **Earth Audio**: Real-time seismic frequency modulation and pitch-scaled acoustic sonification.
-  11. **Event Log**: Comprehensive table of all detected triggers, PhaseNet picks, and USGS regional earthquakes with multi-column sorting.
-  12. **ML Dataset & Annotations**: Interactive waveform slicing studio with custom phase boundary tagging and training export.
+### 8. External Events Correlation (`eqengine.external_events`)
+- **Plugin Provider Architecture (`base.py`, `schema.py`, `manager.py`, `correlator.py`)**:
+  - **`CalFootballProvider` (`providers/cal_football.py`)**: Polls ESPN College Football schedule for Cal Golden Bears home games at California Memorial Stadium (`2–5 Hz` crowd/stomp resonance).
+  - **`GreekTheatreProvider` (`providers/greek_theatre.py`)**: Parses `MusicEvent` JSON-LD schedules from `thegreekberkeley.com` with 2-hour pre-show soundcheck detection (`25–45 Hz` acoustic sub-bass coupling).
+  - **`BerkeleyWeatherProvider` (`providers/berkeley_weather.py`)**: Polls Open-Meteo current wind speed, gusts, pressure, and precipitation for station coordinates (`0.38–0.85 Hz` tree-canopy sway).
+  - **`BartTransitProvider` (`providers/bart_transit.py`)**: Polls live BART ETD arrivals at `DBRK` (Downtown Berkeley) and `ROCK` (Rockridge) to flag trains transiting the Berkeley Hills Tunnel (`4–8 Hz` rail harmonics).
+  - **`AircraftProvider` (`providers/aircraft.py`)**: Polls free `airplanes.live` ADS-B airspace around the station to detect low helicopters and aircraft (`10–35 Hz` acoustic Doppler combs) and display a live HUD badge on HD Spectrogram & Urban Profiler.
+- Persists cache to `data/external_events_cache.json` and correlates live scheduled/environmental phenomena with live RS4D spectral bands.
 
----
+### 9. ML Dataset & Annotation Engine (`eqengine.ml.dataset_logger`)
+- Captures 4-channel waveform windows (`EHZ`, `ENZ`, `ENN`, `ENE`), computes 11 spectral and 3D polarization features (dominant frequency, spectral centroid, spectral ratio, apparent azimuth, rectilinearity, triaxial PGA, RSAM), saves compressed `.npz` tensors under `data/ml_dataset/snippets/`, and logs JSONL metadata + 1-minute baseline telemetry.
 
-## Configuration & Environment
-
-Configuration is managed through `eqengine.config.Settings` (backed by Pydantic and `.env`):
-- Station identifiers: `SHAKE_STATION`, `SHAKE_NETWORK`, `SHAKE_IP`
-- Ingest settings: `INGEST_MODE`, `UDP_PORT`, `SEEDLINK_PORT`
-- Algorithm parameters: `STA_SECONDS`, `LTA_SECONDS`, `TRIGGER_ON`, `TRIGGER_OFF`, `MIN_TRIGGER_DURATION_SEC`
-- Filter bands: `BANDPASS_LOW`, `BANDPASS_HIGH`
-- Web server: `WEB_ENABLED`, `WEB_HOST`, `WEB_PORT`
-- Alerting: `DASHBOARD_URL`, `ALERT_COOLDOWN_SEC`
-- USGS polling: `USGS_ENABLED`, `USGS_POLL_INTERVAL_SEC`, `USGS_FEED_URL`
+### 10. Standalone Geophysical Observatory Web App (`eqengine.web`)
+- **Modular FastAPI Server (`server.py` + `routes/`)**:
+  - `routes/telemetry.py`: `GET /api/status`, `/api/events`, `/api/usgs-events`, `/api/buffer/{channel}`, `/api/seismograph/historical`, `/api/helicorder/latest`.
+  - `routes/simulation.py`: `POST /api/simulate-trigger`, `/api/simulate-usgs`.
+  - `routes/ml.py`: `POST /api/ml/annotate`, `POST /api/ml/annotate_range`, `GET /api/ml/events`, `GET /api/ml/snippet/{event_id}`, `DELETE /api/ml/events/{event_id}`, `GET /api/ml/summary`.
+  - `routes/environmental.py`: `GET /api/environmental-intelligence`, `POST /api/environmental/calibrate`, `GET /api/forensics/export.csv`, `GET /api/forensics/trends?days=7`.
+  - `routes/external_events.py`: `GET /api/external-events`, `POST /api/external-events/refresh`.
+  - `routes/observatory.py`: `GET /api/witness/status`, `POST /api/witness/check`, `GET /api/archive/status`, `GET /api/archive/quake-replay`, `GET /api/highlights`, `GET /api/highlights/{highlight_id}`.
+- **High-Speed WebSocket (`/ws/live`)**: Streams contiguous 100 Hz 4-channel samples, STA/LTA ratios, triggers, MMI-enriched alerts, `ml_pick` events, `witness_verdict` events, status snapshots, and USGS events.
+- **Frontend SPA (`eqengine.web.static`)**:
+  - Shared client utilities (`station.js`, `intensity.js`, `external_events_client.js`) and extracted geo catalogs under `js/data/` (`clusters.js`, `historic_quakes.js`, `faults.js`).
+  - Interactive visualizers (`oscilloscope.js`, `spectrogram.js`, `helicorder.js`, `stalta.js`, `hodogram.js`, `radar.js`, `urban.js`, `trends.js`, `highlights.js`, `phasenet.js`, `peterson.js`, `audio.js`, `tables.js`, `review_studio.js`) plus the embedded 13-chapter **Field Manual** (`manual.html`).
 
 ---
 
 ## Automated Test Coverage
 
-The test suite covers 100% of pipeline modules under `tests/`:
-- `tests/test_detector.py`: Recursive STA/LTA detection, thresholding, noise rejection, and TriggerEvent timestamp models.
-- `tests/test_magnitude.py`: $\tau_c$, $P_d$, empirical magnitude, and S-P travel times.
-- `tests/test_false_positive.py`: False positive filters, out-of-band rejection, SNR gating.
-- `tests/test_ring_buffer.py`: Multi-channel ring buffer concurrency, wrap-around, trace extraction.
-- `tests/test_usgs_poller.py`: USGS GeoJSON polling, Haversine distance, severity matrix (20 cells), TTS speech.
+Test suites under `tests/` cover all subsystems:
+- `tests/test_alerts.py`: Alert lifecycle, cooldowns, updates, cancellations, severity schema.
+- `tests/test_cli.py`: Synthetic MiniSEED replay pipeline verification.
 - `tests/test_config.py`: Settings validation, channel parsing, cross-field constraints.
-- `tests/test_preprocessor.py`: Demeaning, filtering, displacement integration, Hilbert envelopes.
-- `tests/test_alerts.py`: Alert lifecycle, cooldowns, updates, cancellations.
+- `tests/test_detector.py`: Recursive STA/LTA detection, thresholding, duration filtering.
+- `tests/test_dispatcher.py`: Hook registration, HTTP POST, file logging, isolation.
+- `tests/test_environmental_intelligence.py`: NOAA NDBC parser, $2f$ microseism correlation, block kurtosis, Quiet-Window Hunter calibration, CSV persistence.
+- `tests/test_external_events.py`: ESPN Cal Football, Greek Theatre JSON-LD, Open-Meteo wind, BART ETD tunnel detection, airplanes.live ADS-B aircraft, external correlation, and cache persistence.
+- `tests/test_false_positive.py`: Duration, frequency band, envelope onset, noise-floor SNR checks.
+- `tests/test_ingest.py`: UDP Datacast packet parsing and ring-buffer storage.
+- `tests/test_intensity.py`: Worden et al. (2012) MMI equations and `MagnitudeEstimator` MMI integration.
+- `tests/test_magnitude.py`: $\tau_c$, $P_d$, PGA, empirical magnitude, S-P travel times.
+- `tests/test_observatory_features.py`: `BK.BKS` witness verdicts, rolling MiniSEED archive + replay SNR analysis, Shake Highlights capture/playback, and ONNX `MLPicker` mock inference.
+- `tests/test_preprocessor.py`: Demeaning, bandpass filtering, displacement integration, Hilbert envelopes.
+- `tests/test_ring_buffer.py`: Multi-channel ring buffer concurrency, wrap-around, trace extraction.
 - `tests/test_telemetry.py`: RSAM calculations, rolling history, health reporter status snapshots.
-- `tests/test_validation.py`: NoiseModel serialization, MLPicker fallbacks, validation results.
-- `tests/test_ingest.py`: UDP Datacast packet parsing and storage.
-- `tests/test_web.py`: FastAPI server status, config, history, waveform, USGS endpoints, static asset delivery, and WebSocket broadcaster.
+- `tests/test_trends.py`: Empirical percentile thresholds, ocean buoy regression, diurnal curves, and blind + tagged event day detection.
+- `tests/test_usgs_poller.py`: USGS GeoJSON polling, Haversine distance, severity matrix (20 cells).
+- `tests/test_validation.py`: `NoiseModel` serialization, `MLPicker` fallbacks, validation results.
+- `tests/test_web.py`: FastAPI REST endpoints (telemetry, environmental, trends, external events, witness, archive, highlights), static JS/data asset delivery, HTML DOM integrity, and `WaveformBroadcaster`.

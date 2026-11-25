@@ -21,7 +21,7 @@ SyslogIdentifier=eqengine
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/eqengine/events
+ReadWritePaths=/opt/eqengine/events /opt/eqengine/data
 PrivateTmp=true
 
 [Install]

@@ -97,4 +97,27 @@ export const state = {
   activeAlert: null,
   sWaveTimerInterval: null,
   incomingTimerInterval: null,
+
+  // Dynamic Station Identity, Backend ML Picks, Witness Cross-Check & Forensics Thresholds
+  station: {
+    network: 'AM',
+    station: 'R1A3D',
+    station_code: 'AM.R1A3D',
+    station_name: 'Berkeley Hills',
+    station_lat: 37.8696,
+    station_lon: -122.2491,
+    sample_rate: 100,
+    ingest_mode: 'seedlink',
+    mqtt_connected: false,
+    ml_enabled: false,
+    ml_backend: 'heuristic',
+    ml_label: 'Z/H Polarization Heuristic',
+    witness_enabled: true,
+    witness_station: 'BK.BKS',
+    public_mode: false,
+    version: '0.2.0',
+  },
+  latestMlPick: null,
+  latestWitness: null,
+  bandThresholds: null,
 };

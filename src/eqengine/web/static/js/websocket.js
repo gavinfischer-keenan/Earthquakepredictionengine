@@ -6,6 +6,7 @@ import { state, SAMPLING_RATE, MAX_SAMPLES, BUFFER_DELAY_SEC } from './state.js'
 import { elements, showWarningHud, showIncomingHud } from './dom.js';
 import { playAlertSound } from './audio.js';
 import { addEventToTable } from './views/tables.js';
+import { applyPickerModeBadge, applyWitnessStatus } from './station.js';
 
 let ws = null;
 let reconnectTimer = null;
@@ -138,6 +139,18 @@ export function handleMessage(msg) {
         }
       }
     }
+    if (msg.recent_events) msg.recent_events.forEach(handleTriggerEvent);
+    if (msg.recent_alerts) msg.recent_alerts.forEach(handleAlertEvent);
+    if (msg.recent_usgs) msg.recent_usgs.forEach(handleUsgsEvent);
+    if (msg.last_status) handleStatusEvent(msg.last_status);
+    if (msg.latest_ml_pick) {
+      state.latestMlPick = msg.latest_ml_pick;
+      applyPickerModeBadge(msg.latest_ml_pick.label || msg.latest_ml_pick.backend);
+    }
+    if (msg.latest_witness) {
+      state.latestWitness = msg.latest_witness;
+      applyWitnessStatus(msg.latest_witness);
+    }
   } else if (msg.type === 'waveform') {
     if (!state.paused) {
       const ts = msg.timestamp || Date.now() / 1000;
@@ -162,6 +175,11 @@ export function handleMessage(msg) {
               const v = samples[i];
               if (!state.helicorderMinutePeaks[minKey]) {
                 state.helicorderMinutePeaks[minKey] = { min: v, max: v, sum: v, sumSq: v * v, count: 1 };
+                // Prune buckets older than 24h to prevent unbounded memory growth
+                const cutoff24h = minKey - 86400;
+                for (const key of Object.keys(state.helicorderMinutePeaks)) {
+                  if (Number(key) < cutoff24h) delete state.helicorderMinutePeaks[key];
+                }
               } else {
                 const entry = state.helicorderMinutePeaks[minKey];
                 if (v < entry.min) entry.min = v;
@@ -198,10 +216,27 @@ export function handleMessage(msg) {
     handleUsgsEvent(msg.event);
   } else if (msg.type === 'status') {
     handleStatusEvent(msg.status);
-  } else if (msg.type === 'init') {
-    if (msg.recent_events) msg.recent_events.forEach(handleTriggerEvent);
-    if (msg.recent_alerts) msg.recent_alerts.forEach(handleAlertEvent);
-    if (msg.recent_usgs) msg.recent_usgs.forEach(handleUsgsEvent);
+  } else if (msg.type === 'ml_pick') {
+    state.latestMlPick = msg.pick || null;
+    if (msg.pick) applyPickerModeBadge(msg.pick.label || msg.pick.backend);
+  } else if (msg.type === 'witness_verdict') {
+    state.latestWitness = msg.verdict || null;
+    if (msg.verdict) {
+      applyWitnessStatus(msg.verdict);
+      addEventToTable({
+        id: `witness-${Math.round((msg.verdict.trigger_time || Date.now() / 1000) * 10)}`,
+        timestamp: msg.verdict.trigger_time || Date.now() / 1000,
+        severity: msg.verdict.verdict === 'CONFIRMED_TECTONIC' ? 'warning' : 'info',
+        mag: '--',
+        distance: msg.verdict.witness_station || msg.verdict.reference_station || 'BK.BKS',
+        staLta: (msg.verdict.witness_snr ?? msg.verdict.reference_snr) != null
+          ? `${Number(msg.verdict.witness_snr ?? msg.verdict.reference_snr).toFixed(1)}x`
+          : '--',
+        channel: 'WITNESS',
+        type: `Witness Cross-Check: ${msg.verdict.verdict}`,
+        status: msg.verdict.verdict === 'CONFIRMED_TECTONIC' ? 'Tectonic Confirmed' : 'Local Vibration Only',
+      });
+    }
   }
 }
 
@@ -218,7 +253,7 @@ function handleTriggerEvent(trig) {
     timestamp: trig.start_time,
     severity: severity,
     mag: '--',
-    distance: 'LOCAL (Hayward)',
+    distance: `LOCAL (${state.station.station_name || 'Local'})`,
     staLta: `${ratio.toFixed(1)}x`,
     channel: trig.channel || 'EHZ',
     type: typeLabel,
@@ -233,6 +268,7 @@ function handleAlertEvent(alert) {
   showWarningHud(alert);
   playAlertSound(alert.severity || 'warning');
 
+  const mmiTag = alert.mmi_roman ? ` · MMI ${alert.mmi_roman}` : '';
   addEventToTable({
     timestamp: alert.timestamp || (Date.now() / 1000),
     severity: alert.severity || 'warning',
@@ -240,8 +276,8 @@ function handleAlertEvent(alert) {
     distance: alert.estimated_distance_km ? `${Math.round(alert.estimated_distance_km)} km` : '--',
     staLta: 'TRIGGERED',
     channel: 'ALL',
-    type: 'EARTHQUAKE EARLY WARNING',
-    status: 'Active Alert',
+    type: `EARTHQUAKE EARLY WARNING${mmiTag}`,
+    status: alert.mmi_label ? `Active Alert (${alert.mmi_label})` : 'Active Alert',
   });
 }
 
@@ -254,7 +290,8 @@ function handleUsgsEvent(evt) {
   const isLocalObservable = evt.is_observable === true || (evt.magnitude && evt.magnitude >= 6.0);
   const isNearby = evt.distance_miles ? evt.distance_miles <= 500 : (evt.distance_km ? evt.distance_km <= 804.7 : false);
 
-  if (isLocalObservable && isNearby && evt.p_arrival && evt.p_arrival > now - 30) {
+  const pArrival = evt.p_arrival ?? evt.theor_p_arrival;
+  if (isLocalObservable && isNearby && pArrival && pArrival > now - 30) {
     showIncomingHud(evt);
     playAlertSound('advisory');
   }
@@ -272,9 +309,15 @@ function handleUsgsEvent(evt) {
 }
 
 function handleStatusEvent(status) {
-  if (status && status.buffer_fill !== undefined) {
-    if (elements.footerBuffer) {
-      elements.footerBuffer.textContent = `${Math.round(status.buffer_fill * 100)}%`;
+  if (!status || !elements.footerBuffer) return;
+  let fill = status.buffer_fill;
+  if (fill === undefined && status.buffer_health) {
+    const vals = Object.values(status.buffer_health).filter((v) => Number.isFinite(v));
+    if (vals.length > 0) {
+      fill = vals.reduce((a, b) => a + b, 0) / vals.length;
     }
+  }
+  if (fill !== undefined) {
+    elements.footerBuffer.textContent = `${Math.round(fill * 100)}%`;
   }
 }

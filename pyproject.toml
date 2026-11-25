@@ -42,6 +42,9 @@ ml = [
     "seisbench>=0.7",
     "torch>=2.0",
 ]
+onnx = [
+    "onnxruntime>=1.17",
+]
 mqtt = [
     "paho-mqtt>=2.0",
 ]

@@ -26,6 +26,9 @@ Welcome to the **Earthquake Prediction Engine Seismic Observatory Manual**. This
 8. [Chapter 8: Peterson Noise Model & Ambient Power Spectral Density (PSD)](#chapter-8-peterson-noise-model--ambient-power-spectral-density-psd)
 9. [Chapter 9: AI PhaseNet Neural Phase Probability & Wadati Distance](#chapter-9-ai-phasenet-neural-phase-probability--wadati-distance)
 10. [Chapter 10: Real-Time Magnitude Estimation ($M_{pd}$, $\tau_c$)](#chapter-10-real-time-magnitude-estimation-m_pd-tau_c)
+11. [Chapter 11: Real-Time Earth Sonification (Audio Synthesis)](#chapter-11-real-time-earth-sonification-audio-synthesis)
+12. [Chapter 12: Trigger Event Log & 20-Cell Severity Matrix](#chapter-12-trigger-event-log--20-cell-severity-matrix)
+13. [Chapter 13: ML Review Studio & Real-World Environmental Forensics](#chapter-13-ml-review-studio--real-world-environmental-forensics)
 
 ---
 
@@ -499,6 +502,95 @@ Combining peak displacement $P_d = \max_{t \in [0, 3]} |d(t)|$ with hypocentral 
 $$M_{P_d} = \alpha \cdot \log_{10}(P_d) + \beta \cdot \log_{10}(D) + \gamma$$
 
 Where $\alpha \approx 1.05$, $\beta \approx 1.25$, $\gamma \approx 5.22$.
+
+---
+
+## Chapter 11: Real-Time Earth Sonification (Audio Synthesis)
+
+### 🟢 Layer 1: The Layperson's Eye (Listening to the Ground)
+Most earthquake waves oscillate below 20 Hz — too slow for human eardrums to hear directly. **Earth Audio** speeds up and frequency-shifts ground motion upward into the human hearing range so you can literally *hear* the difference between crisp footsteps, steady 60 Hz electrical hum, deep rhythmic ocean thunder, and the sharp crack of a nearby crustal rupture.
+
+### 🟡 Layer 2: The Geophysical Science (Audification & Pitch Shifting)
+Using Web Audio `ScriptProcessorNode` / synthesis buffers fed from the live 100 Hz `EHZ` stream, waveforms are DC-removed, soft-clipped against ADC glitches, and modulated up by a harmonic carrier (4x–10x transposition). This brings 0.5–10 Hz crustal seismic waves into 50–400 Hz bass/baritone tones without distorting the rhythmic cadence of P-wave vs. S-wave wave trains.
+
+### 🔴 Layer 3: Raw Mathematics & DSP Mapping
+Given demeaned geophone velocity $v[n]$ normalized by adaptive gain $G$:
+
+$$x_{\text{norm}}[n] = \tanh\!\left(\frac{v[n] - \bar{v}}{G}\right)$$
+
+Frequency shifting multiplies the analytic envelope by a transposed audible carrier $\omega_c = 2\pi f_{\text{shift}}$:
+
+$$y_{\text{audio}}[n] = x_{\text{norm}}[n] \cdot \sin(\omega_c n / f_s)$$
+
+---
+
+## Chapter 12: Trigger Event Log & 20-Cell Severity Matrix
+
+### 🟢 Layer 1: The Layperson's Eye (Why Some Quakes Turn Red and Others Stay Blue)
+Not every earthquake needs an urgent siren. A Magnitude 5.2 quake 500 miles away causes only a slow rolling ripple in Berkeley Hills, whereas a Magnitude 3.5 directly beneath the Hayward Fault 3 miles away delivers a sharp jolt. The Event Log sorts every trigger by **Size × Distance** into clear tiers (`INFO`, `ADVISORY`, `WARNING`, `CRITICAL`) so minor distant rumblings never trigger false panic.
+
+### 🟡 Layer 2: The Geophysical Science (False-Positive Vetting & Severity Classification)
+Every trigger passing raw STA/LTA ratio thresholds must survive 4 sequential validation gates in Python (`src/eqengine/validation/false_positive.py`):
+1. **Min-Duration Check** — rejects single-sample ADC spikes or cabinet knocks shorter than `1.2 s`.
+2. **Earthquake Frequency Band** — confirms Welch PSD dominant energy lies in `1.0–15.0 Hz`.
+3. **Envelope Onset Ratio** — confirms gradual P/S onset instead of impulsive footstep/door spikes.
+4. **Noise-Floor SNR Gate** — ensures waveform RMS falls within `3× – 1000×` of the calibrated `NoiseModel`.
+
+Confirmed events are classified across a **4 × 5 = 20-cell Severity Matrix** (Magnitude rows × Distance-class columns) and fused with nearby USGS events when matched.
+
+### 🔴 Layer 3: Alert Score & Distance Classification
+With local epicentral distance $D_{\text{km}}$ derived from $S-P$ lag or USGS match:
+
+$$D_{\text{km}} \approx (t_S - t_P) \cdot \frac{V_P V_S}{V_P - V_S}, \quad V_P = 6.0\text{ km/s},\ V_S = 3.5\text{ km/s}$$
+
+Warning lead time until damaging S-wave arrival scales as:
+
+$$\Delta t_{S} = D_{\text{km}} \left(\frac{1}{V_S} - \frac{1}{V_P}\right) \approx 0.119 \cdot D_{\text{km}} \quad [\text{seconds}]$$
+
+---
+
+## Chapter 13: ML Review Studio & Real-World Environmental Forensics
+
+### 🟢 Layer 1: The Layperson's Eye (Teaching the Observatory What Real Life Sounds Like)
+Your seismometer lives in the real world: Pacific storm swells pound the California coast 24/7, heavy buses climb Berkeley Hills with shifting pitch, Cal Memorial Stadium roars on game day, concerts shake the Greek Theatre, and footsteps rattle floorboards inside the house. In **ML Dataset**, you inspect captured waveforms across all channels, label what caused them, and export crisp training tensors. Meanwhile, the **Real-World Forensics & External Events Panels** (on the Urban Profiler tab) automatically separate ocean swells, moving traffic, BART trains, wind, stadium crowds, concerts, and indoor footsteps right out of the live stream!
+
+### 🟡 Layer 2: The Geophysical Science (Environmental Signal Forensics)
+Four complementary real-time observables run in Python & the browser:
+1. **Pacific Ocean Microseisms ($T_p$ Swell Period)** — A 10× decimated low-pass sub-Hz FFT ($0.10\text{–}0.35\text{ Hz}$) tracks double-frequency nonlinear colliding swells ($T_{\text{swell}} = 2 / f_{\text{df}}$) and correlates them against live NOAA NDBC buoys `46026` (SF Bar) and `46012` (Half Moon Bay).
+2. **Traffic & Rail Doppler Drift ($df/dt$)** — Tracks the `6–18 Hz` spectral centroid shift rate as heavy vehicles pass alongside `4–8 Hz` BART rail harmonics and 3D back-azimuth bearing.
+3. **Excess Kurtosis ($\kappa$)** — Separates Gaussian continuous sources ($\kappa \approx 0$, traffic/surf) from sharp, sparse impulsive impacts ($\kappa > 5$, footsteps, doors, calibration taps).
+4. **Nakamura Horizontal-to-Vertical Spectral Ratio ($H/V$)** — Measures site soil/structure resonance amplification by comparing horizontal acceleration energy $\sqrt{\text{ENN}^2 + \text{ENE}^2}$ against vertical acceleration $\text{ENZ}$.
+
+### 🔴 Layer 3: Mathematical Definitions & External Events Correlation
+Excess Kurtosis on demeaned channel samples $x_i$:
+
+$$\kappa = \frac{\frac{1}{N}\sum_{i=1}^N (x_i - \bar{x})^4}{\left(\frac{1}{N}\sum_{i=1}^N (x_i - \bar{x})^2\right)^2} - 3$$
+
+Nakamura Horizontal-to-Vertical Ratio & Ocean Swell Period $T_p$:
+
+$$H/V = \frac{\sqrt{E_{\text{ENN}}^2 + E_{\text{ENE}}^2}}{\max(E_{\text{ENZ}}, \epsilon)}, \qquad T_p = \frac{2}{f_{\text{df}}}, \quad f_{\text{df}} = \arg\max_{f \in [0.10, 0.35]\text{ Hz}} P(f)$$
+
+Longuet-Higgins $2f$ NOAA NDBC Buoy Correlation Score ($\sigma = 3.5\text{ s}$) & Cultural Noise Composite Index:
+
+$$\text{Match}_{2f} = 100 \cdot \exp\!\left(-\left(\frac{|T_{\text{seismic}} - T_{\text{buoy,DPD}}|}{3.5}\right)^2\right), \qquad C_{\text{urban}} = 0.35 E_{\text{traffic}} + 0.30 E_{\text{human}} + 0.20 E_{\text{stadium}} + 0.15 E_{\text{concert}}$$
+
+All 1-minute metrics stream continuously to `data/forensics_history.csv` and drive the **Autonomous Quiet-Window Hunter**, which empirically learns the quietest diurnal hours (typically `02:00–04:00 PST`) and updates `data/noise_model.json` and `data/quiet_baseline.json` whenever a low-kurtosis ($|\kappa| < 2.5$) quiet window occurs.
+
+#### External Events Correlation (Berkeley Hills Context)
+In parallel, `eqengine.external_events` polls five live Berkeley-area context feeds and correlates them against active Urban Profiler bands:
+1. **🏈 Cal Memorial Stadium (`2–5 Hz`)** — Polls ESPN College Football schedules for Cal Golden Bears home games (~400 m away), attributing elevated `2–5 Hz` crowd energy during live games.
+2. **🎸 The Greek Theatre (`25–45 Hz`)** — Parses `MusicEvent` JSON-LD concert calendars from `thegreekberkeley.com` (~600 m away), flagging a 2-hour pre-show soundcheck window and live showtime sub-bass coupling.
+3. **💨 Berkeley Hills Wind & Weather (`0.38–0.85 Hz`)** — Polls Open-Meteo wind speed, ridge gusts, pressure, and rain at the station coordinates to separate redwood canopy rocking from ocean microseisms.
+4. **🚇 BART Berkeley Hills Tunnel (`4–8 Hz`)** — Polls live BART ETD arrivals at `DBRK` and `ROCK`, flagging imminent trains traversing the tunnel beneath the hills.
+5. **🚁 Overhead Helicopters & Low Aircraft (`10–35 Hz`)** — Polls free `airplanes.live` ADS-B airspace within 3 nm and `<5,000 ft` to call out low-flying helicopters and Doppler acoustic stripes on the HD Spectrogram.
+
+Each 1-minute forensics CSV row logs `active_external_event`, `external_event_category`, `weather_wind_mps`, `weather_gust_mps`, `bart_active_trains`, `aircraft_overhead_count`, and `closest_aircraft_alt_ft`. These histories power the **Pulse & Trends (`24H`/`7D`/`30D`)** tab, learning empirical **Light** ($\le p_{25}$), **Normal** ($p_{25}\text{--}p_{75}$), **Heavy** ($p_{75}\text{--}p_{95}$), and **Extreme** ($> p_{95}$) thresholds, NOAA Buoy `46026` regression models, and Weekday vs. Weekend cultural forecasts.
+
+#### Real-Time MMI, Multi-Station Witness (`BK.BKS`), MiniSEED Replay & Shake Highlights
+- **USGS Worden et al. (2012) MMI Intensity**: Live 3-axis PGA and vertical PGV continuously compute Modified Mercalli Intensity (**MMI I–X**) displayed on the Seismograms HUD badge, Warning Banner, and Event Log.
+- **UC Berkeley `BK.BKS` Multi-Station Witness**: On every confirmed trigger, the engine asynchronously cross-checks NCEDC's nearby broadband vault (`BK.BKS..BHZ`) to classify `CONFIRMED_TECTONIC` vs. `LOCAL_ONLY`.
+- **Rolling 48h MiniSEED Archive & Quake Replay**: Hourly compressed MiniSEED chunks stored under `data/archive/` let visitors click `"🔍 Did My Sensor See This?"` on any Epicenter Radar earthquake to inspect recorded waveforms with theoretical P/S/Surface cursors and SNR verdicts.
+- **Automatic Shake Highlights**: Notable earthquakes, Cal football `2–5 Hz` surges, and Greek Theatre `25–45 Hz` shows are automatically captured as 60s `.npz` clips in the Notable Moments strip.
 
 ---
 

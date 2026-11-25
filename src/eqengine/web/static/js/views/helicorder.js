@@ -146,7 +146,11 @@ export function renderHelicorder() {
   const currentUtcHour = nowDate.getUTCHours();
   const currentUtcMin = nowDate.getUTCMinutes();
   const currentUtcSec = nowDate.getUTCSeconds();
-  const localOffsetHours = -7;
+  const localOffsetHours = -nowDate.getTimezoneOffset() / 60;
+  const tzShortMatch = nowDate.toTimeString().match(/\(([^)]+)\)/);
+  const localTzLabel = tzShortMatch
+    ? tzShortMatch[1].split(' ').map((word) => word[0]).join('').slice(0, 5)
+    : 'Local';
 
   // 1. Draw Minute Grid Columns & Bottom Minute Axis
   ctx.font = '8.5px "JetBrains Mono", monospace';
@@ -295,5 +299,5 @@ export function renderHelicorder() {
   ctx.textAlign = 'left';
   ctx.fillText('UTC', 12, 10);
   ctx.textAlign = 'right';
-  ctx.fillText('PDT (Local)', w - 12, 10);
+  ctx.fillText(`${localTzLabel} (Local)`, w - 12, 10);
 }

@@ -199,10 +199,12 @@ class FalsePositiveFilter:
 
     def _check_envelope(self, data: np.ndarray) -> bool:
         """Gradual onset — first-quarter amplitude < threshold × peak."""
-        abs_data = np.abs(data)
-        if len(abs_data) < 4:
+        if len(data) < 4:
             log.debug("check.envelope", passed=False, reason="segment_too_short")
             return False
+
+        centered = data - np.mean(data)
+        abs_data = np.abs(centered)
 
         quarter = len(abs_data) // 4
         first_quarter_amp = float(np.max(abs_data[:quarter]))
@@ -230,8 +232,12 @@ class FalsePositiveFilter:
         if noise_model is None:
             log.debug("check.noise_floor", passed=True, reason="no_noise_model")
             return True
+        if data.size == 0:
+            log.debug("check.noise_floor", passed=False, reason="empty_segment")
+            return False
 
-        current_rms = float(np.sqrt(np.mean(data.astype(np.float64) ** 2)))
+        centered = data.astype(np.float64) - float(np.mean(data))
+        current_rms = float(np.sqrt(np.mean(centered ** 2)))
         floor = noise_model.get_noise_floor()
         if floor <= 0:
             log.debug("check.noise_floor", passed=True, reason="zero_floor")
@@ -253,10 +259,14 @@ class FalsePositiveFilter:
     # ------------------------------------------------------------------
     @staticmethod
     def _extract_segment(trigger: _TriggerLike, trace: obspy.Trace) -> np.ndarray:
-        """Slice the trace data between trigger on/off times."""
-        from obspy import UTCDateTime
+        """Slice the trace data between trigger on/off times without Trace copy overhead."""
+        sr = float(trace.stats.sampling_rate)
+        tr_start = float(trace.stats.starttime.timestamp)
+        on_t = float(getattr(trigger, "on_time", 0.0))
+        off_t = float(getattr(trigger, "off_time", on_t + 1.0))
 
-        t_start = UTCDateTime(trigger.on_time)
-        t_end = UTCDateTime(trigger.off_time)
-        sliced = trace.slice(starttime=t_start, endtime=t_end)
-        return np.asarray(sliced.data, dtype=np.float64)
+        i0 = max(0, round((on_t - tr_start) * sr))
+        i1 = min(len(trace.data), round((off_t - tr_start) * sr) + 1)
+        if i0 >= i1:
+            return np.empty(0, dtype=np.float64)
+        return np.asarray(trace.data[i0:i1], dtype=np.float64)

@@ -15,24 +15,22 @@ Typical usage::
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
 import structlog
+
+from eqengine.constants import EARTH_RADIUS_KM, KM_TO_MILES
 
 log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-KM_TO_MILES: float = 0.621371
-EARTH_RADIUS_KM: float = 6371.0
-
-import json
-from pathlib import Path
-
 # Distance classification thresholds (km)
 _DIST_LOCAL_KM: float = 80.0      # ~50 miles
 _DIST_REGIONAL_KM: float = 240.0  # ~150 miles
@@ -378,6 +376,7 @@ class USGSPoller:
             event_record = {
                 "id": event_id,
                 "magnitude": mag,
+                "event_type": props.get("type", "earthquake"),
                 "place": props.get("place", ""),
                 "time": event_time,
                 "distance_km": round(distance_km, 1),
@@ -392,6 +391,9 @@ class USGSPoller:
                 "p_travel_sec": travel["p_travel_sec"],
                 "s_travel_sec": travel["s_travel_sec"],
                 "surface_travel_sec": travel["surface_travel_sec"],
+                "p_arrival": round(theor_p, 2),
+                "s_arrival": round(theor_s, 2),
+                "surf_arrival": round(theor_surf, 2),
                 "theor_p_arrival": theor_p,
                 "theor_s_arrival": theor_s,
                 "theor_surface_arrival": theor_surf,

@@ -196,3 +196,41 @@ class TestMagnitudeEstimation:
         expected_gap = distance_km / config.vs - distance_km / config.vp
         assert (s_time - p_time) == pytest.approx(expected_gap, abs=0.01)
         assert expected_gap == pytest.approx(5.0, abs=0.01)
+
+    def test_real_magnitude_estimator_predict_s_and_dc_immunity(self) -> None:
+        """Real MagnitudeEstimator.predict_s_arrival uses S-P lag and removes DC bias."""
+        from eqengine.processing.magnitude import MagnitudeEstimator
+
+        est = MagnitudeEstimator()
+        p_epoch = 1_750_000_000.0
+        # 42 km with Vp=6.0, Vs=3.5 -> S arrives 5.0 s after P (NOT 42/3.5 = 12.0 s)
+        s_pred = est.predict_s_arrival(p_epoch, 42.0)
+        assert (s_pred - p_epoch) == pytest.approx(5.0, abs=0.01)
+
+        # Synthetic 1 Hz velocity trace with massive +10,000 count DC offset
+        sr = 100.0
+        npts = 600
+        t = np.arange(npts) / sr
+        vel = 10_000.0 + 100.0 * np.cos(2.0 * np.pi * 1.0 * t)
+        tr = Trace(
+            data=vel,
+            header={
+                "sampling_rate": sr,
+                "starttime": UTCDateTime(p_epoch),
+                "npts": npts,
+                "channel": "EHZ",
+            },
+        )
+        res = est.estimate(
+            tr,
+            accel_traces=None,
+            p_arrival=UTCDateTime(p_epoch),
+            window_sec=3.0,
+            s_arrival=UTCDateTime(p_epoch + 5.0),
+        )
+        assert res.tau_c is not None
+        assert 0.8 <= res.tau_c <= 1.2
+        assert res.pgv == pytest.approx(100.0, abs=2.0)
+        assert res.estimated_distance_km == pytest.approx(42.0, abs=0.1)
+        assert res.estimated_s_arrival is not None
+        assert (res.estimated_s_arrival - p_epoch) == pytest.approx(5.0, abs=0.05)

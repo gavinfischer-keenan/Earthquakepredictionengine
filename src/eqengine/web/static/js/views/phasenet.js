@@ -1,15 +1,18 @@
 /**
- * AI PhaseNet View: Deep-Learning Phase Probability Curves & Wadati Distance Derivation
- * Visualizes:
+ * AI PhaseNet View: Real-Time Sliding-Window Phase Probability Curves & Wadati Distance Derivation
+ * Computes authentic temporal probability envelopes from live waveforms:
  * 1. Normalized Seismogram (EHZ geophone & ENZ accelerometer)
- * 2. P-Wave Arrival Probability Curve P(P) [0.0 to 1.0] with 0.60 Pick Threshold
- * 3. S-Wave Arrival Probability Curve P(S) [0.0 to 1.0] with Wadati Distance Derivation
+ * 2. P-Wave Arrival Probability Curve P(P) from sliding vertical STA/LTA * Z-dominance
+ * 3. S-Wave Arrival Probability Curve P(S) from sliding horizontal shear STA/LTA * H-dominance
  */
 
 import { state } from '../state.js';
+import { applyPickerModeBadge } from '../station.js';
 
 let lastPTime = 0;
 let lastSTime = 0;
+const pProbArr = new Float32Array(500);
+const sProbArr = new Float32Array(500);
 
 export function renderPhaseNet() {
   const waveCanvas = document.getElementById('phaseWaveformCanvas');
@@ -23,12 +26,9 @@ export function renderPhaseNet() {
   const ennBuf = state.buffers.ENN || [];
   const eneBuf = state.buffers.ENE || [];
 
-  const n = Math.min(Math.max(ehzBuf.length, 100), 500); // Up to 5s window @ 100 Hz
+  const n = Math.min(Math.max(ehzBuf.length, 100), 500); // 5.0s window @ 100 Hz
   const dpr = window.devicePixelRatio || 1;
 
-  // -------------------------------------------------------------------------
-  // Helper to setup and clear high-DPI canvas
-  // -------------------------------------------------------------------------
   function setupCanvas(canvas) {
     const rect = canvas.getBoundingClientRect();
     const w = Math.floor(rect.width);
@@ -46,7 +46,6 @@ export function renderPhaseNet() {
     ctx.fillStyle = '#060913';
     ctx.fillRect(0, 0, w, h);
 
-    // Subtle background grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
     [0.25, 0.5, 0.75].forEach((pct) => {
@@ -62,42 +61,41 @@ export function renderPhaseNet() {
   // -------------------------------------------------------------------------
   // 1. Render Normalized Waveforms (EHZ Velocity & ENZ Strong-Motion)
   // -------------------------------------------------------------------------
-  const waveSetup = setupCanvas(waveCanvas);
-  if (waveSetup && ehzBuf.length >= 20) {
-    const { ctx, w, h } = waveSetup;
-    const sliceZ = ehzBuf.slice(-n);
-    const sliceAcc = enzBuf.length >= n ? enzBuf.slice(-n) : [];
+  const sliceZ = ehzBuf.length >= 20 ? ehzBuf.slice(-n) : [];
+  const nActual = sliceZ.length;
 
-    // Demean
+  const waveSetup = setupCanvas(waveCanvas);
+  if (waveSetup && nActual >= 20) {
+    const { ctx, w, h } = waveSetup;
+    const sliceAcc = enzBuf.length >= nActual ? enzBuf.slice(-nActual) : [];
+
     let sumZ = 0;
-    sliceZ.forEach((v) => (sumZ += v));
-    const meanZ = sumZ / sliceZ.length;
+    for (let i = 0; i < nActual; i++) sumZ += sliceZ[i];
+    const meanZ = sumZ / nActual;
 
     let pkZ = 1.0;
-    for (let i = 0; i < sliceZ.length; i++) {
+    for (let i = 0; i < nActual; i++) {
       const abs = Math.abs(sliceZ[i] - meanZ);
       if (abs > pkZ) pkZ = abs;
     }
     const maxValZ = Math.max(pkZ * 1.25, 4.0);
+    const stepX = w / (nActual - 1);
 
-    const stepX = w / (sliceZ.length - 1);
-
-    // Draw ENZ (if active) in faint blue
-    if (sliceAcc.length === sliceZ.length) {
+    if (sliceAcc.length === nActual) {
       let sumAcc = 0;
-      sliceAcc.forEach((v) => (sumAcc += v));
-      const meanAcc = sumAcc / sliceAcc.length;
+      for (let i = 0; i < nActual; i++) sumAcc += sliceAcc[i];
+      const meanAcc = sumAcc / nActual;
       let pkAcc = 1.0;
-      for (let i = 0; i < sliceAcc.length; i++) {
+      for (let i = 0; i < nActual; i++) {
         const abs = Math.abs(sliceAcc[i] - meanAcc);
         if (abs > pkAcc) pkAcc = abs;
       }
       const maxValAcc = Math.max(pkAcc * 1.25, 2.0);
 
-      ctx.strokeStyle = 'rgba(0, 210, 255, 0.4)';
+      ctx.strokeStyle = 'rgba(0, 210, 255, 0.45)';
       ctx.lineWidth = 1.0;
       ctx.beginPath();
-      for (let i = 0; i < sliceAcc.length; i++) {
+      for (let i = 0; i < nActual; i++) {
         const x = i * stepX;
         const y = h / 2 - ((sliceAcc[i] - meanAcc) / maxValAcc) * (h / 2 - 6);
         if (i === 0) ctx.moveTo(x, y);
@@ -106,11 +104,10 @@ export function renderPhaseNet() {
       ctx.stroke();
     }
 
-    // Draw EHZ (Geophone) in Emerald Green
     ctx.strokeStyle = '#00ff88';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    for (let i = 0; i < sliceZ.length; i++) {
+    for (let i = 0; i < nActual; i++) {
       const x = i * stepX;
       const y = h / 2 - ((sliceZ[i] - meanZ) / maxValZ) * (h / 2 - 6);
       if (i === 0) ctx.moveTo(x, y);
@@ -118,39 +115,115 @@ export function renderPhaseNet() {
     }
     ctx.stroke();
 
-    // Channel Legend
     ctx.font = '9.5px JetBrains Mono, monospace';
     ctx.fillStyle = '#00ff88';
-    ctx.fillText('EHZ (Velocity Geophone)', 10, 14);
+    ctx.fillText('EHZ (Velocity)', 10, 14);
     ctx.fillStyle = '#00d2ff';
-    ctx.fillText('ENZ (Vertical Acceleration)', 180, 14);
+    ctx.fillText('ENZ (Vert Accel)', Math.min(w - 115, 130), 14);
   }
 
   // -------------------------------------------------------------------------
-  // 2. Compute Synthetic PhaseNet P-Wave & S-Wave Probabilities
+  // 2. Compute Authentic Sliding-Window P & S Phase Probabilities
   // -------------------------------------------------------------------------
-  const staEHZ = state.staLtaRatios.EHZ || 1.0;
-  const rawPProb = Math.min(Math.max((staEHZ - 1.2) / 6.0, 0.03), 0.98);
+  let maxPProb = 0.02;
+  let maxSProb = 0.02;
+  let peakPIdx = -1;
+  let peakSIdx = -1;
 
-  // Derive horizontal shear energy for S-wave
-  let horizEnergy = 0;
-  if (ennBuf.length >= 20 && eneBuf.length >= 20) {
-    const nSlice = ennBuf.slice(-20);
-    const eSlice = eneBuf.slice(-20);
-    for (let i = 0; i < 20; i++) {
-      horizEnergy += Math.abs(nSlice[i]) + Math.abs(eSlice[i]);
+  if (nActual >= 30) {
+    const sliceN = ennBuf.length >= nActual ? ennBuf.slice(-nActual) : null;
+    const sliceE = eneBuf.length >= nActual ? eneBuf.slice(-nActual) : null;
+
+    let meanZ = 0;
+    for (let i = 0; i < nActual; i++) meanZ += sliceZ[i];
+    meanZ /= nActual;
+
+    let meanN = 0;
+    let meanE = 0;
+    if (sliceN && sliceE) {
+      for (let i = 0; i < nActual; i++) {
+        meanN += sliceN[i];
+        meanE += sliceE[i];
+      }
+      meanN /= nActual;
+      meanE /= nActual;
     }
-    horizEnergy /= 40;
-  }
-  const rawSProb = Math.min(Math.max((horizEnergy - 0.5) / 5.0, 0.02), 0.95);
 
-  const nowSec = Date.now() / 1000;
-  if (rawPProb >= 0.60 && nowSec - lastPTime > 15.0) {
-    lastPTime = nowSec;
+    // Long-term baseline energy across the window
+    const baselineZ =
+      (state.fourMinStats && state.fourMinStats.EHZ && state.fourMinStats.EHZ.baselineAmp) || 35.0;
+    let ltaZ = Math.max(baselineZ * baselineZ * 0.35, 25.0);
+    let ltaH = 2.0;
+
+    let staZ = ltaZ;
+    let staH = ltaH;
+    const alphaSta = 1.0 / 20.0; // ~0.2s STA
+    const alphaLta = 1.0 / 300.0; // ~3.0s LTA
+
+    for (let i = 0; i < nActual; i++) {
+      const zVal = sliceZ[i] - meanZ;
+      const eZ = zVal * zVal;
+      staZ = alphaSta * eZ + (1.0 - alphaSta) * staZ;
+      ltaZ = alphaLta * eZ + (1.0 - alphaLta) * ltaZ;
+
+      let eH = 0;
+      if (sliceN && sliceE) {
+        const nVal = sliceN[i] - meanN;
+        const evVal = sliceE[i] - meanE;
+        eH = nVal * nVal + evVal * evVal;
+      } else {
+        // Fallback horizontal proxy from vertical derivative energy
+        const prev = i > 0 ? sliceZ[i - 1] - meanZ : zVal;
+        eH = (zVal - prev) * (zVal - prev) * 0.25;
+      }
+      staH = alphaSta * eH + (1.0 - alphaSta) * staH;
+      ltaH = alphaLta * eH + (1.0 - alphaLta) * ltaH;
+
+      const ratioZ = staZ / Math.max(ltaZ, 1.0);
+      const ratioH = staH / Math.max(ltaH, 1.0);
+
+      // Vertical dominance favors P-wave onset; horizontal shear ratio favors S-wave
+      const zDom = eZ / Math.max(eZ + eH * 15.0, 1.0);
+      const hDom = 1.0 - zDom * 0.65;
+
+      // Logistic compression of characteristic ratios into [0.02, 0.98]
+      const pLogit = (ratioZ * (0.6 + 0.6 * zDom) - 4.2) * 0.75;
+      const sLogit = (ratioH * (0.6 + 0.6 * hDom) - 4.5) * 0.75;
+
+      const pProb = 0.02 + 0.96 / (1.0 + Math.exp(-pLogit));
+      const sProb = 0.02 + 0.96 / (1.0 + Math.exp(-sLogit));
+
+      pProbArr[i] = pProb;
+      sProbArr[i] = sProb;
+
+      if (pProb > maxPProb) {
+        maxPProb = pProb;
+        peakPIdx = i;
+      }
+      if (sProb > maxSProb) {
+        maxSProb = sProb;
+        peakSIdx = i;
+      }
+    }
   }
-  if (rawSProb >= 0.60 && nowSec - lastSTime > 15.0) {
-    lastSTime = nowSec;
+
+  const ehzTs = state.timestamps.EHZ || [];
+  const latestTs = ehzTs.length > 0 ? ehzTs[ehzTs.length - 1] : Date.now() / 1000;
+  const dtPerSample = 0.01;
+
+  if (maxPProb >= 0.6 && peakPIdx >= 0) {
+    const pTimeEst = latestTs - (nActual - 1 - peakPIdx) * dtPerSample;
+    if (Math.abs(pTimeEst - lastPTime) > 3.0) lastPTime = pTimeEst;
   }
+  if (maxSProb >= 0.6 && peakSIdx >= 0) {
+    const sTimeEst = latestTs - (nActual - 1 - peakSIdx) * dtPerSample;
+    if (Math.abs(sTimeEst - lastSTime) > 3.0) lastSTime = sTimeEst;
+  }
+
+  // Update transparent picker mode badge & authoritative backend picks when available
+  const mlPick = state.latestMlPick;
+  const backendActive = Boolean(mlPick || state.station.ml_enabled);
+  applyPickerModeBadge(mlPick?.label || state.station.ml_label || 'heuristic');
 
   // Update HUD Statistics
   const pPickEl = document.getElementById('aiPickP');
@@ -158,19 +231,22 @@ export function renderPhaseNet() {
   const lagEl = document.getElementById('aiLagSP');
   const distEl = document.getElementById('aiEstDist');
 
+  const authP = mlPick?.p_time ? new Date(mlPick.p_time).getTime() / 1000 : null;
+  const authS = mlPick?.s_time ? new Date(mlPick.s_time).getTime() / 1000 : null;
+  const showP = Number.isFinite(authP) ? authP : lastPTime;
+  const showS = Number.isFinite(authS) ? authS : lastSTime;
+
   if (pPickEl) {
-    pPickEl.textContent = lastPTime > 0 ? new Date(lastPTime * 1000).toISOString().substring(11, 19) : 'STANDBY';
+    pPickEl.textContent = showP > 0 ? new Date(showP * 1000).toISOString().substring(11, 19) : 'STANDBY';
   }
   if (sPickEl) {
-    sPickEl.textContent = lastSTime > 0 ? new Date(lastSTime * 1000).toISOString().substring(11, 19) : 'STANDBY';
+    sPickEl.textContent = showS > 0 ? new Date(showS * 1000).toISOString().substring(11, 19) : 'STANDBY';
   }
 
-  let distKm = null;
-  if (lastPTime > 0 && lastSTime > lastPTime) {
-    const sMinusP = lastSTime - lastPTime;
+  if (showP > 0 && showS > showP) {
+    const sMinusP = showS - showP;
     if (lagEl) lagEl.textContent = `${sMinusP.toFixed(2)} s`;
-    // Wadati formula for crustal California: Distance ≈ 8.0 * (T_s - T_p) km
-    distKm = sMinusP * 8.0;
+    const distKm = sMinusP * 8.4; // Vp=6.0, Vs=3.5 -> 21/2.5 = 8.4 km/s
     const distMi = distKm * 0.621371;
     if (distEl) distEl.textContent = `${distMi.toFixed(1)} mi (${distKm.toFixed(0)} km)`;
   } else {
@@ -178,16 +254,22 @@ export function renderPhaseNet() {
     if (distEl) distEl.textContent = '-- mi';
   }
 
-  // -------------------------------------------------------------------------
-  // 3. Render P-Wave Probability Canvas
-  // -------------------------------------------------------------------------
-  const pSetup = setupCanvas(pCanvas);
-  if (pSetup) {
-    const { ctx, w, h } = pSetup;
-    const stepX = w / (n - 1);
+  const pSuffix = backendActive && mlPick?.p_probability != null
+    ? ` · Backend P=${(mlPick.p_probability * 100).toFixed(0)}%`
+    : ' (Z/H Heuristic)';
+  const sSuffix = backendActive && mlPick?.s_probability != null
+    ? ` · Backend S=${(mlPick.s_probability * 100).toFixed(0)}%`
+    : ' (Z/H Heuristic)';
 
-    // Threshold 0.60 line
-    const threshY = h - 0.60 * (h - 14) - 7;
+  // Helper to plot either P or S sliding-window probability array
+  const renderProbCurve = (canvas, probArr, len, peakProb, color, fillRgba, labelPrefix, pickLabel) => {
+    const setup = setupCanvas(canvas);
+    if (!setup) return;
+    const { ctx, w, h } = setup;
+    const count = Math.max(len, 2);
+    const stepX = w / (count - 1);
+
+    const threshY = h - 0.6 * (h - 14) - 7;
     ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
@@ -197,22 +279,21 @@ export function renderPhaseNet() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.font = '8.5px JetBrains Mono';
+    ctx.font = '8.5px JetBrains Mono, monospace';
     ctx.fillStyle = '#ef4444';
-    ctx.fillText('Pick Threshold (0.60)', w - 120, threshY - 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('Pick Threshold (0.60)', w - 8, threshY - 3);
+    ctx.textAlign = 'left';
 
-    // Probability Curve
-    ctx.strokeStyle = '#38bdf8';
-    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = fillRgba;
     ctx.lineWidth = 2.0;
     ctx.beginPath();
     ctx.moveTo(0, h - 4);
 
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < count; i++) {
       const x = i * stepX;
-      // High-frequency bell envelope simulating PhaseNet transformer attention
-      const bell = Math.exp(-((i - n * 0.72) ** 2) / 120) * rawPProb;
-      const prob = Math.max(0.02, bell + Math.sin(i * 0.15) * 0.015);
+      const prob = len >= 30 ? probArr[i] : 0.03;
       const y = h - 4 - prob * (h - 16);
       ctx.lineTo(x, y);
     }
@@ -221,58 +302,11 @@ export function renderPhaseNet() {
     ctx.fill();
     ctx.stroke();
 
-    // Value annotation
-    ctx.font = '9.5px JetBrains Mono';
-    ctx.fillStyle = rawPProb >= 0.6 ? '#00ff88' : '#38bdf8';
-    ctx.fillText(`P(P) = ${(rawPProb * 100).toFixed(1)}% ${rawPProb >= 0.6 ? '⚡ AUTOMATIC P-PICK' : ''}`, 10, 14);
-  }
+    ctx.font = '9.5px JetBrains Mono, monospace';
+    ctx.fillStyle = peakProb >= 0.6 ? '#00ff88' : color;
+    ctx.fillText(`${labelPrefix} = ${(peakProb * 100).toFixed(1)}% ${peakProb >= 0.6 ? pickLabel : ''}`, 10, 14);
+  };
 
-  // -------------------------------------------------------------------------
-  // 4. Render S-Wave Probability Canvas
-  // -------------------------------------------------------------------------
-  const sSetup = setupCanvas(sCanvas);
-  if (sSetup) {
-    const { ctx, w, h } = sSetup;
-    const stepX = w / (n - 1);
-
-    // Threshold 0.60 line
-    const threshY = h - 0.60 * (h - 14) - 7;
-    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, threshY);
-    ctx.lineTo(w, threshY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.font = '8.5px JetBrains Mono';
-    ctx.fillStyle = '#ef4444';
-    ctx.fillText('Pick Threshold (0.60)', w - 120, threshY - 3);
-
-    // Probability Curve
-    ctx.strokeStyle = '#f59e0b';
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
-    ctx.lineWidth = 2.0;
-    ctx.beginPath();
-    ctx.moveTo(0, h - 4);
-
-    for (let i = 0; i < n; i++) {
-      const x = i * stepX;
-      // Shear wave bell envelope lagged behind P
-      const bell = Math.exp(-((i - n * 0.88) ** 2) / 180) * rawSProb;
-      const prob = Math.max(0.02, bell + Math.cos(i * 0.12) * 0.012);
-      const y = h - 4 - prob * (h - 16);
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(w, h - 4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Value annotation
-    ctx.font = '9.5px JetBrains Mono';
-    ctx.fillStyle = rawSProb >= 0.6 ? '#00ff88' : '#f59e0b';
-    ctx.fillText(`P(S) = ${(rawSProb * 100).toFixed(1)}% ${rawSProb >= 0.6 ? '⚡ AUTOMATIC S-PICK' : ''}`, 10, 14);
-  }
+  renderProbCurve(pCanvas, pProbArr, nActual, maxPProb, '#38bdf8', 'rgba(56, 189, 248, 0.15)', 'P(P)', `⚡ P-PICK${pSuffix}`);
+  renderProbCurve(sCanvas, sProbArr, nActual, maxSProb, '#f59e0b', 'rgba(245, 158, 11, 0.15)', 'P(S)', `⚡ S-PICK${sSuffix}`);
 }
