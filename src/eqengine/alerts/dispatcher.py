@@ -26,6 +26,7 @@ import structlog
 
 from eqengine import __version__
 from eqengine.alerts.schema import EarthquakeAlert, EngineStatus
+from eqengine.config import get_config
 
 log = structlog.get_logger(__name__)
 
@@ -83,14 +84,19 @@ async def send_status(status: EngineStatus) -> None:
 # Built-in hooks
 # ===================================================================
 
-# Configuration from environment (overridable)
-DASHBOARD_URL: str = os.getenv("EQ_DASHBOARD_URL", "http://localhost:8080/api/events")
-EVENT_LOG_DIR: str = os.getenv("EQ_EVENT_LOG_DIR", "./data/events")
+# Configuration resolved from Settings with EQ_* env overrides
+_cfg = get_config()
+DASHBOARD_URL: str = os.getenv("EQ_DASHBOARD_URL") or _cfg.dashboard_url
+EVENT_LOG_DIR: str = os.getenv("EQ_EVENT_LOG_DIR") or str(_cfg.event_log_dir)
 
 
 # 1. Dashboard HTTP POST --------------------------------------------------
 async def dashboard_hook(alert: EarthquakeAlert) -> None:
     """POST the alert payload to the dashboard REST endpoint."""
+    cfg = get_config()
+    if not cfg.dashboard_enabled and not os.getenv("EQ_DASHBOARD_URL"):
+        return
+    url = os.getenv("EQ_DASHBOARD_URL") or DASHBOARD_URL or cfg.dashboard_url
     payload = {
         "data": alert.model_dump(),
         "metadata": {
@@ -99,7 +105,7 @@ async def dashboard_hook(alert: EarthquakeAlert) -> None:
         },
     }
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(DASHBOARD_URL, json=payload)
+        resp = await client.post(url, json=payload)
         resp.raise_for_status()
     log.debug(
         "dispatcher.dashboard_sent",
@@ -145,6 +151,10 @@ async def console_hook(alert: EarthquakeAlert) -> None:
 # 4. Dashboard status POST ------------------------------------------------
 async def dashboard_status_hook(status: EngineStatus) -> None:
     """POST engine status to the dashboard."""
+    cfg = get_config()
+    if not cfg.dashboard_enabled and not os.getenv("EQ_DASHBOARD_URL"):
+        return
+    url = (os.getenv("EQ_DASHBOARD_URL") or DASHBOARD_URL or cfg.dashboard_url).replace("/events", "/status")
     payload = {
         "data": status.model_dump(),
         "metadata": {
@@ -153,9 +163,7 @@ async def dashboard_status_hook(status: EngineStatus) -> None:
         },
     }
     async with httpx.AsyncClient(timeout=5.0) as client:
-        resp = await client.post(
-            DASHBOARD_URL.replace("/events", "/status"), json=payload,
-        )
+        resp = await client.post(url, json=payload)
         resp.raise_for_status()
 
 
@@ -189,16 +197,16 @@ async def console_status_hook(status: EngineStatus) -> None:
 #
 # Requires: pip install paho-mqtt  (optional dependency)
 
-MQTT_BROKER: str = os.getenv("MQTT_BROKER", "localhost")
-MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
-MQTT_USERNAME: str = os.getenv("MQTT_USERNAME", "")
-MQTT_PASSWORD: str = os.getenv("MQTT_PASSWORD", "")
-MQTT_TOPIC_ALERTS: str = os.getenv("MQTT_TOPIC_ALERTS", "home/alerts/earthquake")
-MQTT_TOPIC_STATUS: str = os.getenv("MQTT_TOPIC_STATUS", "home/status/earthquake-engine")
-MQTT_TOPIC_EVENTS: str = os.getenv("MQTT_TOPIC_EVENTS", "home/events/earthquake")
-MQTT_TOPIC_COMMANDS: str = os.getenv("MQTT_TOPIC_COMMANDS", "home/commands/display")
-MQTT_TOPIC_RSAM: str = os.getenv("MQTT_TOPIC_RSAM", "home/sensors/rsam")
-MQTT_ENABLED: bool = os.getenv("MQTT_ENABLED", "false").lower() in ("true", "1", "yes")
+MQTT_BROKER: str = _cfg.mqtt_broker
+MQTT_PORT: int = _cfg.mqtt_port
+MQTT_USERNAME: str = _cfg.mqtt_username
+MQTT_PASSWORD: str = _cfg.mqtt_password
+MQTT_TOPIC_ALERTS: str = _cfg.mqtt_topic_alerts
+MQTT_TOPIC_STATUS: str = _cfg.mqtt_topic_status
+MQTT_TOPIC_EVENTS: str = _cfg.mqtt_topic_events
+MQTT_TOPIC_COMMANDS: str = _cfg.mqtt_topic_commands
+MQTT_TOPIC_RSAM: str = _cfg.mqtt_topic_rsam
+MQTT_ENABLED: bool = _cfg.mqtt_enabled
 
 _mqtt_client = None
 

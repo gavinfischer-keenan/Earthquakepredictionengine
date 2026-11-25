@@ -41,6 +41,12 @@ class EarthquakeAlert(BaseModel):
     predominant_period_s: float | None = None
     peak_ground_acceleration: float | None = None
     peak_ground_velocity: float | None = None
+    mmi: float | None = None
+    mmi_roman: str | None = None
+    mmi_label: str | None = None
+    mmi_color: str | None = None
+    witness_verdict: str | None = None
+    witness_station: str | None = None
 
     # Distance & classification
     distance_miles: float | None = None

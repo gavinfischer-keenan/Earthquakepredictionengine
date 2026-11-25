@@ -90,6 +90,18 @@ class Settings(BaseSettings):
         default=161.1,
         description="Station elevation in metres above sea level.",
     )
+    station_tz: str = Field(
+        default="America/Los_Angeles",
+        description="IANA timezone name for diurnal quiet-window & event timing.",
+    )
+    station_name: str = Field(
+        default="Berkeley Hills",
+        description="Human-friendly observatory name shown in the web UI.",
+    )
+    public_mode: bool = Field(
+        default=False,
+        description="Hide private simulation, audio, and ML dataset tabs in public deployments.",
+    )
 
     # -- Ingestion -----------------------------------------------------------
     ingest_mode: IngestMode = Field(
@@ -151,6 +163,14 @@ class Settings(BaseSettings):
         description="SeisBench model identifier (phasenet, eqtransformer, …).",
     )
 
+    ml_backend: str = Field(
+        default="auto",
+        description="Phase-picking backend: 'auto', 'onnx', or 'seisbench'.",
+    )
+
+    ml_onnx_model_path: Path = Path("./data/models/phasenet.onnx")
+    """Path to optional lightweight ONNX PhaseNet model file."""
+
     # -- Web server (Standalone Geophysical Observatory) --------------------
     web_enabled: bool = Field(
         default=True,
@@ -168,11 +188,66 @@ class Settings(BaseSettings):
     )
 
     # -- Alerting & dashboard ------------------------------------------------
+    dashboard_enabled: bool = Field(
+        default=False,
+        description="Enable outbound HTTP POST webhooks to an external dashboard.",
+    )
     dashboard_url: str = "http://localhost:5050/api/ingest/earthquake-engine"
     """HTTP endpoint for Berkeley-style dashboard ingestion."""
 
     alert_cooldown_sec: Annotated[float, Field(ge=0)] = 30.0
     """Minimum seconds between successive alerts."""
+
+    # -- MQTT Message Bus ----------------------------------------------------
+    mqtt_enabled: bool = Field(
+        default=False,
+        description="Enable MQTT publishing for alerts, status, and RSAM.",
+    )
+    mqtt_broker: str = "localhost"
+    mqtt_port: int = Field(default=1883, ge=1, le=65535)
+    mqtt_username: str = ""
+    mqtt_password: str = ""
+    mqtt_topic_alerts: str = "home/alerts/earthquake"
+    mqtt_topic_status: str = "home/status/earthquake-engine"
+    mqtt_topic_events: str = "home/events/earthquake"
+    mqtt_topic_commands: str = "home/commands/display"
+    mqtt_topic_rsam: str = "home/sensors/rsam"
+
+    # -- External Events & Berkeley Local Context ----------------------------
+    external_events_enabled: bool = Field(
+        default=True,
+        description="Enable Cal Football, Greek Theatre, weather, and BART event polling.",
+    )
+    external_events_schedule_poll_sec: Annotated[float, Field(gt=0)] = 3600.0
+    external_events_weather_poll_sec: Annotated[float, Field(gt=0)] = 600.0
+    external_events_bart_poll_sec: Annotated[float, Field(gt=0)] = 60.0
+    external_events_aircraft_poll_sec: Annotated[float, Field(gt=0)] = 15.0
+    aircraft_radius_nm: Annotated[float, Field(gt=0)] = 5.0
+    aircraft_max_alt_ft: Annotated[int, Field(gt=0)] = 5000
+    cal_football_team_id: str = "25"
+    greek_theatre_url: str = "https://thegreekberkeley.com/events/"
+    bart_api_key: str = "MW9S-E7SL-26DU-VV8V"
+    bart_stations: list[str] | str = Field(
+        default=["DBRK", "ROCK"],
+        description="BART station abbreviations near the station (comma-separated or JSON list).",
+    )
+
+    # -- Multi-Station Coincidence Witness (UC Berkeley BK.BKS) -------------
+    witness_enabled: bool = True
+    witness_network: str = "BK"
+    witness_station: str = "BKS"
+    witness_channel: str = "BHZ"
+    witness_fdsn_url: str = "https://service.ncedc.org/fdsnws/dataselect/1/query"
+    witness_lat: float = 37.8762
+    witness_lon: float = -122.2356
+
+    # -- Rolling MiniSEED Archive & Shake Highlights -------------------------
+    archive_enabled: bool = True
+    archive_dir: Path = Path("./data/archive")
+    archive_retention_hours: Annotated[int, Field(ge=1, le=168)] = 48
+    highlights_enabled: bool = True
+    highlights_dir: Path = Path("./data/highlights")
+    highlights_cooldown_sec: Annotated[float, Field(ge=10.0)] = 180.0
 
     # -- USGS enrichment -----------------------------------------------------
     usgs_enabled: bool = Field(
@@ -216,6 +291,15 @@ class Settings(BaseSettings):
     event_log_dir: Path = Path("./events")
     """Directory for per-event miniSEED and metadata files."""
 
+    noise_model_path: Path = Path("./data/noise_model.json")
+    """Path to persisted site NoiseModel JSON file."""
+
+    noise_calibration_file: Path | None = None
+    """Optional MiniSEED file path for offline CLI --calibrate-noise."""
+
+    ml_annotator: str = "observatory_user"
+    """Default annotator identifier attached to ML dataset exports."""
+
     # -----------------------------------------------------------------------
     # RS4D-specific hard-coded constants
     # -----------------------------------------------------------------------
@@ -236,7 +320,7 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     # Validators
     # -----------------------------------------------------------------------
-    @field_validator("shake_channels", mode="before")
+    @field_validator("shake_channels", "bart_stations", mode="before")
     @classmethod
     def _parse_channels(cls, v: object) -> list[str]:
         """Accept a comma-separated string, JSON list, or python list."""

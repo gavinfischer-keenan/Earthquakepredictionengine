@@ -2,32 +2,24 @@
  * EarthquakePredictionEngine - Main Application Orchestrator
  */
 
-import { state } from './state.js?v=1787300000';
-import { elements, updateClock, initDomListeners } from './dom.js?v=1787300000';
-import { initAudio, toggleSonification, renderSonificationVisualizer } from './audio.js?v=1787300000';
-import { connectWebSocket } from './websocket.js?v=1787300000';
-import { renderOscilloscope } from './views/oscilloscope.js?v=1787300000';
-import { renderSpectrogram } from './views/spectrogram.js?v=1787300000';
-import { renderHelicorder } from './views/helicorder.js?v=1787300000';
-import { renderStaLta } from './views/stalta.js?v=1787300000';
-import { renderHodogram } from './views/hodogram.js?v=1787300000';
-import { renderUrbanProfiler } from './views/urban.js?v=1787300000';
-import { renderPhaseNet } from './views/phasenet.js?v=1787300000';
-import { renderPetersonCurve } from './views/peterson.js?v=1787300000';
-import { initRadarMap, updateRadarMap, fetchRadarEvents } from './views/radar.js?v=1787300000';
-import { loadHistoricalSeismograph, initReviewStudioListeners } from './views/review_studio.js?v=1787300000';
-import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/tables.js?v=1787300000';
-
-// ---------------------------------------------------------------------------
-// Telemetry Header Counters
-// ---------------------------------------------------------------------------
-function renderTelemetry() {
-  const ehz = state.buffers.EHZ;
-  if (ehz && ehz.length > 0 && elements.pkEHZ) {
-    const lastPk = state.fourMinStats.EHZ ? state.fourMinStats.EHZ.baselineAmp : 35;
-    elements.pkEHZ.textContent = Math.round(lastPk).toLocaleString();
-  }
-}
+import { state } from './state.js';
+import { elements, updateClock, initDomListeners } from './dom.js';
+import { initAudio, toggleSonification, renderSonificationVisualizer } from './audio.js';
+import { connectWebSocket } from './websocket.js';
+import { renderOscilloscope } from './views/oscilloscope.js';
+import { renderSpectrogram } from './views/spectrogram.js';
+import { renderHelicorder } from './views/helicorder.js';
+import { renderStaLta } from './views/stalta.js';
+import { renderHodogram } from './views/hodogram.js';
+import { renderUrbanProfiler } from './views/urban.js';
+import { renderPhaseNet } from './views/phasenet.js';
+import { renderPetersonCurve } from './views/peterson.js';
+import { initRadarMap, updateRadarMap, fetchRadarEvents, syncRadarStationCenter } from './views/radar.js';
+import { loadHistoricalSeismograph, initReviewStudioListeners } from './views/review_studio.js';
+import { renderEventsTable, fetchMlDataset, initTableListeners } from './views/tables.js';
+import { loadStationIdentity } from './station.js';
+import { initTrendsView, renderTrendsView, prefetchBandThresholds } from './views/trends.js';
+import { initHighlightsStrip } from './views/highlights.js';
 
 // ---------------------------------------------------------------------------
 // Main Animation Loop (Optimized: Only active tab renders per frame)
@@ -36,8 +28,6 @@ let lastHelicorderRender = 0;
 
 function mainLoop() {
   try {
-    renderTelemetry();
-
     const tab = state.activeTab || 'oscilloscope';
 
     if (tab === 'traces' || tab === 'oscilloscope') {
@@ -89,6 +79,12 @@ function initTabNavigation() {
     const targetPanel = document.getElementById(`tab-${tabName}`);
     if (targetPanel) targetPanel.classList.add('active');
 
+    // Keep mobile horizontal tab bar centered on selection and prevent horizontal page drift
+    btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    if (window.scrollX !== 0) {
+      window.scrollTo({ top: window.scrollY, left: 0, behavior: 'auto' });
+    }
+
     // Reset sort states to default (newest first)
     state.sortColumn = 'timestamp';
     state.sortDirection = 'desc';
@@ -97,6 +93,8 @@ function initTabNavigation() {
 
     if (tabName === 'events') {
       renderEventsTable();
+    } else if (tabName === 'trends') {
+      renderTrendsView();
     } else if (tabName === 'ml') {
       fetchMlDataset();
       loadHistoricalSeismograph();
@@ -191,26 +189,40 @@ function initToolbarControls() {
   const explainBtn = document.getElementById('explainViewBtn');
   if (explainBtn) {
     explainBtn.addEventListener('click', () => {
+      const sourceTab = state.activeTab || 'oscilloscope';
+      const chapterAnchorMap = {
+        oscilloscope: 'ch-oscilloscope',
+        traces: 'ch-oscilloscope',
+        spectrogram: 'ch-spectrogram',
+        helicorder: 'ch-helicorder',
+        stalta: 'ch-stalta',
+        hodogram: 'ch-hodogram',
+        radar: 'ch-radar',
+        environment: 'ch-environment',
+        trends: 'ch-environment',
+        sonification: 'ch-sonification',
+        events: 'ch-events',
+        ml: 'ch-ml',
+        psd: 'ch-psd',
+        phasenet: 'ch-phasenet',
+        manual: 'ch-oscilloscope',
+      };
+      const anchor = chapterAnchorMap[sourceTab] || 'ch-oscilloscope';
+
       const tabManualBtn = document.querySelector('.tab-btn[data-tab="manual"]');
       if (tabManualBtn) tabManualBtn.click();
+
       const iframe = document.getElementById('manualIframe');
       if (iframe && iframe.contentWindow) {
-        const chapterAnchorMap = {
-          oscilloscope: 'ch-oscilloscope',
-          traces: 'ch-oscilloscope',
-          spectrogram: 'ch-spectrogram',
-          helicorder: 'ch-helicorder',
-          stalta: 'ch-stalta',
-          hodogram: 'ch-hodogram',
-          radar: 'ch-radar',
-          environment: 'ch-environment',
-          psd: 'ch-psd',
-          phasenet: 'ch-phasenet',
-        };
-        const anchor = chapterAnchorMap[state.activeTab] || 'ch-oscilloscope';
         setTimeout(() => {
           try {
-            iframe.contentWindow.location.hash = anchor;
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            const targetEl = doc ? doc.getElementById(anchor) : null;
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+              iframe.contentWindow.location.hash = anchor;
+            }
           } catch (e) {}
         }, 150);
       }
@@ -259,12 +271,19 @@ function initPublicMode() {
 // ---------------------------------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
   initPublicMode();
+  loadStationIdentity().then((status) => {
+    if (status?.public_mode) initPublicMode();
+    syncRadarStationCenter();
+  });
   setInterval(updateClock, 50);
   initDomListeners();
   initTabNavigation();
   initToolbarControls();
   initTableListeners();
   initReviewStudioListeners();
+  initTrendsView();
+  initHighlightsStrip();
+  prefetchBandThresholds();
   connectWebSocket();
   initRadarMap();
   fetchRadarEvents();

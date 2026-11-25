@@ -113,7 +113,7 @@ class AlertManager:
             detection_method=getattr(config, "detection_method", "classic_sta_lta"),
             estimated_magnitude=magnitude,
             estimated_distance_km=distance_km,
-            station=getattr(config, "station", "UNKNOWN"),
+            station=getattr(config, "shake_station", getattr(config, "station", "UNKNOWN")),
             channel=getattr(trigger, "channel", "EHZ") if trigger else "EHZ",
             distance_miles=distance_miles,
             distance_class=distance_class,

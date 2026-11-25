@@ -19,11 +19,9 @@ import numpy as np
 import obspy
 import structlog
 
-log = structlog.get_logger(__name__)
+from eqengine.constants import COUNTS_TO_ACCEL, COUNTS_TO_VELOCITY_M_S as COUNTS_TO_VELOCITY
 
-# RS4D Physical Calibration Constants
-COUNTS_TO_ACCEL = 1.9e-6  # 1 count ≈ 1.9 µm/s² for RS4D accelerometers (ENZ, ENN, ENE)
-COUNTS_TO_VELOCITY = 0.05e-6  # 1 count ≈ 0.05 µm/s for EHZ 4.5 Hz geophone
+log = structlog.get_logger(__name__)
 
 
 def compute_spectral_features(

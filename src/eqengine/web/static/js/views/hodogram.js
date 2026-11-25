@@ -114,8 +114,8 @@ export function renderHodogram() {
       ctx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
-      const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.70;
+      const cy = h / 2 + 8;
+      const radius = Math.max(36, Math.min(cx - (w < 380 ? 52 : 70), cy - 34));
 
       // Distance rings
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -223,8 +223,8 @@ export function renderHodogram() {
       ctx.fillRect(0, 0, w, h);
 
       const cx = w / 2;
-      const cy = h / 2;
-      const radius = Math.min(cx, cy) * 0.70;
+      const cy = h / 2 + 8;
+      const radius = Math.max(36, Math.min(cx - (w < 380 ? 52 : 70), cy - 34));
 
       // Distance rings
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -248,9 +248,9 @@ export function renderHodogram() {
       ctx.fillText('+Z (Up / ENZ)', cx, cy - radius - 6);
       ctx.fillText('-Z (Down)', cx, cy + radius + 14);
       ctx.textAlign = 'left';
-      ctx.fillText('+H (Horiz)', cx + radius + 8, cy + 3);
+      ctx.fillText(w < 380 ? '+H' : '+H (Horiz)', cx + radius + 6, cy + 3);
       ctx.textAlign = 'right';
-      ctx.fillText('-H', cx - radius - 8, cy + 3);
+      ctx.fillText('-H', cx - radius - 6, cy + 3);
 
       // Draw Vertical Orbit Trail clamped strictly inside bounding radius
       ctx.lineWidth = 1.8;

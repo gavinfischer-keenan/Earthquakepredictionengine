@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import obspy
 import structlog
 from obspy import UTCDateTime
+
+from eqengine.processing.intensity import compute_mmi
 
 logger = structlog.get_logger(__name__)
 
@@ -65,6 +68,10 @@ class MagnitudeEstimate:
     estimated_distance_km: float | None
     estimated_s_arrival: float | None   # Unix epoch seconds
     seconds_until_s_wave: float | None
+    mmi: float | None = None
+    mmi_roman: str | None = None
+    mmi_label: str | None = None
+    mmi_color: str | None = None
 
     @property
     def magnitude(self) -> float | None:
@@ -130,19 +137,27 @@ class MagnitudeEstimator:
             has_accel=accel_traces is not None,
         )
 
-        # --- τc (predominant period) ---
-        tau_c = self.compute_tau_c(velocity_trace, p_arrival, window_sec)
-
-        # --- Pd (peak displacement) ---
-        pd = self.compute_pd(velocity_trace, p_arrival, window_sec)
+        # --- Single-pass window extraction & integration ---
+        vel_win = self._extract_window(velocity_trace, p_arrival, window_sec)
+        tau_c: float | None = None
+        pd: float | None = None
+        pgv: float | None = None
+        if vel_win is not None and vel_win.size > 0:
+            sr = float(velocity_trace.stats.sampling_rate)
+            vel_centered, disp = self._integrate_displacement(vel_win, sr)
+            sum_vel_sq = float(np.sum(vel_centered ** 2))
+            if sum_vel_sq > 0.0:
+                sum_disp_sq = float(np.sum(disp ** 2))
+                tau_c = 2.0 * math.pi * math.sqrt(sum_disp_sq / sum_vel_sq)
+            else:
+                self._log.warning("compute_tau_c.zero_velocity_energy")
+            pd = float(np.max(np.abs(disp)))
+            pgv = float(np.max(np.abs(vel_centered)))
 
         # --- PGA from accelerometer ---
         pga: float | None = None
         if accel_traces:
             pga = self.compute_pga(accel_traces, p_arrival, window_sec)
-
-        # --- PGV from geophone ---
-        pgv = self._compute_pgv(velocity_trace, p_arrival, window_sec)
 
         # --- Magnitude from τc ---
         mag_tc: float | None = None
@@ -171,6 +186,8 @@ class MagnitudeEstimator:
             if seconds_until_s < 0:
                 seconds_until_s = 0.0
 
+        mmi_res = compute_mmi(pga_m_s2=pga, pgv_m_s=pgv) if (pga is not None or pgv is not None) else None
+
         result = MagnitudeEstimate(
             tau_c=tau_c,
             pd=pd,
@@ -181,6 +198,10 @@ class MagnitudeEstimator:
             estimated_distance_km=distance_km,
             estimated_s_arrival=s_arrival_epoch,
             seconds_until_s_wave=seconds_until_s,
+            mmi=mmi_res.mmi if mmi_res else None,
+            mmi_roman=mmi_res.roman if mmi_res else None,
+            mmi_label=mmi_res.label if mmi_res else None,
+            mmi_color=mmi_res.color if mmi_res else None,
         )
 
         self._log.info(
@@ -231,13 +252,11 @@ class MagnitudeEstimator:
             self._log.warning("compute_tau_c.empty_window")
             return None
 
-        sr = velocity_trace.stats.sampling_rate
+        sr = float(velocity_trace.stats.sampling_rate)
+        vel_centered, displacement = self._integrate_displacement(vel_win, sr)
 
-        # Integrate velocity → displacement via cumulative trapezoidal rule.
-        displacement = np.cumsum(vel_win) / sr
-
-        sum_disp_sq = np.sum(displacement ** 2)
-        sum_vel_sq = np.sum(vel_win ** 2)
+        sum_disp_sq = float(np.sum(displacement ** 2))
+        sum_vel_sq = float(np.sum(vel_centered ** 2))
 
         if sum_vel_sq == 0.0:
             self._log.warning("compute_tau_c.zero_velocity_energy")
@@ -280,8 +299,8 @@ class MagnitudeEstimator:
             self._log.warning("compute_pd.empty_window")
             return None
 
-        sr = velocity_trace.stats.sampling_rate
-        displacement = np.cumsum(vel_win) / sr
+        sr = float(velocity_trace.stats.sampling_rate)
+        _, displacement = self._integrate_displacement(vel_win, sr)
 
         pd = float(np.max(np.abs(displacement)))
 
@@ -348,41 +367,6 @@ class MagnitudeEstimator:
 
         self._log.debug("compute_pga.result", pga=pga)
         return pga
-
-    # ------------------------------------------------------------------
-    # PGV — peak ground velocity (geophone)
-    # ------------------------------------------------------------------
-
-    def _compute_pgv(
-        self,
-        velocity_trace: obspy.Trace,
-        p_arrival: UTCDateTime,
-        window_sec: float,
-    ) -> float | None:
-        """Compute peak ground velocity from the geophone trace.
-
-        Parameters
-        ----------
-        velocity_trace:
-            EHZ velocity trace.
-        p_arrival:
-            P-wave arrival time.
-        window_sec:
-            Window length (seconds).
-
-        Returns
-        -------
-        float | None
-            PGV in the same units as the trace (m/s if calibrated).
-        """
-        vel_win = self._extract_window(velocity_trace, p_arrival, window_sec)
-        if vel_win is None or vel_win.size == 0:
-            self._log.warning("compute_pgv.empty_window")
-            return None
-
-        pgv = float(np.max(np.abs(vel_win)))
-        self._log.debug("compute_pgv.result", pgv=pgv)
-        return pgv
 
     # ------------------------------------------------------------------
     # Empirical magnitude relations
@@ -471,9 +455,10 @@ class MagnitudeEstimator:
 
     @staticmethod
     def predict_s_arrival(p_time: float, distance_km: float) -> float:
-        """Predict the S-wave arrival time given P time and distance.
+        """Predict the S-wave arrival time given P arrival time and distance.
 
-        s_arrival = p_time + distance_km / Vs
+        Since ``p_time = origin + distance_km / Vp``, the S-wave arrives
+        ``distance_km * (1/Vs - 1/Vp)`` seconds after ``p_time``.
 
         Parameters
         ----------
@@ -487,11 +472,24 @@ class MagnitudeEstimator:
         float
             Predicted S-arrival time as Unix epoch seconds.
         """
-        return p_time + distance_km / _VS_KM_S
+        return p_time + distance_km * (1.0 / _VS_KM_S - 1.0 / _VP_KM_S)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _integrate_displacement(
+        vel_win: np.ndarray, sr: float
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Demean velocity and integrate via trapezoidal rule without DC drift."""
+        vel = vel_win - np.mean(vel_win)
+        disp = np.empty_like(vel)
+        disp[0] = 0.0
+        if vel.size > 1:
+            disp[1:] = np.cumsum(0.5 * (vel[:-1] + vel[1:])) / sr
+        disp -= np.mean(disp)
+        return vel, disp
 
     @staticmethod
     def _extract_window(

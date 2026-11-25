@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Earthquake Prediction Engine — Seismic Observatory</title>
-  <link rel="stylesheet" href="/static/style.css?v=1787300000">
+  <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -25,45 +25,56 @@
       </div>
 
       <div class="station-meta">
-        <div class="meta-item">
+        <div class="meta-item" data-tooltip-title="Station Identifier" data-tooltip="FDSN network (AM = Raspberry Shake) and unique station code. Monitors 4 channels at 100 samples/second.">
           <span class="meta-label">STATION</span>
           <span class="meta-value highlight" id="stationCode">AM.R1A3D</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item" data-tooltip-title="Waveform Ingest" data-tooltip="TCP SeedLink or UDP Datacast real-time telemetry stream delivering 100 Hz 24-bit ADC ground motion packets.">
           <span class="meta-label">INGEST</span>
           <span class="meta-value" id="ingestMeta">SeedLink (100 Hz)</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item" data-tooltip-title="MQTT Event Bus" data-tooltip="Publishes confirmed triggers, RSAM telemetry, and display alerts to local home-automation topics when enabled.">
           <span class="meta-label">MQTT</span>
           <span class="meta-value live" id="mqttStatus">BROADCASTING</span>
         </div>
-        <div class="meta-item">
+        <div class="meta-item" data-tooltip-title="Multi-Station Coincidence Witness" data-tooltip="Cross-checks local triggers against nearby UC Berkeley broadband station BK.BKS via NCEDC FDSN to distinguish tectonic earthquakes from local vibrations.">
+          <span class="meta-label">WITNESS</span>
+          <span class="meta-badge witness-idle" id="witnessStatusBadge">Witness: BK.BKS</span>
+        </div>
+        <div class="meta-item" data-tooltip-title="Coordinated Universal Time" data-tooltip="Standardized UTC seismological clock used to align local triggers with regional USGS earthquake catalogs.">
           <span class="meta-label">UTC TIME</span>
           <span class="meta-value mono" id="utcClock">--:--:--.--</span>
         </div>
       </div>
 
       <div class="header-actions">
-        <button class="btn btn-sm btn-ghost" id="audioToggle" title="Toggle Seismic Audio Alarm">
+        <button class="btn btn-sm btn-ghost" id="audioToggle" data-tooltip-title="Audio Alerts" data-tooltip="Toggle synthesized warning sirens and notification chimes when triggers or USGS arrivals fire.">
           <span class="icon" id="audioIcon">🔊</span>
           <span id="audioText">Audio On</span>
         </button>
-        <button class="btn btn-sm btn-secondary" id="simUsgsBtn" title="Simulate Incoming USGS Regional Earthquake">
+        <button class="btn btn-sm btn-secondary" id="simUsgsBtn" data-tooltip-title="Simulate Regional Earthquake" data-tooltip="Dispatches a synthetic M4.7 Northern California earthquake to preview incoming P/S wavefront timers and radar rings.">
           🌊 Test USGS Quake
         </button>
-        <button class="btn btn-sm btn-secondary" id="simTriggerBtn" title="Simulate Early Warning Trigger">
+        <button class="btn btn-sm btn-secondary" id="simTriggerBtn" data-tooltip-title="Simulate Local P-Wave Trigger" data-tooltip="Fires a synthetic local STA/LTA earthquake trigger to test the Warning HUD, S-wave countdown, and event log.">
           ⚡ Test Local Alert
         </button>
       </div>
     </header>
 
     <!-- Early Warning HUD Banner (Hidden by default, slides down on trigger) -->
-    <section class="warning-hud" id="warningHud" style="display: none;">
+    <section class="warning-hud" id="warningHud" style="display: none;" role="alert">
       <div class="warning-hud-content">
         <div class="warning-badge" id="warningSeverity">CRITICAL</div>
         <div class="warning-details">
           <div class="warning-title" id="warningTitle">🚨 EARTHQUAKE WARNING DETECTED</div>
           <div class="warning-sub" id="warningSub">Estimated M 3.8 — LOCAL (~15 miles) — P-wave triggered</div>
+          <div class="warning-metrics-row">
+            <span>Est. Mag: <b id="alertMagVal">--</b></span>
+            <span>Distance: <b id="alertDistVal">--</b></span>
+            <span>Intensity: <b id="alertMmiVal">--</b></span>
+            <span>PGA: <b id="alertPgaVal">--</b> m/s²</span>
+            <span>PGV: <b id="alertPgvVal">--</b> cm/s</span>
+          </div>
         </div>
         <div class="warning-countdown">
           <div class="countdown-label">EST. S-WAVE ARRIVAL</div>
@@ -74,24 +85,24 @@
     </section>
 
     <!-- Incoming Wavefront HUD Banner (USGS / External Earthquake Arrival) -->
-    <section class="incoming-hud" id="incomingHud" style="display: none;">
+    <section class="incoming-hud" id="incomingHud" style="display: none;" role="status">
       <div class="incoming-hud-content">
         <div class="incoming-badge">INCOMING WAVES</div>
         <div class="incoming-details">
           <div class="incoming-title" id="incomingTitle">🌊 USGS: M 4.8 Off Coast of Northern California</div>
-          <div class="incoming-sub" id="incomingSub">Distance: 198.8 miles — Origin: 21:50:10 UTC — Theoretical wavefronts in transit to Berkeley station</div>
+          <div class="incoming-sub" id="incomingSub">Distance: 198.8 miles — Origin: 21:50:10 UTC — Theoretical wavefronts in transit</div>
         </div>
         <div class="incoming-countdowns">
           <div class="countdown-box">
             <span class="box-label">EXP. P-WAVE</span>
-            <span class="box-val" id="incomingPCount">00:32s</span>
+            <span class="box-val" id="incomingPCount">--</span>
           </div>
           <div class="countdown-box">
             <span class="box-label">EXP. S-WAVE</span>
-            <span class="box-val" id="incomingSCount">01:05s</span>
+            <span class="box-val" id="incomingSCount">--</span>
           </div>
         </div>
-        <button class="btn btn-sm btn-ghost" id="dismissIncomingBtn">Dismiss</button>
+        <button class="btn btn-sm btn-outline-warning" id="dismissIncomingBtn">Dismiss</button>
       </div>
     </section>
 
@@ -105,6 +116,7 @@
         <button class="tab-btn" data-tab="hodogram">🌐 3D Orbit</button>
         <button class="tab-btn" data-tab="radar">🗺️ Epicenter Radar</button>
         <button class="tab-btn" data-tab="environment">🏟️ Urban Profiler</button>
+        <button class="tab-btn" data-tab="trends">📈 Pulse & Trends</button>
         <button class="tab-btn" data-tab="phasenet">🎯 AI PhaseNet</button>
         <button class="tab-btn" data-tab="psd">🔬 Peterson Noise</button>
         <button class="tab-btn" data-tab="sonification">🔊 Earth Audio</button>
@@ -114,7 +126,7 @@
       </div>
 
       <div class="toolbar-controls">
-        <div class="control-group">
+        <div class="control-group" data-tooltip-title="Time Window" data-tooltip="Controls how many seconds of buffered waveform history appear on the Seismograms and Spectrogram.">
           <label for="windowSelect">Window:</label>
           <select id="windowSelect" class="form-select">
             <option value="10">10s</option>
@@ -125,7 +137,7 @@
           </select>
         </div>
 
-        <div class="control-group">
+        <div class="control-group" data-tooltip-title="Digital Signal Filter" data-tooltip="1–10 Hz Bandpass isolates earthquakes while hiding ocean surf (<0.5 Hz) and footsteps (>15 Hz). Choose Raw or Demeaned to inspect everything.">
           <label for="filterSelect">Filter:</label>
           <select id="filterSelect" class="form-select">
             <option value="bandpass" selected>1–10 Hz Bandpass</option>
@@ -135,7 +147,7 @@
           </select>
         </div>
 
-        <div class="control-group">
+        <div class="control-group" data-tooltip-title="Vertical Scale Gain" data-tooltip="Auto-Gain zooms dynamically to fit quiet ambient motion or strong earthquakes. Lock to a fixed count range to compare true energy.">
           <label for="gainSelect">Gain:</label>
           <select id="gainSelect" class="form-select">
             <option value="auto" selected>Auto-Gain</option>
@@ -146,15 +158,15 @@
           </select>
         </div>
 
-        <div class="channel-toggles">
+        <div class="channel-toggles" data-tooltip-title="Channel Visibility" data-tooltip="Show/hide the 4 RS4D channels: EHZ (vertical velocity geophone) and ENZ/ENN/ENE (triaxial MEMS accelerometers).">
           <label class="ch-checkbox ch-ehz"><input type="checkbox" id="toggleEHZ" checked> EHZ</label>
           <label class="ch-checkbox ch-enz"><input type="checkbox" id="toggleENZ" checked> ENZ</label>
           <label class="ch-checkbox ch-enn"><input type="checkbox" id="toggleENN" checked> ENN</label>
           <label class="ch-checkbox ch-ene"><input type="checkbox" id="toggleENE" checked> ENE</label>
         </div>
 
-        <button class="btn btn-sm btn-ghost" id="pauseBtn">⏸ Pause</button>
-        <button class="btn btn-sm btn-ghost" id="explainViewBtn" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); margin-left: 6px;" title="Tell me what this view shows (Opens Field Manual)">💡 Tell Me What This Shows</button>
+        <button class="btn btn-sm btn-ghost" id="pauseBtn" data-tooltip-title="Freeze Display" data-tooltip="Pauses live trace scrolling so you can inspect waveforms in detail without losing incoming data.">⏸ Pause</button>
+        <button class="btn btn-sm btn-ghost btn-explain" id="explainViewBtn" data-tooltip-title="Open Contextual Guide" data-tooltip="Jumps directly to the active view's Layperson, Science, and Raw Math chapter in the Field Manual.">💡 Tell Me What This Shows</button>
       </div>
     </nav>
 
@@ -164,9 +176,9 @@
       <section class="tab-panel active" id="tab-oscilloscope">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — How to read live 4-channel seismograms (Normal vs Earthquake)</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -185,18 +197,31 @@
           </div>
         </div>
 
+        <div class="traces-hud-strip">
+          <div class="traces-mmi-wrap">
+            <span class="meta-badge mmi-live-badge" id="liveMmiBadge" data-tooltip-title="Modified Mercalli Intensity (Worden et al. 2012)" data-tooltip="Live real-time shaking intensity converted from 3-axis PGA and vertical PGV on the USGS ShakeMap I–X scale.">MMI I · Not Felt</span>
+            <span class="meta-badge" id="archiveStatusBadge">Archive: --</span>
+          </div>
+          <div class="highlights-strip" id="highlightsStrip">
+            <span class="highlights-label">✨ Notable Moments:</span>
+            <div class="highlights-list" id="highlightsList">
+              <span class="highlight-empty">Listening for notable earthquakes, Cal touchdowns &amp; Greek encores...</span>
+            </div>
+          </div>
+        </div>
+
         <div class="oscilloscope-container">
           <!-- Channel 1: EHZ (Vertical Velocity Geophone) -->
           <div class="channel-card" id="card-EHZ">
             <div class="channel-header">
-              <div class="ch-info">
+              <div class="ch-info" data-tooltip-title="EHZ — Vertical Geophone" data-tooltip="4.5 Hz moving-coil velocity sensor (~0.05 µm/s per count). Ultra-sensitive to ocean microseisms, local P-waves, and footsteps.">
                 <span class="ch-tag ch-tag-ehz">EHZ</span>
                 <span class="ch-desc">Geophone Vertical (Velocity)</span>
               </div>
               <div class="ch-metrics">
                 <span class="metric">Current: <b id="val-EHZ">0</b> counts</span>
-                <span class="metric">4m Normal: <b id="base-EHZ">±35</b></span>
-                <span class="metric">STA/LTA: <b id="sta-EHZ">1.0</b></span>
+                <span class="metric" data-tooltip-title="4-Minute Baseline" data-tooltip="Rolling spike-clamped ambient noise floor plotted as the dashed green corridor.">4m Normal: <b id="base-EHZ">±35</b></span>
+                <span class="metric" data-tooltip-title="STA/LTA Ratio" data-tooltip="Short-Term (0.5s) to Long-Term (20s) energy ratio. Crosses 6.5x on sharp P-wave onset.">STA/LTA: <b id="sta-EHZ">1.0</b></span>
                 <span class="metric"><b id="dev-EHZ" class="dev-badge dev-normal">🟢 NORMAL (1.0x)</b></span>
               </div>
             </div>
@@ -209,14 +234,14 @@
           <!-- Channel 2: ENZ (Vertical Accelerometer) -->
           <div class="channel-card" id="card-ENZ">
             <div class="channel-header">
-              <div class="ch-info">
+              <div class="ch-info" data-tooltip-title="ENZ — Vertical Accelerometer" data-tooltip="Triaxial MEMS accelerometer (Z-axis, ~1.9 µm/s² per count). Never clips during strong local shaking and measures Peak Ground Acceleration (PGA).">
                 <span class="ch-tag ch-tag-enz">ENZ</span>
                 <span class="ch-desc">Accelerometer Vertical (Strong Motion)</span>
               </div>
               <div class="ch-metrics">
                 <span class="metric">Current: <b id="val-ENZ">0</b> counts</span>
                 <span class="metric">4m Normal: <b id="base-ENZ">±20</b></span>
-                <span class="metric">PGA: <b id="pga-ENZ">0.000</b> m/s²</span>
+                <span class="metric" data-tooltip-title="Peak Ground Acceleration" data-tooltip="Maximum vertical acceleration in the visible window in m/s² (1g = 9.81 m/s²).">PGA: <b id="pga-ENZ">0.000</b> m/s²</span>
                 <span class="metric"><b id="dev-ENZ" class="dev-badge dev-normal">🟢 NORMAL (1.0x)</b></span>
               </div>
             </div>
@@ -229,14 +254,14 @@
           <!-- Channel 3: ENN (North-South Accelerometer) -->
           <div class="channel-card" id="card-ENN">
             <div class="channel-header">
-              <div class="ch-info">
+              <div class="ch-info" data-tooltip-title="ENN — North-South Accelerometer" data-tooltip="Horizontal N–S strong-motion channel. Shear (S) and Love waves arrive strongest on ENN/ENE.">
                 <span class="ch-tag ch-tag-enn">ENN</span>
                 <span class="ch-desc">Accelerometer North-South</span>
               </div>
               <div class="ch-metrics">
                 <span class="metric">Current: <b id="val-ENN">0</b> counts</span>
                 <span class="metric">4m Normal: <b id="base-ENN">±20</b></span>
-                <span class="metric">PGA: <b id="pga-ENN">0.000</b> m/s²</span>
+                <span class="metric" data-tooltip-title="North-South PGA" data-tooltip="Peak horizontal acceleration along the North-South axis (m/s²).">PGA: <b id="pga-ENN">0.000</b> m/s²</span>
                 <span class="metric"><b id="dev-ENN" class="dev-badge dev-normal">🟢 NORMAL (1.0x)</b></span>
               </div>
             </div>
@@ -249,14 +274,14 @@
           <!-- Channel 4: ENE (East-West Accelerometer) -->
           <div class="channel-card" id="card-ENE">
             <div class="channel-header">
-              <div class="ch-info">
+              <div class="ch-info" data-tooltip-title="ENE — East-West Accelerometer" data-tooltip="Horizontal E–W strong-motion channel paired with ENN to compute 3D back-azimuth bearing to the epicenter.">
                 <span class="ch-tag ch-tag-ene">ENE</span>
                 <span class="ch-desc">Accelerometer East-West</span>
               </div>
               <div class="ch-metrics">
                 <span class="metric">Current: <b id="val-ENE">0</b> counts</span>
                 <span class="metric">4m Normal: <b id="base-ENE">±20</b></span>
-                <span class="metric">PGA: <b id="pga-ENE">0.000</b> m/s²</span>
+                <span class="metric" data-tooltip-title="East-West PGA" data-tooltip="Peak horizontal acceleration along the East-West axis (m/s²).">PGA: <b id="pga-ENE">0.000</b> m/s²</span>
                 <span class="metric"><b id="dev-ENE" class="dev-badge dev-normal">🟢 NORMAL (1.0x)</b></span>
               </div>
             </div>
@@ -272,9 +297,9 @@
       <section class="tab-panel" id="tab-spectrogram">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Understanding the HD Frequency Waterfall (0–50 Hz)</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -299,6 +324,7 @@
               <span class="panel-desc">Continuous STFT energy distribution aligned with real-time ground velocity waveform</span>
             </div>
             <div class="panel-header-badges">
+              <span class="meta-badge spec-aircraft-badge" id="specAircraftBadge" style="display:none;"></span>
               <span class="meta-badge">0–50 Hz Full Band</span>
               <span class="meta-badge">100 Hz Sample Rate</span>
             </div>
@@ -318,9 +344,9 @@
       <section class="tab-panel" id="tab-helicorder">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — How the 24-Hour Helicorder Drum Works</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -404,9 +430,9 @@
       <section class="tab-panel" id="tab-stalta">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — How to Read STA/LTA Trigger Ratios vs 60-Minute RSAM History</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -428,7 +454,7 @@
           <div class="telemetry-card">
             <div class="card-header">
               <h4>STA/LTA Ratio Monitor & Trigger Threshold</h4>
-              <span class="threshold-badge" id="staBadge">Trigger ON: 6.5x | OFF: 2.0x</span>
+              <span class="threshold-badge" id="staBadge" data-tooltip-title="Recursive STA/LTA Detector" data-tooltip="Short-Term (0.5s) / Long-Term (20s) characteristic ratio. Crosses 6.5x on sudden P-wave onset and resets below 2.0x.">Trigger ON: 6.5x | OFF: 2.0x</span>
             </div>
             <div class="canvas-wrapper-sm">
               <canvas id="staltaCanvas" class="stalta-canvas"></canvas>
@@ -438,7 +464,7 @@
           <div class="telemetry-card">
             <div class="card-header">
               <h4>60-Minute RSAM Energy Trend (EHZ Ground Velocity RMS)</h4>
-              <span class="rsam-badge" id="rsamValue">RSAM: -- counts RMS</span>
+              <span class="rsam-badge" id="rsamValue" data-tooltip-title="RSAM (1-Minute RMS)" data-tooltip="Real-Time Seismic Amplitude Measurement: demeaned 1-minute RMS ground velocity energy used by observatories to track swarm/tremor buildup.">RSAM: -- counts RMS</span>
             </div>
             <div class="canvas-wrapper-sm">
               <canvas id="rsamCanvas" class="rsam-canvas"></canvas>
@@ -451,9 +477,9 @@
       <section class="tab-panel" id="tab-hodogram">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Reading 3D Particle Motion Orbits</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -493,9 +519,9 @@
       <section class="tab-panel" id="tab-events">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Early Warnings, Severity Badges & USGS Detections</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -522,14 +548,14 @@
             <table class="events-table" id="eventsTable">
               <thead>
                 <tr>
-                  <th class="sortable sorted" data-col="timestamp">Timestamp (UTC) <span class="sort-arrow">▼</span></th>
-                  <th class="sortable" data-col="severity">Severity <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="mag">Est. Mag <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="distance">Distance <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="staLta">STA/LTA <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="channel">Channel <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="type">Type <span class="sort-arrow">⇅</span></th>
-                  <th class="sortable" data-col="status">Status <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable sorted" data-col="timestamp" data-tooltip-title="Trigger UTC Timestamp" data-tooltip="UTC time when the STA/LTA ratio crossed the configured trigger threshold.">Timestamp (UTC) <span class="sort-arrow">▼</span></th>
+                  <th class="sortable" data-col="severity" data-tooltip-title="Alert Severity" data-tooltip="20-cell severity tier combining estimated magnitude (Micro &lt; 2 to Major ≥ 5) and distance (Local &lt; 30 mi to Teleseismic &gt; 400 mi).">Severity <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="mag" data-tooltip-title="Estimated Magnitude (M_L)" data-tooltip="Wood-Anderson local magnitude / P-wave τc estimate based on peak velocity displacement and distance.">Est. Mag <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="distance" data-tooltip-title="Estimated Distance" data-tooltip="Epicentral distance derived from S-P arrival time difference (~8.4 km/s Wadati factor) or USGS catalog match.">Distance <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="staLta" data-tooltip-title="Peak STA/LTA Ratio" data-tooltip="Maximum Short-Term Average (0.5 s) over Long-Term Average (30 s) ratio reached during the event.">STA/LTA <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="channel" data-tooltip-title="Trigger Channel" data-tooltip="Primary Raspberry Shake 4D channel (EHZ geophone or ENZ/ENN/ENE MEMS) that initiated detection.">Channel <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="type" data-tooltip-title="Signal Classification" data-tooltip="Multi-gate validation &amp; spectral classification (e.g., Earthquake Candidate, Transient, Cultural Noise).">Type <span class="sort-arrow">⇅</span></th>
+                  <th class="sortable" data-col="status" data-tooltip-title="Alert Status" data-tooltip="Whether an early warning HUD / sound alert was issued or filtered by false-positive gates.">Status <span class="sort-arrow">⇅</span></th>
                 </tr>
               </thead>
               <tbody id="eventsTableBody">
@@ -544,9 +570,9 @@
       <section class="tab-panel" id="tab-ml">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — How Machine Learning Learns the Environment</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -721,19 +747,19 @@
 
           <!-- ML Dataset Metrics Cards -->
           <div class="ml-stats-row" id="mlStatsRow">
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Labeled Snippets" data-tooltip="Human-verified waveforms saved with class labels (earthquake, thunder, footsteps, transit, noise) for supervised ML training.">
               <span class="stat-label">TOTAL LABELED SNIPPETS</span>
               <span class="stat-num" id="mlStatCount">0</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Dataset Footprint" data-tooltip="Total disk size of exported 4-channel 100 Hz NPZ waveform tensors and JSONL metadata records.">
               <span class="stat-label">DATASET DISK USAGE</span>
               <span class="stat-num" id="mlStatDisk">0.0 MB</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Training Tensor Schema" data-tooltip="Each exported snippet includes aligned [EHZ, ENZ, ENN, ENE] arrays at 100 Hz plus signal features and label provenance.">
               <span class="stat-label">ML TRAINING FORMATS</span>
               <span class="stat-desc">JSONL + 4-Ch NPZ Arrays (100 Hz)</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Training Target Node" data-tooltip="Configured offline GPU/PyTorch compute node for training multi-channel seismic vs. urban classifiers.">
               <span class="stat-label">TARGET PROCESSING NODE</span>
               <span class="stat-desc">Node 02 (Ryzen / PyTorch / GPU)</span>
             </div>
@@ -771,9 +797,9 @@
       <section class="tab-panel" id="tab-radar">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Live Epicenter Radar, Fault Lines & Wavefront Circles</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -853,17 +879,17 @@
             </div>
 
             <div class="radar-hud-overlay">
-              <div class="radar-hud-card">
+              <div class="radar-hud-card" data-tooltip-title="Home Observatory" data-tooltip="Raspberry Shake 4D (EHZ geophone + ENZ/ENN/ENE MEMS accelerometers) located at 37.8696° N, 122.2491° W.">
                 <span class="hud-label">HOME OBSERVATORY</span>
                 <span class="hud-val">Berkeley Hills (AM.R1A3D)</span>
                 <span class="hud-sub">37.8696° N, 122.2491° W</span>
               </div>
-              <div class="radar-hud-card">
+              <div class="radar-hud-card" data-tooltip-title="Nearest Active Fault" data-tooltip="The Hayward Fault Zone runs ~400 m west beneath Strawberry Canyon and Memorial Stadium — capable of M6.8–M7.0 rupture.">
                 <span class="hud-label">NEAREST MAJOR FAULT</span>
                 <span class="hud-val" style="color: #ef4444;">Hayward Fault Trace</span>
                 <span class="hud-sub">~400 meters West</span>
               </div>
-              <div class="radar-hud-card" id="radarStatsCard">
+              <div class="radar-hud-card" id="radarStatsCard" data-tooltip-title="48-Hr USGS Catalog Feed" data-tooltip="Polled live from USGS FDSN/GeoJSON within 700 miles of Berkeley Hills to correlate wavefront arrivals and local shaking.">
                 <span class="hud-label">48-HR REGIONAL ACTIVITY (&lt;700 MI)</span>
                 <div class="radar-hud-stat-row">
                   <span class="hud-val" id="radarQuakeCount">-- Events</span>
@@ -912,9 +938,9 @@
       <section class="tab-panel" id="tab-environment">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Identifying the World Around Us</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -936,9 +962,122 @@
         </div>
 
         <div class="env-container">
+          <!-- Real-World Signal Forensics & Source Deductor -->
+          <div class="env-forensics-grid" id="envForensicsPanel">
+            <div class="forensic-card" data-tooltip-title="Live Source Deduction" data-tooltip="Synthesizes multi-band FFT ratios, STA/LTA, and kurtosis impulsiveness (κ) to deduce the dominant real-world vibration source right now.">
+              <div class="forensic-top">
+                <span class="forensic-label">🧠 ACTIVE SOURCE DEDUCTION</span>
+                <span class="forensic-badge" id="forensicPrimaryBadge">--% CONF</span>
+              </div>
+              <div class="forensic-value" id="forensicPrimaryTitle">Analyzing Spectrum...</div>
+              <div class="forensic-sub" id="forensicPrimaryDetail">Sampling 100 Hz telemetry...</div>
+            </div>
+
+            <div class="forensic-card" data-tooltip-title="Pacific Ocean Microseism &amp; NOAA Buoy Correlation" data-tooltip="10x decimated sub-Hz FFT resolves the 0.11–0.32 Hz double-frequency (2f) ocean microseism and correlates it live with NOAA NDBC Buoy 46026 (SF Bar) dominant swell period T = 2 / f_df.">
+              <div class="forensic-top">
+                <span class="forensic-label">🌊 OCEAN SWELL &amp; NOAA BUOY</span>
+                <span class="forensic-badge" id="forensicBuoyBadge">NOAA 46026</span>
+              </div>
+              <div class="forensic-value" id="forensicOceanPeriod">--s Swell</div>
+              <div class="forensic-sub" id="forensicOceanMeta">Waiting for 25s sub-Hz buffer...</div>
+              <div class="forensic-sub forensic-buoy-sub" id="forensicBuoyDetail">Polling NOAA Buoy 46026 (SF Bar)...</div>
+            </div>
+
+            <div class="forensic-card" data-tooltip-title="Vehicle Doppler & Rail Harmonics" data-tooltip="Tracks 6–18 Hz spectral centroid rate of change (df/dt) to identify approaching vs receding trucks/buses, plus 4–8 Hz sustained rail/BART harmonics and 3D azimuth.">
+              <div class="forensic-top">
+                <span class="forensic-label">🚛 TRAFFIC DOPPLER & RAIL</span>
+              </div>
+              <div class="forensic-value" id="forensicDopplerState">Steady Flow</div>
+              <div class="forensic-sub" id="forensicDopplerMeta">Centroid -- Hz · Azimuth --°</div>
+            </div>
+
+            <div class="forensic-card" data-tooltip-title="Nakamura H/V Resonance & Kurtosis (κ)" data-tooltip="Excess kurtosis κ distinguishes continuous wave energy (κ ≈ 0) from sharp floor impacts/footsteps (κ > 5). H/V computes horizontal-to-vertical site amplification.">
+              <div class="forensic-top">
+                <span class="forensic-label">📐 SITE H/V & IMPULSIVENESS</span>
+              </div>
+              <div class="forensic-value" id="forensicHvKurtosis">κ = --</div>
+              <div class="forensic-sub" id="forensicHvMeta">H/V calibrating...</div>
+            </div>
+          </div>
+
+          <!-- Autonomous Quiet-Window Hunter & Long-Term Calibration Panel -->
+          <div class="quiet-hunter-panel" id="envQuietHunterPanel">
+            <div class="quiet-hunter-info">
+              <div class="quiet-hunter-top">
+                <span class="forensic-label" data-tooltip-title="Autonomous Quiet-Window Hunter" data-tooltip="Continuously logs 1-minute cultural noise levels across all 24 station-local hours, learns when local human/traffic noise bottoms out (often ~02:00–04:00 PST), rejects high-kurtosis footsteps, and auto-calibrates noise_model.json.">🌙 QUIET-WINDOW HUNTER &amp; AUTO-BASELINE</span>
+                <span class="forensic-badge quiet-window-badge" id="quietWindowBadge">02:00–04:00 PST</span>
+              </div>
+              <div class="quiet-baseline-meta" id="quietBaselineMeta">Scanning rolling buffer for quiet ambient baseline...</div>
+              <div class="quiet-hunter-actions">
+                <button class="btn btn-sm btn-outline-success" id="calibrateBaselineBtn" data-tooltip-title="Hunt &amp; Calibrate Quiet Baseline" data-tooltip="Scans the rolling buffer for the lowest-kurtosis, minimum-cultural-noise segment and updates the station's Peterson &amp; band baselines immediately.">🎯 Hunt &amp; Calibrate Now</button>
+                <a class="btn btn-sm btn-secondary" id="exportForensicsCsvBtn" href="/api/forensics/export.csv" download="shake_forensics_history.csv" data-tooltip-title="Download Long-Term Forensics CSV" data-tooltip="Export continuous 1-minute spectral band powers, NOAA buoy swell data, kurtosis (κ), and H/V ratios as CSV.">📥 Export Forensics CSV</a>
+              </div>
+            </div>
+            <div class="quiet-hunt-chart-wrap" data-tooltip-title="24-Hour Diurnal Cultural Noise Profile" data-tooltip="Hourly station-local cultural noise levels (µm/s). Green bars highlight the empirically discovered quietest calibration window; cyan outlines the current local hour.">
+              <canvas id="quietHuntCanvas" class="quiet-hunt-canvas"></canvas>
+            </div>
+          </div>
+
+          <!-- External Events & Berkeley Local Context Panel -->
+          <div class="external-events-panel" id="envExternalEventsPanel">
+            <div class="ext-events-header">
+              <span class="forensic-label" data-tooltip-title="Berkeley Local External Events" data-tooltip="Live schedules and environmental feeds for venues and infrastructure near Station AM.R1A3D: Cal Memorial Stadium (2–5 Hz), The Greek Theatre (25–45 Hz), Berkeley Hills Wind (0.38–0.85 Hz), and BART Hills Tunnel (4–8 Hz).">📡 EXTERNAL EVENTS &amp; BERKELEY LOCAL CONTEXT</span>
+              <div class="ext-events-controls">
+                <span class="forensic-badge" id="extCorrelationBadge">MONITORING</span>
+                <button class="btn btn-sm btn-secondary" id="refreshExternalEventsBtn" title="Refresh Cal Football, Greek Theatre, Weather &amp; BART">🔄 Refresh</button>
+              </div>
+            </div>
+            <div class="ext-events-grid">
+              <div class="ext-event-card" id="extCardCal">
+                <div class="forensic-top">
+                  <span class="forensic-label">🏈 CAL MEMORIAL STADIUM</span>
+                  <span class="forensic-badge" id="extCalBadge">--</span>
+                </div>
+                <div class="forensic-value" id="extCalTitle">Checking schedule...</div>
+                <div class="forensic-sub" id="extCalMeta">2–5 Hz crowd resonance (~400m)</div>
+              </div>
+
+              <div class="ext-event-card" id="extCardGreek">
+                <div class="forensic-top">
+                  <span class="forensic-label">🎸 THE GREEK THEATRE</span>
+                  <span class="forensic-badge" id="extGreekBadge">--</span>
+                </div>
+                <div class="forensic-value" id="extGreekTitle">Checking concerts...</div>
+                <div class="forensic-sub" id="extGreekMeta">25–45 Hz sub-bass coupling (~600m)</div>
+              </div>
+
+              <div class="ext-event-card" id="extCardWeather">
+                <div class="forensic-top">
+                  <span class="forensic-label">💨 BERKELEY HILLS WIND</span>
+                  <span class="forensic-badge" id="extWeatherBadge">--</span>
+                </div>
+                <div class="forensic-value" id="extWeatherTitle">Checking Open-Meteo...</div>
+                <div class="forensic-sub" id="extWeatherMeta">0.38–0.85 Hz canopy sway</div>
+              </div>
+
+              <div class="ext-event-card" id="extCardBart">
+                <div class="forensic-top">
+                  <span class="forensic-label">🚇 BART HILLS TUNNEL</span>
+                  <span class="forensic-badge" id="extBartBadge">--</span>
+                </div>
+                <div class="forensic-value" id="extBartTitle">Checking DBRK / ROCK...</div>
+                <div class="forensic-sub" id="extBartMeta">4–8 Hz rail harmonic monitor</div>
+              </div>
+
+              <div class="ext-event-card" id="extCardAircraft">
+                <div class="forensic-top">
+                  <span class="forensic-label">🚁 OVERHEAD AIRCRAFT</span>
+                  <span class="forensic-badge" id="extAircraftBadge">--</span>
+                </div>
+                <div class="forensic-value" id="extAircraftTitle">Scanning ADS-B airspace...</div>
+                <div class="forensic-sub" id="extAircraftMeta">airplanes.live ADS-B · 10–35 Hz acoustic comb</div>
+              </div>
+            </div>
+          </div>
+
           <div class="env-grid">
             <!-- Cal Stadium Card -->
-            <div class="env-card" id="envCardStadium" style="border-top: 3px solid #f43f5e;">
+            <div class="env-card" id="envCardStadium" style="border-top: 3px solid #f43f5e;" data-tooltip-title="Cal Memorial Stadium" data-tooltip="Tracks 2.2–4.5 Hz sustained narrowband crowd &amp; structural footfall resonance (~1.5 km from station along the Hayward fault zone).">
               <div class="env-card-header">
                 <span class="env-icon">🏈</span>
                 <div class="env-title-group">
@@ -957,7 +1096,7 @@
             </div>
 
             <!-- Greek Theatre Card -->
-            <div class="env-card" id="envCardConcert" style="border-top: 3px solid #c084fc;">
+            <div class="env-card" id="envCardConcert" style="border-top: 3px solid #c084fc;" data-tooltip-title="Greek Theatre Sub-Bass" data-tooltip="Tracks 25–45 Hz acoustic-to-ground coupling from outdoor PA subwoofers at the UC Berkeley Greek Theatre (~800 m away).">
               <div class="env-card-header">
                 <span class="env-icon">🎸</span>
                 <div class="env-title-group">
@@ -976,7 +1115,7 @@
             </div>
 
             <!-- Heavy Traffic Card -->
-            <div class="env-card" id="envCardTraffic" style="border-top: 3px solid #f59e0b;">
+            <div class="env-card" id="envCardTraffic" style="border-top: 3px solid #f59e0b;" data-tooltip-title="Heavy Truck, Bus &amp; Roadway" data-tooltip="Tracks 8–14 Hz surface roadbed shear/Rayleigh waves from buses, trucks, and corridor traffic ascending Berkeley Hills.">
               <div class="env-card-header">
                 <span class="env-icon">🚛</span>
                 <div class="env-title-group">
@@ -995,7 +1134,7 @@
             </div>
 
             <!-- Human / Indoor Card -->
-            <div class="env-card" id="envCardHuman" style="border-top: 3px solid #10b981;">
+            <div class="env-card" id="envCardHuman" style="border-top: 3px solid #10b981;" data-tooltip-title="Indoor Footsteps &amp; Transients" data-tooltip="Tracks sharp high-kurtosis MEMS acceleration bursts from nearby footsteps, stair impacts, and door slams inside the building.">
               <div class="env-card-header">
                 <span class="env-icon">🏃</span>
                 <div class="env-title-group">
@@ -1014,7 +1153,7 @@
             </div>
 
             <!-- Wind / Building Sway Card -->
-            <div class="env-card" id="envCardWind" style="border-top: 3px solid #38bdf8;">
+            <div class="env-card" id="envCardWind" style="border-top: 3px solid #38bdf8;" data-tooltip-title="Wind &amp; Long-Period Tilt" data-tooltip="Tracks 0.1–0.5 Hz quasi-static tilt, structural wind sway, tree-root coupling, and Pacific storm microseisms.">
               <div class="env-card-header">
                 <span class="env-icon">💨</span>
                 <div class="env-title-group">
@@ -1045,13 +1184,104 @@
         </div>
       </section>
 
+      <!-- 9b. Berkeley Pulse 7D / 30D Forensics Trends & Predictive Models -->
+      <section class="tab-panel" id="tab-trends">
+        <div class="trends-container">
+          <div class="trends-toolbar">
+            <div>
+              <h3 style="margin:0; font-size:15px; color:#f8fafc;">📈 Berkeley Pulse — Learned Normals &amp; 24h Predictive Models</h3>
+              <span class="meta-value" id="trendsDataSpanMeta" style="font-size:11px; color:#94a3b8;">Loading forensics history...</span>
+            </div>
+            <div class="trends-window-controls">
+              <button type="button" class="btn btn-sm btn-secondary trends-window-btn" data-days="1">24H</button>
+              <button type="button" class="btn btn-sm btn-secondary trends-window-btn active" data-days="7">7D</button>
+              <button type="button" class="btn btn-sm btn-secondary trends-window-btn" data-days="30">30D</button>
+              <button type="button" class="btn btn-sm btn-ghost" id="refreshTrendsBtn">↻ Refresh</button>
+            </div>
+          </div>
+
+          <div class="trends-kpi-grid">
+            <div class="stat-card">
+              <span class="stat-label">OCEAN BUOY → MICROSEISM FIT</span>
+              <span class="stat-num" id="kpiOceanR2">--</span>
+              <span class="forensic-sub" id="kpiOceanDetail">NOAA 46026 regression model</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">CULTURAL PULSE VS NORMAL</span>
+              <span class="stat-num" id="kpiCulturalStatus">--</span>
+              <span class="forensic-sub" id="kpiCulturalDetail">Weekday vs weekend diurnal baseline</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">DETECTED GAME &amp; CONCERT DAYS</span>
+              <span class="stat-num" id="kpiEventDays">--</span>
+              <span class="forensic-sub" id="kpiEventDetail">Blind + scheduled surge events</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-label">PEAK COASTAL GROUND-SWELL</span>
+              <span class="stat-num" id="kpiPeakSwell">--</span>
+              <span class="forensic-sub" id="kpiPeakSwellDetail">Sub-Hz microseism &amp; wave height</span>
+            </div>
+          </div>
+
+          <div class="trends-charts-grid">
+            <div class="env-canvas-card">
+              <div class="panel-header">
+                <h4>🌊 NOAA Buoy 46026 Wave Height vs. RS4D Microseism &amp; Predicted Fit</h4>
+              </div>
+              <div class="canvas-wrapper-sm">
+                <canvas id="pulseOceanCanvas" class="env-canvas"></canvas>
+              </div>
+            </div>
+            <div class="env-canvas-card">
+              <div class="panel-header">
+                <h4>🚗 Weekday vs. Weekend Diurnal Traffic/BART &amp; Next-24h Forecast (±1σ)</h4>
+              </div>
+              <div class="canvas-wrapper-sm">
+                <canvas id="pulseCulturalCanvas" class="env-canvas"></canvas>
+              </div>
+            </div>
+            <div class="env-canvas-card">
+              <div class="panel-header">
+                <h4>🏟️ Event Day vs. Non-Event Baseline (Cal Stadium 2–5 Hz &amp; Greek 25–45 Hz)</h4>
+              </div>
+              <div class="canvas-wrapper-sm">
+                <canvas id="pulseEventCanvas" class="env-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="env-canvas-card">
+            <div class="panel-header">
+              <h4>📊 Learned Empirical Site Thresholds (What Is Light, Normal, Heavy &amp; Extreme Here)</h4>
+            </div>
+            <div class="table-responsive">
+              <table class="events-table trends-table">
+                <thead>
+                  <tr>
+                    <th>Frequency Band</th>
+                    <th>Light (≤p25)</th>
+                    <th>Normal (p50)</th>
+                    <th>Heavy (p75)</th>
+                    <th>Extreme (&gt;p95)</th>
+                    <th>Samples</th>
+                  </tr>
+                </thead>
+                <tbody id="trendsThresholdsBody">
+                  <tr><td colspan="6" style="text-align:center;color:#94a3b8;">Loading thresholds...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 10. AI Phase Picker & Probability Traces (PhaseNet / EQTransformer Emulation) -->
       <section class="tab-panel" id="tab-phasenet">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Real-Time AI Phase Picking & Wadati Distance Derivation</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -1070,20 +1300,24 @@
         </div>
 
         <div class="phasenet-container">
+          <div class="phasenet-header-strip">
+            <span class="meta-label">ACTIVE PICKER ENGINE:</span>
+            <span class="meta-badge picker-mode-badge" id="phasePickerModeBadge">Z/H Polarization Heuristic</span>
+          </div>
           <div class="phasenet-meta-row">
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Automatic P-Wave Pick" data-tooltip="UTC timestamp when the vertical P-wave probability curve crosses the 0.60 detection threshold.">
               <span class="stat-label">LATEST P-PICK</span>
               <span class="stat-num" id="aiPickP">--:--:--</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Automatic S-Wave Pick" data-tooltip="UTC timestamp when horizontal shear S-wave probability crosses 0.60.">
               <span class="stat-label">LATEST S-PICK</span>
               <span class="stat-num" id="aiPickS">--:--:--</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Wadati S–P Lag" data-tooltip="Time gap (t_S - t_P) in seconds between fast P-wave and slower S-wave arrival.">
               <span class="stat-label">S - P TIME LAG</span>
               <span class="stat-num" id="aiLagSP">-- s</span>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" data-tooltip-title="Single-Station Distance" data-tooltip="Estimated epicentral distance D = Δt × (Vp·Vs)/(Vp - Vs) ≈ 8.4 km/s × (t_S - t_P).">
               <span class="stat-label">EST. EPICENTRAL DISTANCE</span>
               <span class="stat-num" id="aiEstDist" style="color: #38bdf8;">-- mi</span>
             </div>
@@ -1109,9 +1343,9 @@
       <section class="tab-panel" id="tab-psd">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Reading the USGS Peterson Noise Spectrum & What Being Inside / Outside the Lines Means</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -1149,9 +1383,9 @@
       <section class="tab-panel" id="tab-sonification">
         <!-- Science Interpretation Guide -->
         <div class="science-guide collapsed">
-          <div class="guide-toggle">
+          <div class="guide-toggle" role="button" tabindex="0" aria-expanded="false">
             <span>💡 <b>Observatory Guide</b> — Listening to the Earth: Seismic Sonification</span>
-            <span class="guide-chevron">▼ Details</span>
+            <span class="guide-chevron"><span class="chevron-arrow">▼</span> Details</span>
           </div>
           <div class="guide-content">
             <div class="guide-col">
@@ -1287,18 +1521,64 @@
           <div class="modal-features-card">
             <h4>🔬 Physical & Spectral Feature Breakdown</h4>
             <div class="modal-features-grid">
-              <div class="feat-item"><span class="feat-label">Resultant PGA:</span><span class="feat-val" id="featPGA">--</span></div>
-              <div class="feat-item"><span class="feat-label">Dominant Freq:</span><span class="feat-val" id="featDomFreq">--</span></div>
-              <div class="feat-item"><span class="feat-label">Spectral Centroid:</span><span class="feat-val" id="featCentroid">--</span></div>
-              <div class="feat-item"><span class="feat-label">RSAM Power:</span><span class="feat-val" id="featRSAM">--</span></div>
-              <div class="feat-item"><span class="feat-label">Apparent Azimuth:</span><span class="feat-val" id="featAzimuth">--</span></div>
-              <div class="feat-item"><span class="feat-label">Rectilinearity:</span><span class="feat-val" id="featRect">--</span></div>
-              <div class="feat-item"><span class="feat-label">Duration:</span><span class="feat-val" id="featDuration">--</span></div>
-              <div class="feat-item"><span class="feat-label">Total Samples:</span><span class="feat-val" id="featSamples">--</span></div>
+              <div class="feat-item" data-tooltip-title="Resultant PGA" data-tooltip="Peak 3-axis vector acceleration sqrt(ENZ² + ENN² + ENE²) in m/s². Values above ~0.02 m/s² are typically felt.">
+                <span class="feat-label">Resultant PGA:</span><span class="feat-val" id="featPGA">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Dominant Frequency" data-tooltip="Highest-energy Fourier frequency peak (Hz). Regional earthquakes concentrate at 1–5 Hz; footsteps/traffic are higher.">
+                <span class="feat-label">Dominant Freq:</span><span class="feat-val" id="featDomFreq">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Spectral Centroid" data-tooltip="Power-weighted center frequency (Hz). Helps separate deep low-frequency crustal P/S energy from high-frequency surface bangs.">
+                <span class="feat-label">Spectral Centroid:</span><span class="feat-val" id="featCentroid">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="RSAM Power" data-tooltip="Real-Time Seismic Amplitude Measurement — mean absolute velocity in counts over the trigger window.">
+                <span class="feat-label">RSAM Power:</span><span class="feat-val" id="featRSAM">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Apparent Azimuth" data-tooltip="Estimated back-azimuth angle derived from orthogonal horizontal ENN/ENE particle motion during the onset window.">
+                <span class="feat-label">Apparent Azimuth:</span><span class="feat-val" id="featAzimuth">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Rectilinearity" data-tooltip="eigenvalue polarization score (0.0 = circular surface/ambient motion, 1.0 = pure rectilinear body-wave ray).">
+                <span class="feat-label">Rectilinearity:</span><span class="feat-val" id="featRect">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Trigger Duration" data-tooltip="Elapsed seconds where STA/LTA exceeded trigger threshold before detriggering.">
+                <span class="feat-label">Duration:</span><span class="feat-val" id="featDuration">--</span>
+              </div>
+              <div class="feat-item" data-tooltip-title="Total Samples" data-tooltip="Number of 100 Hz digital samples captured per channel in this event snippet.">
+                <span class="feat-label">Total Samples:</span><span class="feat-val" id="featSamples">--</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Quake Archive Replay & Highlight Clip Modal -->
+    <div id="quakeReplayModal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true">
+      <div class="modal-dialog replay-modal-dialog">
+        <div class="modal-header">
+          <div>
+            <h3 id="replayModalTitle" style="margin:0; font-size:15px;">🔍 Did My Sensor See That Quake?</h3>
+            <div id="replayModalSubtitle" style="font-size:11px; color:#94a3b8; margin-top:2px;">Loading waveform...</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="meta-badge" id="replayVerdictBadge">--</span>
+            <button type="button" class="btn btn-sm btn-ghost" id="closeReplayModalBtn">✕ Close</button>
+          </div>
+        </div>
+        <div class="modal-body" style="padding:14px;">
+          <div class="replay-stats-row">
+            <span>Arrival SNR: <b id="replaySnrStat">--</b></span>
+            <span>Peak Amp: <b id="replayPeakStat">--</b></span>
+            <span>Context / Baseline: <b id="replayNoiseStat">--</b></span>
+          </div>
+          <canvas id="replayWaveformCanvas" class="replay-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Context Tooltip -->
+    <div id="observatoryTooltip" class="observatory-tooltip" role="tooltip" aria-hidden="true">
+      <div class="tooltip-title" id="tooltipTitle"></div>
+      <div class="tooltip-body" id="tooltipBody"></div>
     </div>
 
     <!-- Footer / Status Bar -->
@@ -1309,18 +1589,18 @@
         <span class="sep">|</span>
         <span>Buffer Fill: <b id="footerBuffer">100%</b></span>
         <span class="sep">|</span>
-        <span>Sample Rate: <b>100 Hz</b></span>
+        <span>Sample Rate: <b id="footerSampleRate">100 Hz</b></span>
       </div>
       <div class="footer-right">
-        <span>Station Lat/Lon: <b>37.8696° N, 122.2491° W</b> (Berkeley Hills)</span>
+        <span>Station Lat/Lon: <b id="footerCoords">37.8696° N, 122.2491° W (Berkeley Hills)</b></span>
         <span class="sep">|</span>
-        <span>v0.2.0</span>
+        <span id="footerVersion">v0.2.0</span>
         <span class="sep">|</span>
         <a href="https://github.com/gavinfischer-keenan/Earthquakepredictionengine" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Source code on GitHub</a>
       </div>
     </footer>
   </div>
 
-  <script type="module" src="/static/js/main.js?v=1787300000"></script>
+  <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>
