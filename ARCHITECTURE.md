@@ -114,7 +114,7 @@ The runtime pipeline is driven by `SeismicEngine` (`eqengine.engine`) on a 4 Hz 
   - **`GreekTheatreProvider` (`providers/greek_theatre.py`)**: Parses `MusicEvent` JSON-LD schedules from `thegreekberkeley.com` with 2-hour pre-show soundcheck detection (`25–45 Hz` acoustic sub-bass coupling).
   - **`BerkeleyWeatherProvider` (`providers/berkeley_weather.py`)**: Polls Open-Meteo current wind speed, gusts, pressure, and precipitation for station coordinates (`0.38–0.85 Hz` tree-canopy sway).
   - **`BartTransitProvider` (`providers/bart_transit.py`)**: Polls live BART ETD arrivals at `DBRK` (Downtown Berkeley) and `ROCK` (Rockridge) to flag trains transiting the Berkeley Hills Tunnel (`4–8 Hz` rail harmonics).
-  - **`AircraftProvider` (`providers/aircraft.py`)**: Polls free `airplanes.live` ADS-B airspace around the station to detect low helicopters and aircraft (`10–35 Hz` acoustic Doppler combs) and display a live HUD badge on HD Spectrogram & Urban Profiler.
+  - **`AircraftProvider` (`providers/aircraft.py`)**: Polls free ADS-B airspace around the station (`adsb.lol` $\rightarrow$ `adsb.fi` $\rightarrow$ `airplanes.live` $\rightarrow$ OpenSky Network fallback with 15-min `403`/`429` source cooldown) to detect low helicopters and aircraft (`10–35 Hz` acoustic Doppler combs) and display a live HUD badge on HD Spectrogram & Urban Profiler.
 - Persists cache to `data/external_events_cache.json` and correlates live scheduled/environmental phenomena with live RS4D spectral bands.
 
 ### 9. ML Dataset & Annotation Engine (`eqengine.ml.dataset_logger`)

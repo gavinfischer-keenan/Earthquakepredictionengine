@@ -4,6 +4,7 @@ from __future__ import annotations
 from eqengine.external_events.providers.aircraft import (
     AircraftProvider,
     parse_airplanes_live_response,
+    parse_opensky_response,
 )
 from eqengine.external_events.providers.bart_transit import (
     BartTransitProvider,
@@ -33,4 +34,5 @@ __all__ = [
     "parse_espn_cal_schedule",
     "parse_greek_theatre_html",
     "parse_open_meteo_weather",
+    "parse_opensky_response",
 ]
