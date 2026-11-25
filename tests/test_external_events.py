@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 
 from eqengine.external_events.correlator import correlate_external_events
 from eqengine.external_events.manager import ExternalEventsManager
-from eqengine.external_events.providers.aircraft import parse_airplanes_live_response
+from eqengine.external_events.providers.aircraft import (
+    AircraftProvider,
+    parse_airplanes_live_response,
+    parse_opensky_response,
+)
 from eqengine.external_events.providers.bart_transit import parse_bart_etd_responses
 from eqengine.external_events.providers.berkeley_weather import parse_open_meteo_weather
 from eqengine.external_events.providers.cal_football import parse_espn_cal_schedule
@@ -258,3 +262,73 @@ class TestAircraftProvider:
         assert corr.active_category == "aircraft"
         assert corr.matched_band == "aircraft"
         assert "CHP30" in corr.reason
+
+    def test_parses_adsb_fi_and_opensky_formats(self) -> None:
+        now_ts = 1795000000.0
+        fi_payload = {
+            "aircraft": [
+                {
+                    "hex": "c11111",
+                    "flight": "MED1",
+                    "t": "H135",
+                    "lat": 37.871,
+                    "lon": -122.250,
+                    "alt_baro": 1200,
+                    "gs": 110.0,
+                }
+            ]
+        }
+        snap_fi, _ = parse_airplanes_live_response(fi_payload, now_ts=now_ts, source="adsb-fi")
+        assert snap_fi.source == "adsb-fi"
+        assert snap_fi.helicopter_overhead is True
+        assert snap_fi.closest_aircraft is not None
+        assert snap_fi.closest_aircraft.callsign == "MED1"
+
+        opensky_payload = {
+            "states": [
+                # Low rotorcraft (category 8, ~400 m ≈ 1312 ft)
+                ["a10001", "CHP32 ", "United States", 1795000000, 1795000000, -122.250, 37.870, 400.0, False, 50.0, 90.0, 0.0, None, 410.0, "1200", False, 0, 8],
+                # On-ground aircraft -> ignored
+                ["a10002", "GND1  ", "United States", 1795000000, 1795000000, -122.250, 37.870, 100.0, True, 5.0, 0.0, 0.0, None, 100.0, None, False, 0, 3],
+                # High airliner (9000 m ≈ 29528 ft) -> excluded from overhead
+                ["a10003", "UAL99 ", "United States", 1795000000, 1795000000, -122.250, 37.870, 9000.0, False, 220.0, 180.0, 0.0, None, 9100.0, "3000", False, 0, 4],
+            ]
+        }
+        snap_os, evs_os = parse_opensky_response(opensky_payload, now_ts=now_ts, max_alt_ft=5000)
+        assert snap_os.source == "opensky"
+        assert snap_os.total_nearby == 2
+        assert snap_os.low_overhead_count == 1
+        assert snap_os.helicopter_overhead is True
+        assert snap_os.closest_aircraft is not None
+        assert snap_os.closest_aircraft.callsign == "CHP32"
+        assert len(evs_os) == 1
+
+    async def test_aircraft_provider_falls_back_on_403_and_cools_down(self) -> None:
+        import httpx
+
+        calls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request.url.host)
+            if "adsb.lol" in request.url.host:
+                return httpx.Response(403, json={"error": "blocked"}, request=request)
+            if "adsb.fi" in request.url.host:
+                return httpx.Response(
+                    200,
+                    json={"aircraft": [{"hex": "abc123", "flight": "TEST1", "t": "H125", "lat": 37.87, "lon": -122.25, "alt_baro": 1500}]},
+                    request=request,
+                )
+            return httpx.Response(404, request=request)
+
+        provider = AircraftProvider()
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            snap, _ = await provider.fetch(client)
+            assert snap.source == "adsb-fi"
+            assert snap.low_overhead_count == 1
+            assert "api.adsb.lol" in calls
+
+            # Next poll skips blocked adsb.lol cleanly because cooldown is active
+            calls.clear()
+            snap2, _ = await provider.fetch(client)
+            assert snap2.source == "adsb-fi"
+            assert "api.adsb.lol" not in calls

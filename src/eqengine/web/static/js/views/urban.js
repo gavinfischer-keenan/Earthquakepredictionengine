@@ -217,7 +217,7 @@ function renderExternalEventsPanel(ext) {
     if (airMeta) {
       airMeta.textContent = closest
         ? `${Number(closest.distance_km || 0).toFixed(1)} km away · 10–35 Hz acoustic comb`
-        : 'airplanes.live ADS-B · 10–35 Hz acoustic band';
+        : `${air.source || 'ADS-B'} · 10–35 Hz acoustic comb`;
     }
   }
 }
